@@ -13,9 +13,15 @@ export interface HudState {
   level: number;
   lights: number;
   formIndex: number;
-  energy: number; // 0..1
-  showEnergy: boolean;
-  exhausted: boolean;
+  /** The bar under the hearts (fairy flight, orangutan trees), or null for none. */
+  meter: Meter | null;
+}
+
+export interface Meter {
+  label: string;
+  fraction: number; // 0..1
+  /** Drawn in the "worn out" colour. */
+  tired: boolean;
 }
 
 export class Hud {
@@ -47,7 +53,7 @@ export class Hud {
         <div class="stats">
           <div class="hearts" aria-label="Hearts"></div>
           <div class="energy hidden">
-            <span class="energy-label">Flying energy</span>
+            <span class="energy-label"></span>
             <div class="energy-track"><div class="energy-fill"></div></div>
           </div>
         </div>
@@ -137,11 +143,11 @@ export class Hud {
         );
       });
     }
-    this.energy.classList.toggle('hidden', !s.showEnergy);
-    if (s.showEnergy) {
-      this.energyFill.style.width = `${Math.round(s.energy * 100)}%`;
-      this.energy.classList.toggle('tired', s.exhausted);
-      this.energyLabel.textContent = s.exhausted ? 'Tired! Resting…' : 'Flying energy';
+    this.energy.classList.toggle('hidden', !s.meter);
+    if (s.meter) {
+      this.energyFill.style.width = `${Math.round(s.meter.fraction * 100)}%`;
+      this.energy.classList.toggle('tired', s.meter.tired);
+      this.energyLabel.textContent = s.meter.label;
     }
   }
 

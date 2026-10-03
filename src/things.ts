@@ -13,15 +13,10 @@ import type { PuzzleSpot, World } from './world';
 // The things on an island you walk up to: puzzle speakers, the candles they
 // guard, checkpoints and loaves of bread.
 
-/** The melody for each puzzle, as indexes into NOTES. */
-const MELODIES: Record<string, number[]> = {
-  grove: [0, 2, 4],
-  hilltop: [4, 2, 5, 0],
-  islet: [0, 1, 2, 4, 7],
-};
-
 export class Puzzle {
   readonly melody: number[];
+  /** How bright the flame is right now, around 1. Game feeds it to the light pool. */
+  flicker = 1;
   solved = false;
   taken = false;
   readonly speakerPos: THREE.Vector3;
@@ -36,15 +31,13 @@ export class Puzzle {
     world: World,
     parent: THREE.Object3D,
   ) {
-    this.melody = MELODIES[spot.id] ?? [0, 2, 4].slice(0, spot.notes);
+    this.melody = spot.melody;
     this.speaker = makeSpeaker();
     this.candle = makeCandle();
     this.speakerPos = new THREE.Vector3(spot.speaker.x, world.groundAt(spot.speaker.x, spot.speaker.z), spot.speaker.z);
     this.candlePos = new THREE.Vector3(spot.candle.x, world.groundAt(spot.candle.x, spot.candle.z), spot.candle.z);
     this.speaker.group.position.copy(this.speakerPos);
     this.candle.group.position.copy(this.candlePos);
-    world.addBlock(spot.speaker.x, spot.speaker.z, 2.6);
-    world.addBlock(spot.candle.x, spot.candle.z, 2.6);
     parent.add(this.speaker.group, this.candle.group);
   }
 
@@ -56,15 +49,14 @@ export class Puzzle {
   refresh(): void {
     this.candle.cage.visible = !this.solved;
     this.candle.flame.visible = !this.taken;
-    this.candle.light.intensity = this.taken ? 0 : 3;
   }
 
   update(time: number): void {
     const c = this.candle;
     if (!this.taken) {
       const flicker = 1 + Math.sin(time * 13 + this.candlePos.x) * 0.08 + Math.sin(time * 7.3) * 0.06;
+      this.flicker = flicker;
       c.flame.scale.set(flicker, 1.7 * flicker, flicker);
-      c.light.intensity = 3 * flicker;
     }
     if (!this.solved) {
       (c.cage.material as THREE.MeshBasicMaterial).opacity = 0.22 + Math.sin(time * 3) * 0.08;
@@ -93,7 +85,6 @@ export class Checkpoint {
     this.model = makeCheckpoint();
     this.pos = new THREE.Vector3(x, world.groundAt(x, z), z);
     this.model.group.position.copy(this.pos);
-    world.addBlock(x, z, 2.6);
     parent.add(this.model.group);
   }
 

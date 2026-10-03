@@ -1,21 +1,43 @@
 import * as THREE from 'three';
-import { FORMS, FormDef, SWORD_COLOR, SWORD_DAMAGE, swordTier } from './forms';
-import { Input } from './input';
-import { makeFairy, makeFairyHome, makeHuman, FairyModel, HumanModel } from './models';
+import { FORMS, FormDef, PHYSICS, SWORD_COLOR, SWORD_DAMAGE, swordTier } from './forms';
+import type { Meter } from './hud';
+import type { Controls } from './input';
+import {
+  APE_ARM_REST,
+  makeBunny,
+  makeFairy,
+  makeFairyHome,
+  makeHuman,
+  makeOrangutan,
+  BunnyModel,
+  FairyModel,
+  HumanModel,
+  OrangutanModel,
+} from './models';
 import { Particles } from './particles';
 import { sound } from './audio';
 import { World } from './world';
 
-const GRAVITY = 24;
-const JUMP_SPEED = 7.6; // clears a one-tile ledge
-const STEP = 0.35; // how high you can walk up without jumping
+const { gravity: GRAVITY, step: STEP, flyCeiling: FLY_CEILING } = PHYSICS;
 const RADIUS = 0.3;
 
 // Fairy flight
 const FLY_ENERGY = 4.5; // seconds of flapping before exhaustion
 const FLY_RISE = 2.4;
-const FLY_CEILING = 3; // how far above the last ground a fairy can climb
 const FLY_REST = 2.2; // seconds on the ground to recover fully
+
+// Orangutan climbing
+const MAX_TREES = 20; // trees in a row before it must touch the ground
+const CLIMB_SPEED = 4; // tiles per second up a trunk
+const GRAB_DELAY = 0.15; // seconds of pushing on the ground before it grabs
+const CLIMB_SLACK = 0.3; // feet may be this far below a trunk's base and still grab
+const TOP_TIME = 0.12; // seconds to shuffle onto the middle of the treetop
+const LET_GO_DOT = -0.2; // steering this far away from the trunk lets go
+const DENIED_GAP = 0.8; // seconds between "too tired" sounds
+
+// Bunny
+const HOP_FULL_SPEED = 12; // still rising this fast after a moment: a full hop
+const LAND_TIME = 0.2; // squash after landing
 
 const ATTACK_TIME = 0.3;
 const ATTACK_REACH = 1.75;
@@ -27,11 +49,33 @@ export interface Attackable {
   takeHit(damage: number, fromX: number, fromZ: number): void;
 }
 
+/** A climb up one tree trunk. */
+interface Climb {
+  /** The trunk's tile and the middle of it. */
+  tile: number;
+  cx: number;
+  cz: number;
+  /** Height of the treetop. */
+  top: number;
+  /** Progress of the shuffle onto the top: -1 while still going up. */
+  over: number;
+  fromX: number;
+  fromZ: number;
+}
+
 export interface PlayerEvents {
   onFell(): void;
   onDied(): void;
   onAte(): void;
   onHome(): void;
+}
+
+/** Turn `facing` toward `target`, the short way round. */
+function turnToward(facing: number, target: number, dt: number): number {
+  let diff = target - facing;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return facing + diff * Math.min(1, dt * 16);
 }
 
 export class Player {
@@ -57,6 +101,26 @@ export class Player {
   flownTime = 0;
   walked = 0;
 
+  // Orangutan climbing
+  private climb: Climb | null = null;
+  /** Trees climbed since an orangutan last stood on real ground. */
+  treesClimbed = 0;
+  private lastTree = -1;
+  private pushed: { tile: number; cx: number; cz: number } | null = null;
+  private pushTime = 0;
+  private pushTile = -1;
+  private noGrab = 0;
+  private deniedTimer = 0;
+  private climbPhase = 0;
+  /** Total climbs started, for the tutorial. */
+  totalClimbs = 0;
+
+  // Bunny
+  private hopCounted = false;
+  /** Hops where Space was held long enough to count as a full one, for the tutorial. */
+  fullHops = 0;
+  private landTimer = 0;
+
   private lastGroundY = 0;
   private attackTimer = 0;
   private attackHit = false;
@@ -68,6 +132,8 @@ export class Player {
 
   private human: HumanModel;
   private fairy: FairyModel;
+  private orangutan: OrangutanModel;
+  private bunny: BunnyModel;
   private home: THREE.Group;
 
   constructor(
@@ -77,9 +143,11 @@ export class Player {
   ) {
     this.human = makeHuman();
     this.fairy = makeFairy();
+    this.orangutan = makeOrangutan();
+    this.bunny = makeBunny();
     this.home = makeFairyHome();
     this.home.visible = false;
-    this.group.add(this.human.group, this.fairy.group);
+    this.group.add(this.human.group, this.fairy.group, this.orangutan.group, this.bunny.group);
     this.applyForm();
   }
 
@@ -95,9 +163,29 @@ export class Player {
     return this.energy / FLY_ENERGY;
   }
 
+  /** True while gripping a tree trunk. */
+  get climbing(): boolean {
+    return this.climb !== null;
+  }
+
+  /** The bar under the hearts for forms that have one, or null. */
+  get meter(): Meter | null {
+    if (this.form.canFly) {
+      const label = this.exhausted ? 'Tired! Resting…' : 'Flying energy';
+      return { label, fraction: this.energyFraction, tired: this.exhausted };
+    }
+    if (this.form.id === 'orangutan') {
+      const left = MAX_TREES - this.treesClimbed;
+      const label =
+        left > 0 ? `Climbing: ${left} ${left === 1 ? 'tree' : 'trees'} left` : 'Too tired to climb - touch the ground';
+      return { label, fraction: left / MAX_TREES, tired: left <= 0 };
+    }
+    return null;
+  }
+
   /** Height of the middle of the body, for effects and aiming. */
   get chest(): THREE.Vector3 {
-    return new THREE.Vector3(this.pos.x, this.pos.y + (this.formIndex === 1 ? 0.45 : 0.9), this.pos.z);
+    return new THREE.Vector3(this.pos.x, this.pos.y + this.form.chest, this.pos.z);
   }
 
   place(x: number, z: number): void {
@@ -106,6 +194,9 @@ export class Player {
     this.knock.set(0, 0, 0);
     this.onGround = true;
     this.lastGroundY = this.pos.y;
+    this.climb = null;
+    this.treesClimbed = 0;
+    this.lastTree = -1;
     this.leaveHome();
     this.sync(0);
   }
@@ -124,6 +215,7 @@ export class Player {
   shiftTo(index: number): boolean {
     if (this.canShiftTo(index) !== 'ok') return false;
     this.leaveHome();
+    this.letGo();
     this.formIndex = index;
     // Hearts never go above what the new form can hold. Shifting back to a
     // bigger form does not give them back: you have to eat.
@@ -136,10 +228,15 @@ export class Player {
   }
 
   private applyForm(): void {
-    this.human.group.visible = this.formIndex === 0;
-    this.fairy.group.visible = this.formIndex === 1;
-    const tier = swordTier(this.level);
-    (this.human.blade.material as THREE.MeshLambertMaterial).color.setHex(SWORD_COLOR[tier]);
+    const id = this.form.id;
+    this.human.group.visible = id === 'human';
+    this.fairy.group.visible = id === 'fairy';
+    this.orangutan.group.visible = id === 'orangutan';
+    this.bunny.group.visible = id === 'bunny';
+    const color = SWORD_COLOR[swordTier(this.level)];
+    for (const blade of [this.human.blade, this.orangutan.blade]) {
+      (blade.material as THREE.MeshLambertMaterial).color.setHex(color);
+    }
   }
 
   /** Call after the level changes so the sword shows its new tier. */
@@ -152,6 +249,7 @@ export class Player {
   damage(amount: number, fromX: number, fromZ: number): void {
     if (this.dead || this.safeTimer > 0 || this.hidden) return;
     this.hearts = Math.max(0, this.hearts - amount);
+    this.letGo();
     this.safeTimer = HURT_SAFE_TIME;
     const dx = this.pos.x - fromX;
     const dz = this.pos.z - fromZ;
@@ -204,10 +302,12 @@ export class Player {
 
   // ---- per-frame ---------------------------------------------------------
 
-  update(dt: number, input: Input, enemies: readonly Attackable[]): void {
+  update(dt: number, input: Controls, enemies: readonly Attackable[]): void {
     if (this.dead) return;
     this.safeTimer = Math.max(0, this.safeTimer - dt);
     this.eatTimer = Math.max(0, this.eatTimer - dt);
+    this.noGrab = Math.max(0, this.noGrab - dt);
+    this.deniedTimer = Math.max(0, this.deniedTimer - dt);
 
     if (input.hit('KeyF')) this.eat();
 
@@ -220,7 +320,7 @@ export class Player {
       return;
     }
 
-    const isFairy = this.formIndex === 1;
+    const isFairy = this.form.canFly;
     if (isFairy && input.hit('KeyQ')) {
       if (this.onGround && !this.swimming) {
         this.enterHome();
@@ -229,15 +329,21 @@ export class Player {
       sound.denied();
     }
 
-    this.moveAround(dt, input, isFairy);
-    this.moveUpDown(dt, input, isFairy);
+    if (this.climb) {
+      this.climbStep(dt, input);
+    } else {
+      this.moveAround(dt, input, isFairy);
+      this.tryGrab(dt);
+      if (!this.climb) this.moveUpDown(dt, input, isFairy);
+      this.touchGround();
+    }
     this.swingSword(dt, input, enemies);
 
     if (this.pos.y < -8) this.events.onFell();
     this.sync(dt);
   }
 
-  private moveAround(dt: number, input: Input, isFairy: boolean): void {
+  private moveAround(dt: number, input: Controls, isFairy: boolean): void {
     const m = input.move();
     // The camera sits to the south-west looking north-east, so "up" on screen
     // is +x -z and "right" on screen is +x +z.
@@ -251,11 +357,7 @@ export class Player {
     if (len > 0) {
       dx /= len;
       dz /= len;
-      const target = Math.atan2(dx, dz);
-      let diff = target - this.facing;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      this.facing += diff * Math.min(1, dt * 16);
+      this.facing = turnToward(this.facing, Math.atan2(dx, dz), dt);
       this.walkPhase += dt * speed * 2.4;
       this.walked += speed * dt;
     } else {
@@ -266,16 +368,150 @@ export class Player {
     const stepZ = (dz * speed + this.knock.z) * dt;
     this.knock.multiplyScalar(Math.max(0, 1 - dt * 8));
 
-    // Slide along walls by trying each axis on its own.
+    // Slide along walls by trying each axis on its own. An orangutan that is
+    // steering into a wall makes a note of any tree trunk it is pressed against.
+    const climber = this.form.id === 'orangutan';
+    this.pushed = null;
     if (this.world.solidUnder(this.pos.x + stepX, this.pos.z, RADIUS) <= this.pos.y + STEP) {
       this.pos.x += stepX;
+    } else if (climber && dx !== 0) {
+      this.pushed = this.trunkAt(this.pos.x + stepX, this.pos.z);
     }
     if (this.world.solidUnder(this.pos.x, this.pos.z + stepZ, RADIUS) <= this.pos.y + STEP) {
       this.pos.z += stepZ;
+    } else if (climber && dz !== 0) {
+      this.pushed = this.pushed ?? this.trunkAt(this.pos.x, this.pos.z + stepZ);
     }
   }
 
-  private moveUpDown(dt: number, input: Input, isFairy: boolean): void {
+  // ---- orangutan climbing ------------------------------------------------
+
+  /** The climbable trunk, if any, that blocks a body standing at (x, z). */
+  private trunkAt(x: number, z: number): { tile: number; cx: number; cz: number } | null {
+    let best: { tile: number; cx: number; cz: number } | null = null;
+    let bestDist = Infinity;
+    for (const [ox, oz] of [[-RADIUS, -RADIUS], [RADIUS, -RADIUS], [-RADIUS, RADIUS], [RADIUS, RADIUS]]) {
+      const i = Math.floor(x + ox);
+      const j = Math.floor(z + oz);
+      const cx = i + 0.5;
+      const cz = j + 0.5;
+      if (this.world.treeAt(cx, cz) <= 0) continue;
+      if (this.world.solidAt(cx, cz) <= this.pos.y + STEP) continue;
+      if (this.pos.y < this.world.groundAt(cx, cz) - CLIMB_SLACK) continue;
+      const d = Math.hypot(cx - x, cz - z);
+      if (d < bestDist) {
+        bestDist = d;
+        best = { tile: j * this.world.width + i, cx, cz };
+      }
+    }
+    return best;
+  }
+
+  /** Grab the trunk we are pressed against: at once in the air, after a push on the ground. */
+  private tryGrab(dt: number): void {
+    const t = this.pushed;
+    if (!t || this.noGrab > 0) {
+      this.pushTime = 0;
+      this.pushTile = -1;
+      return;
+    }
+    if (t.tile !== this.pushTile) {
+      this.pushTile = t.tile;
+      this.pushTime = 0;
+    }
+    this.pushTime += dt;
+    if (this.onGround && this.pushTime < GRAB_DELAY) return;
+
+    const isNew = t.tile !== this.lastTree;
+    if (isNew && this.treesClimbed >= MAX_TREES) {
+      if (this.deniedTimer <= 0) {
+        sound.denied();
+        this.deniedTimer = DENIED_GAP;
+      }
+      return;
+    }
+    if (isNew) {
+      this.treesClimbed += 1;
+      this.lastTree = t.tile;
+    }
+    this.totalClimbs += 1;
+    this.climb = {
+      tile: t.tile,
+      cx: t.cx,
+      cz: t.cz,
+      top: this.world.solidAt(t.cx, t.cz),
+      over: -1,
+      fromX: 0,
+      fromZ: 0,
+    };
+    this.vy = 0;
+    this.onGround = false;
+    this.swimming = false;
+    this.pushTime = 0;
+    this.pushTile = -1;
+  }
+
+  private climbStep(dt: number, input: Controls): void {
+    const c = this.climb!;
+    const toTrunk = Math.atan2(c.cx - this.pos.x, c.cz - this.pos.z);
+    this.facing = turnToward(this.facing, toTrunk, dt);
+
+    if (c.over < 0) {
+      // Steering away from the trunk lets go.
+      const m = input.move();
+      const sx = (m.x + m.y) * Math.SQRT1_2;
+      const sz = (m.x - m.y) * Math.SQRT1_2;
+      const len = Math.hypot(sx, sz);
+      const tx = c.cx - this.pos.x;
+      const tz = c.cz - this.pos.z;
+      const tl = Math.hypot(tx, tz);
+      const away = len > 0 && tl > 0 ? (sx * tx + sz * tz) / (len * tl) : 0;
+      if (away < LET_GO_DOT) {
+        this.letGo();
+        return;
+      }
+      this.pos.y = Math.min(c.top, this.pos.y + CLIMB_SPEED * dt);
+      this.climbPhase += dt;
+      if (this.pos.y >= c.top) {
+        c.over = 0;
+        c.fromX = this.pos.x;
+        c.fromZ = this.pos.z;
+      }
+      return;
+    }
+
+    // At the top: shuffle onto the middle of the tile and stand there.
+    c.over = Math.min(1, c.over + dt / TOP_TIME);
+    this.pos.x = c.fromX + (c.cx - c.fromX) * c.over;
+    this.pos.z = c.fromZ + (c.cz - c.fromZ) * c.over;
+    if (c.over >= 1) {
+      this.climb = null;
+      this.vy = 0;
+      this.onGround = true;
+      this.lastGroundY = c.top;
+    }
+  }
+
+  /** Let go of a trunk and fall. Does nothing when not climbing. */
+  private letGo(): void {
+    if (!this.climb) return;
+    this.climb = null;
+    this.noGrab = 0.4;
+    this.vy = 0;
+    this.onGround = false;
+  }
+
+  /** Real ground (not a treetop) makes a tired orangutan fresh again. */
+  private touchGround(): void {
+    if (!(this.onGround || this.swimming)) return;
+    if (this.world.treeAt(this.pos.x, this.pos.z) > 0) return;
+    this.treesClimbed = 0;
+    this.lastTree = -1;
+  }
+
+  private moveUpDown(dt: number, input: Controls, isFairy: boolean): void {
+    const wasOnGround = this.onGround;
+    const impact = this.vy;
     let ground = this.world.solidUnder(this.pos.x, this.pos.z, RADIUS);
     // Water holds you up: you float with your head out.
     const inWater = this.world.isWater(this.pos.x, this.pos.z);
@@ -296,11 +532,22 @@ export class Player {
         this.exhausted = true;
         sound.denied();
       }
-    } else if (!isFairy && this.onGround && input.hit('Space')) {
-      this.vy = JUMP_SPEED;
+    } else if (this.form.jump > 0 && this.onGround && input.hit('Space')) {
+      this.vy = this.form.jump;
       this.onGround = false;
+      this.hopCounted = false;
       sound.jump();
     } else if (!this.onGround) {
+      // Letting go of Space early cuts a bunny's hop short; holding it counts as a full hop.
+      const cut = this.form.jumpCut;
+      if (cut > 0 && this.vy > cut) {
+        if (!input.held('Space')) {
+          this.vy = cut;
+        } else if (!this.hopCounted && this.vy < HOP_FULL_SPEED) {
+          this.hopCounted = true;
+          this.fullHops += 1;
+        }
+      }
       // Fairies flutter down slowly; everyone else just falls.
       this.vy -= GRAVITY * (isFairy ? 0.4 : 1) * dt;
       if (isFairy) this.vy = Math.max(this.vy, -3.4);
@@ -312,6 +559,7 @@ export class Player {
       this.vy = 0;
       this.onGround = true;
       this.lastGroundY = ground;
+      if (!wasOnGround && impact < -3) this.landed(impact);
     } else if (this.pos.y > ground + 0.02) {
       this.onGround = false;
     }
@@ -319,12 +567,18 @@ export class Player {
     if (this.onGround) this.recoverEnergy(dt);
   }
 
+  private landed(impact: number): void {
+    if (this.form.id !== 'bunny') return;
+    this.landTimer = LAND_TIME;
+    if (impact < -8) this.particles.burst(this.pos, 0xffffff, 8, 1.6, 0.1, 1);
+  }
+
   private recoverEnergy(dt: number): void {
     this.energy = Math.min(FLY_ENERGY, this.energy + (FLY_ENERGY / FLY_REST) * dt);
     if (this.energy >= FLY_ENERGY) this.exhausted = false;
   }
 
-  private swingSword(dt: number, input: Input, enemies: readonly Attackable[]): void {
+  private swingSword(dt: number, input: Controls, enemies: readonly Attackable[]): void {
     const wants = input.hit('KeyJ') || input.hit('Mouse0');
     if (wants && this.attackTimer <= 0) {
       if (this.form.sword === 'none') {
@@ -366,33 +620,104 @@ export class Player {
     this.group.visible = this.safeTimer <= 0 || Math.floor(this.safeTimer * 14) % 2 === 0;
 
     const swing = Math.sin(this.walkPhase) * (this.onGround || this.swimming ? 0.8 : 0.3);
-    if (this.formIndex === 0) {
-      const h = this.human;
-      h.legL.rotation.x = swing;
-      h.legR.rotation.x = -swing;
-      h.armL.rotation.x = -swing * 0.8;
-      if (this.attackTimer > 0) {
-        const t = 1 - this.attackTimer / ATTACK_TIME;
-        h.armR.rotation.x = -2.6 + t * 2.9;
-      } else {
-        h.armR.rotation.x = swing * 0.8 - 0.25;
-      }
-      if (!this.onGround && !this.swimming) {
-        h.legL.rotation.x = 0.5;
-        h.legR.rotation.x = -0.3;
-      }
-    } else {
-      const f = this.fairy;
-      const airborne = !this.onGround;
-      const now = performance.now() / 1000;
-      const flap = airborne ? 0.5 + Math.sin(now * 38) * 0.7 : 0.3 + Math.sin(now * 4) * 0.2;
-      f.wingL.rotation.y = flap;
-      f.wingR.rotation.y = -flap;
-      f.body.position.y = airborne ? Math.sin(now * 7) * 0.04 : 0;
-      f.body.rotation.x = airborne ? 0.25 : 0;
-      if (airborne && dt > 0 && Math.random() < dt * 14) {
-        this.particles.sparkle(this.chest, 0xffd6f2, 1, 0.15);
-      }
+    switch (this.form.id) {
+      case 'human':
+        this.animateHuman(swing);
+        break;
+      case 'orangutan':
+        this.animateOrangutan(swing);
+        break;
+      case 'bunny':
+        this.animateBunny(dt);
+        break;
+      default:
+        this.animateFairy(dt);
+    }
+  }
+
+  /** Raised-arm angle for a sword swing, starting overhead and sweeping down. */
+  private swordArm(): number {
+    const t = 1 - this.attackTimer / ATTACK_TIME;
+    return -2.6 + t * 2.9;
+  }
+
+  private animateHuman(swing: number): void {
+    const h = this.human;
+    h.legL.rotation.x = swing;
+    h.legR.rotation.x = -swing;
+    h.armL.rotation.x = -swing * 0.8;
+    h.armR.rotation.x = this.attackTimer > 0 ? this.swordArm() : swing * 0.8 - 0.25;
+    if (!this.onGround && !this.swimming) {
+      h.legL.rotation.x = 0.5;
+      h.legR.rotation.x = -0.3;
+    }
+  }
+
+  private animateOrangutan(swing: number): void {
+    const o = this.orangutan;
+    if (this.climb) {
+      // Hand over hand: the arms reach overhead in turn and the legs push.
+      const c = Math.sin(this.climbPhase * 9);
+      o.upper.rotation.x = 0.1;
+      o.armL.rotation.x = -2.7 + c * 0.45;
+      o.armR.rotation.x = -2.7 - c * 0.45;
+      o.legL.rotation.x = -c * 0.6;
+      o.legR.rotation.x = c * 0.6;
+      return;
+    }
+    o.upper.rotation.x = 0.25;
+    o.legL.rotation.x = swing;
+    o.legR.rotation.x = -swing;
+    o.armL.rotation.x = APE_ARM_REST - swing * 0.7;
+    o.armR.rotation.x = this.attackTimer > 0 ? this.swordArm() : APE_ARM_REST + swing * 0.7;
+    if (!this.onGround && !this.swimming) {
+      o.legL.rotation.x = 0.5;
+      o.legR.rotation.x = -0.3;
+    }
+  }
+
+  private animateBunny(dt: number): void {
+    const b = this.bunny;
+    const airborne = !this.onGround && !this.swimming;
+    let stretch = 1;
+    let bounce = 0;
+    let earTarget = 0.08;
+    let footKick = 0;
+    if (airborne) {
+      // Long and thin on the way up, ears and feet trailing behind.
+      stretch = this.vy > 0.5 ? 1.2 : 1.06;
+      earTarget = -1.1;
+      footKick = 0.7;
+    } else if (this.walkPhase > 0) {
+      bounce = Math.abs(Math.sin(this.walkPhase)) * 0.1;
+      earTarget = -0.35;
+    }
+    let squash = 0;
+    if (this.landTimer > 0) {
+      this.landTimer = Math.max(0, this.landTimer - dt);
+      squash = this.landTimer / LAND_TIME;
+    }
+    const sy = stretch - squash * 0.3;
+    const sx = 1 / Math.sqrt(stretch) + squash * 0.25;
+    b.body.scale.set(sx, sy, sx);
+    b.body.position.y = bounce;
+    const k = dt > 0 ? Math.min(1, dt * 14) : 1;
+    for (const ear of [b.earL, b.earR]) ear.rotation.x += (earTarget - ear.rotation.x) * k;
+    b.footL.rotation.x = footKick;
+    b.footR.rotation.x = footKick;
+  }
+
+  private animateFairy(dt: number): void {
+    const f = this.fairy;
+    const airborne = !this.onGround;
+    const now = performance.now() / 1000;
+    const flap = airborne ? 0.5 + Math.sin(now * 38) * 0.7 : 0.3 + Math.sin(now * 4) * 0.2;
+    f.wingL.rotation.y = flap;
+    f.wingR.rotation.y = -flap;
+    f.body.position.y = airborne ? Math.sin(now * 7) * 0.04 : 0;
+    f.body.rotation.x = airborne ? 0.25 : 0;
+    if (airborne && dt > 0 && Math.random() < dt * 14) {
+      this.particles.sparkle(this.chest, 0xffd6f2, 1, 0.15);
     }
   }
 }

@@ -17,7 +17,8 @@ export interface SaveData {
   taken: string[];
   breadTaken: string[];
   hintsDone: string[];
-  finished: boolean;
+  /** Ids of the arrivals (new places) the player has reached. */
+  arrived: string[];
 }
 
 export function freshSave(): SaveData {
@@ -32,7 +33,7 @@ export function freshSave(): SaveData {
     taken: [],
     breadTaken: [],
     hintsDone: [],
-    finished: false,
+    arrived: [],
   };
 }
 
@@ -40,7 +41,12 @@ export function loadSave(): SaveData | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    return { ...freshSave(), ...(JSON.parse(raw) as Partial<SaveData>) };
+    const saved = JSON.parse(raw) as Partial<SaveData> & { finished?: boolean };
+    const data = { ...freshSave(), ...saved };
+    // Old saves marked the end of the tutorial with `finished`.
+    if (saved.finished && !saved.arrived) data.arrived = ['tanglewood'];
+    delete (data as { finished?: boolean }).finished;
+    return data;
   } catch {
     return null;
   }

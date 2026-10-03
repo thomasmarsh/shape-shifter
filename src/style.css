@@ -603,17 +603,30 @@ kbd {
   background: var(--gold);
 }
 
-@media (max-width: 720px) {
+/* Too narrow for hearts, hint and progress side by side: the hint gets a row. */
+@media (max-width: 1100px) {
   .hud-top {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr auto;
   }
   .hint {
     grid-column: 1 / -1;
     grid-row: 2;
-    font-size: 0.95rem;
   }
+  .toasts {
+    top: 210px;
+  }
+}
+
+/* Ten slots across: keep names like "Orangutan" whole. */
+@media (max-width: 900px) {
   .slot {
-    font-size: 0.68rem;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .hint {
+    font-size: 0.95rem;
   }
   .controls {
     grid-template-columns: 1fr;

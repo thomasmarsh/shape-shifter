@@ -3,7 +3,16 @@
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
-export class Input {
+/** What the player needs from the keyboard, so tests can drive it with a fake. */
+export interface Controls {
+  held(code: string): boolean;
+  hit(code: string): boolean;
+  /** Movement as screen directions: x is right, y is up, each -1..1. */
+  move(): { x: number; y: number };
+  anyMoveHit(): boolean;
+}
+
+export class Input implements Controls {
   private down = new Set<string>();
   private pressed = new Set<string>();
   /** When false, the game ignores input (a menu or puzzle is open). */

@@ -139,6 +139,17 @@ class Sound {
     this.tone(260, 0, 0.3, 0.25, 'square', 60);
   }
 
+  /** An archer loosing an arrow: a plucked string. */
+  bow(): void {
+    this.tone(420, 0, 0.16, 0.14, 'triangle', 140);
+    this.tone(1200, 0, 0.04, 0.06, 'square', 600);
+  }
+
+  /** An arrow sticking into something solid. */
+  thunk(): void {
+    this.tone(140, 0, 0.09, 0.18, 'square', 60);
+  }
+
   magic(): void {
     [880, 1174.7, 1568].forEach((f, k) => this.tone(f, k * 0.06, 0.3, 0.18, 'sine'));
   }

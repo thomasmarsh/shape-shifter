@@ -1,22 +1,31 @@
 import * as THREE from 'three';
 import { sound } from './audio';
+import { Arrows } from './arrows';
 import { Enemy } from './enemy';
 import { FORMS, lightsNeeded, swordTier } from './forms';
 import { Card, Hud } from './hud';
 import { Input } from './input';
-import { makeBoulder, makeCloud, makeTree } from './models';
+import { hash } from './layout';
+import { makeBoulder, makeCloud, makeGreatTree, makeTree } from './models';
 import { Particles } from './particles';
 import { Player } from './player';
 import { PuzzleUi } from './puzzleUi';
 import { clearSave, freshSave, loadSave, SaveData, writeSave } from './save';
 import { BreadPickup, Checkpoint, Puzzle } from './things';
-import { World } from './world';
+import { Arrival, World } from './world';
 
 const VIEW_HEIGHT = 15; // world units visible top to bottom
 // The camera sits to the south-west and looks north-east, so ground that
 // steps up toward the east or north shows its face to the player.
 const CAMERA_DIR = new THREE.Vector3(-1, 1.12, 1).normalize();
 const REACH = 2.1; // how close you must be to use something
+const HUNTED_RANGE = 12; // bad guys this close that are alert stop you using a speaker
+const REACH_HEIGHT = 1.5; // and how far above or below the thing's ground you may be
+const CANDLE_LIGHTS = 4; // point lights shared by the candles nearest the player
+// Background clouds drift east across the whole world, then wrap around.
+const CLOUD_MIN_X = -30;
+const CLOUD_MAX_X = 230;
+const CLOUD_COUNT = 64;
 
 interface Hint {
   id: string;
@@ -49,9 +58,12 @@ export class Game {
   private checkpoints: Checkpoint[] = [];
   private breads: BreadPickup[] = [];
   private particles = new Particles();
+  private arrows: Arrows;
   private clouds: THREE.Group[] = [];
   private orbs: THREE.Mesh[] = [];
   private flying: FlyingLight[] = [];
+  /** A few lights moved onto the nearest burning candles (lights are costly). */
+  private candleLights: THREE.PointLight[] = [];
   /** A ring on the ground under you while airborne, to show where you'll land. */
   private landing: THREE.Mesh;
   /** An arrow drawn over everything when a hill or tree hides the player. */
@@ -69,7 +81,8 @@ export class Game {
 
   private playing = false;
   private transition = false;
-  private finished = false;
+  /** Ids of the arrivals the player has reached. */
+  private arrived = new Set<string>();
   private activeCheckpoint: string | null = null;
 
   constructor(private mount: HTMLElement) {
@@ -102,7 +115,13 @@ export class Game {
     this.scene.add(this.sun, this.sun.target);
 
     this.world = new World();
-    this.scene.add(this.world.group, this.particles.group);
+    this.arrows = new Arrows(this.world, this.particles);
+    this.scene.add(this.world.group, this.particles.group, this.arrows.group);
+    for (let n = 0; n < CANDLE_LIGHTS; n++) {
+      const light = new THREE.PointLight(0xffb84d, 0, 7, 2);
+      this.candleLights.push(light);
+      this.scene.add(light);
+    }
     this.buildScenery();
 
     this.input = new Input(this.renderer.domElement);
@@ -123,7 +142,7 @@ export class Game {
     for (const c of L.checkpoints) this.checkpoints.push(new Checkpoint(c.id, c.x, c.z, this.world, this.scene));
     for (const b of L.bread) this.breads.push(new BreadPickup(b.id, b.x, b.z, b.amount, this.world, this.scene));
     for (const e of L.enemies) {
-      const enemy = new Enemy(this.world, this.particles, { x: e.x, z: e.z }, e.tester);
+      const enemy = new Enemy(this.world, this.particles, this.arrows, { x: e.x, z: e.z }, e);
       this.enemies.push(enemy);
       this.scene.add(enemy.group);
     }
@@ -168,11 +187,14 @@ export class Game {
 
   private buildScenery(): void {
     const L = this.world.layout;
-    L.trees.forEach((t, n) => {
-      const tree = makeTree(n * 7 + 3);
+    for (const t of L.trees) {
+      // The look depends on where the tree stands, so adding trees elsewhere
+      // never changes the ones that are already there.
+      const seed = Math.floor(hash(Math.floor(t.x), Math.floor(t.z), 4) * 1000);
+      const tree = t.kind === 'great' ? makeGreatTree(seed) : makeTree(seed);
       tree.position.set(t.x, this.world.groundAt(t.x, t.z), t.z);
       this.scenery.add(tree);
-    });
+    }
     for (const b of L.boulders) {
       const boulder = makeBoulder();
       boulder.position.set(b.x, this.world.groundAt(b.x, b.z), b.z);
@@ -180,9 +202,10 @@ export class Game {
     }
     this.scene.add(this.scenery);
     // Clouds drifting past below the islands.
-    for (let n = 0; n < 34; n++) {
+    for (let n = 0; n < CLOUD_COUNT; n++) {
       const cloud = makeCloud(n + 2);
-      cloud.position.set(-30 + ((n * 37) % 150), -16 + ((n * 13) % 9), -34 + ((n * 53) % 112));
+      const span = CLOUD_MAX_X - CLOUD_MIN_X;
+      cloud.position.set(CLOUD_MIN_X + ((n * 37) % span), -16 + ((n * 13) % 9), -28 + ((n * 53) % 120));
       cloud.userData.speed = 0.25 + (n % 5) * 0.08;
       this.clouds.push(cloud);
       this.scene.add(cloud);
@@ -215,7 +238,9 @@ export class Game {
     if (FORMS[s.form]?.playable && s.level >= FORMS[s.form].level) p.formIndex = s.form;
     p.hearts = Math.max(1, Math.min(s.hearts, p.form.maxHearts));
     p.refreshGear();
-    this.finished = s.finished;
+    this.arrived = new Set(s.arrived);
+    // Bad guys for a level you already have are simply there, with no fanfare.
+    for (const e of this.enemies) e.settle(p.level);
     this.flags = new Set(s.hintsDone);
     for (const z of this.puzzles) {
       z.solved = s.solved.includes(z.spot.id);
@@ -241,7 +266,7 @@ export class Game {
       taken: this.puzzles.filter((z) => z.taken).map((z) => z.spot.id),
       breadTaken: this.breads.filter((b) => b.taken).map((b) => b.id),
       hintsDone: [...this.flags],
-      finished: this.finished,
+      arrived: [...this.arrived],
     });
   }
 
@@ -257,7 +282,7 @@ export class Game {
     return `
       <ul class="controls">
         <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk</li>
-        <li><kbd>Space</kbd> jump (hold to fly as a fairy)</li>
+        <li><kbd>Space</kbd> jump - hold to fly or hop higher</li>
         <li><kbd>Click</kbd> or <kbd>J</kbd> swing sword</li>
         <li><kbd>E</kbd> use things</li>
         <li><kbd>F</kbd> eat bread</li>
@@ -300,6 +325,7 @@ export class Game {
   private showLevelUp(): void {
     const level = this.player.level;
     const form = FORMS.find((f) => f.level === level);
+    const article = form && /^[AEIOU]/.test(form.name) ? 'an' : 'a';
     const next = lightsNeeded(level);
     const sword = swordTier(level) !== swordTier(level - 1) ? `<p>Your sword is now <b>${swordTier(level)}</b>.</p>` : '';
     this.card.show(
@@ -307,8 +333,8 @@ export class Game {
        <h1>Level ${level}</h1>
        ${
          form
-           ? `<p>You can now shape-shift into a <b>${form.name}</b>.</p>
-              <p class="soft">${form.blurb} A ${form.name} has ${form.maxHearts} hearts.</p>
+           ? `<p>You can now shape-shift into ${article} <b>${form.name}</b>.</p>
+              <p class="soft">${form.blurb} ${article[0].toUpperCase()}${article.slice(1)} ${form.name} has ${form.maxHearts} hearts.</p>
               <p>Press <kbd>${level}</kbd> to shift, and <kbd>0</kbd> to turn back into a Human.</p>`
            : ''
        }
@@ -319,12 +345,11 @@ export class Game {
     );
   }
 
-  private showFinish(): void {
+  private showArrival(a: Arrival): void {
     this.card.show(
-      `<p class="eyebrow">Tutorial complete</p>
-       <h1>You made it across!</h1>
-       <p>You are off the first cloud island. Out here there are 4 candle lights to find, and the next form waiting is the <b>Orangutan</b>.</p>
-       <p class="soft">That island is still being built. For now, feel free to keep flying around.</p>`,
+      `<p class="eyebrow">${a.eyebrow}</p>
+       <h1>${a.title}</h1>
+       ${a.html}`,
       [{ label: 'Keep exploring', onClick: () => {} }],
       'levelup',
     );
@@ -338,7 +363,9 @@ export class Game {
     switch (this.player.canShiftTo(index)) {
       case 'ok':
         this.player.shiftTo(index);
-        if (index === 1) this.flags.add('fairy');
+        if (form.id === 'fairy') this.flags.add('fairy');
+        this.flags.add(`used:${form.id}`);
+        this.save();
         break;
       case 'locked':
         sound.denied();
@@ -380,6 +407,7 @@ export class Game {
       p.hearts = p.form.maxHearts;
       this.toCheckpoint();
       for (const e of this.enemies) e.reset();
+      this.arrows.clear();
       this.snapCamera();
       this.transition = false;
       this.save();
@@ -457,7 +485,7 @@ export class Game {
       {
         id: 'fight',
         text: 'A tester bad guy! <kbd>Click</kbd> or press <kbd>J</kbd> to swing your sword. Step back when it glows red.',
-        when: () => nearTester() && p.formIndex === 0,
+        when: () => nearTester() && p.form.id === 'human',
         done: anyDefeated,
       },
       {
@@ -481,26 +509,50 @@ export class Game {
       {
         id: 'shift',
         text: 'You can shape-shift! Press <kbd>1</kbd> to become a Fairy and <kbd>0</kbd> to turn back.',
-        when: () => p.level >= 1 && p.formIndex === 0,
+        when: () => p.level >= 1 && p.form.id === 'human',
         done: () => this.flags.has('fairy'),
       },
       {
         id: 'fly',
         text: 'Hold <kbd>Space</kbd> to fly. Fairies tire quickly, so land before your energy runs out.',
-        when: () => p.formIndex === 1,
+        when: () => p.form.id === 'fairy',
         done: () => p.flownTime > 2,
       },
       {
         id: 'home',
         text: 'On the ground, press <kbd>Q</kbd> to magic up a tiny home. Bad guys cannot find you inside.',
-        when: () => p.formIndex === 1 && !p.hidden,
+        when: () => p.form.id === 'fairy' && !p.hidden,
         done: () => this.flags.has('home'),
+      },
+      {
+        id: 'ape',
+        text: 'New shape! Press <kbd>2</kbd> to become an Orangutan.',
+        when: () => p.level >= 2 && p.form.id === 'human',
+        done: () => this.flags.has('used:orangutan'),
+      },
+      {
+        id: 'climb',
+        text: 'Walk into a tree trunk and keep pushing to climb it. From the top, jump toward the next tree to grab it.',
+        when: () => p.form.id === 'orangutan',
+        done: () => p.totalClimbs > 0,
+      },
+      {
+        id: 'bun',
+        text: 'New shape! Press <kbd>3</kbd> to become a Bunny.',
+        when: () => p.level >= 3 && p.form.id === 'human',
+        done: () => this.flags.has('used:bunny'),
+      },
+      {
+        id: 'hop',
+        text: 'Hold <kbd>Space</kbd> for a huge hop. Tap it for a small one.',
+        when: () => p.form.id === 'bunny',
+        done: () => p.fullHops > 0,
       },
       {
         id: 'cross',
         text: 'Find the stone bluff past the pond, then fly from cloud to cloud to the next island.',
-        when: () => p.level >= 1 && this.flags.has('fairy') && !this.finished,
-        done: () => this.finished,
+        when: () => p.level >= 1 && this.flags.has('fairy') && !this.arrived.has('tanglewood'),
+        done: () => this.arrived.has('tanglewood'),
       },
     ];
   }
@@ -514,7 +566,25 @@ export class Game {
       }
       if (h.when()) return h.text;
     }
-    return '';
+    return this.zoneHint();
+  }
+
+  /** Hints tied to places. Only used when no scripted hint is showing. */
+  private zoneHint(): string {
+    const p = this.player;
+    let best = '';
+    let bestDist = Infinity;
+    for (const z of this.world.layout.hints) {
+      if (z.minLevel !== undefined && p.level < z.minLevel) continue;
+      if (z.maxLevel !== undefined && p.level > z.maxLevel) continue;
+      if (z.form !== undefined && z.form !== p.form.id) continue;
+      const d = Math.hypot(z.x - p.pos.x, z.z - p.pos.z);
+      if (d < z.r && d < bestDist) {
+        best = z.text;
+        bestDist = d;
+      }
+    }
+    return best;
   }
 
   // ---- the loop ----------------------------------------------------------
@@ -529,11 +599,12 @@ export class Game {
 
     this.world.update(this.time);
     for (const z of this.puzzles) z.update(this.time);
+    this.updateCandleLights();
     for (const c of this.checkpoints) c.update(this.time);
     for (const b of this.breads) b.update(this.time);
     for (const c of this.clouds) {
       c.position.x += (c.userData.speed as number) * dt;
-      if (c.position.x > 120) c.position.x = -30;
+      if (c.position.x > CLOUD_MAX_X) c.position.x = CLOUD_MIN_X;
     }
     this.particles.update(dt);
     this.updateOrbs(dt);
@@ -553,7 +624,9 @@ export class Game {
     if (digit >= 0) this.tryShift(digit);
 
     p.update(dt, this.input, this.enemies);
+    this.wakeEnemies();
     for (const e of this.enemies) e.update(dt, p, this.enemies);
+    this.arrows.update(dt, p);
     if (p.hearts < heartsBefore) this.hud.hurt();
 
     // Checkpoints light up when you walk near them.
@@ -579,24 +652,38 @@ export class Game {
 
     this.usePuzzles(dt);
 
-    // Reaching the far island ends the tutorial.
-    const goal = this.world.layout.goal;
-    if (!this.finished && p.onGround && Math.hypot(goal.x - p.pos.x, goal.z - p.pos.z) < goal.radius) {
-      this.finished = true;
-      sound.levelUp();
-      this.save();
-      this.showFinish();
+    // Standing on a new place for the first time is worth a celebration.
+    if (p.onGround) {
+      for (const a of this.world.layout.arrivals) {
+        if (this.arrived.has(a.id) || Math.hypot(a.x - p.pos.x, a.z - p.pos.z) >= a.radius) continue;
+        this.arrived.add(a.id);
+        sound.levelUp();
+        this.save();
+        this.showArrival(a);
+        break;
+      }
     }
+  }
+
+  /** Bad guys that were waiting for a level appear once the player reaches it. */
+  private wakeEnemies(): void {
+    const woke = this.enemies.filter((e) => e.wake(this.player.level));
+    if (woke.length === 0) return;
+    sound.shift();
+    this.hud.toast(woke.every((e) => e.kind === 'archer') ? 'Archers have appeared!' : 'New bad guys have appeared!');
   }
 
   private usePuzzles(dt: number): void {
     const p = this.player;
     let action = '';
     let use: (() => void) | null = null;
+    // A speaker can't be used while a bad guy close by is after you.
+    const hunted = this.enemies.some((e) => e.alert && Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < HUNTED_RANGE);
     for (const z of this.puzzles) {
       const toSpeaker = Math.hypot(z.speakerPos.x - p.pos.x, z.speakerPos.z - p.pos.z);
       const toCandle = Math.hypot(z.candlePos.x - p.pos.x, z.candlePos.z - p.pos.z);
-      const level = Math.abs(z.speakerPos.y - p.pos.y) < 2.5;
+      const atSpeaker = Math.abs(z.speakerPos.y - p.pos.y) < REACH_HEIGHT;
+      const atCandle = Math.abs(z.candlePos.y - p.pos.y) < REACH_HEIGHT;
 
       if (!z.solved) {
         // The speaker plays its tune out loud now and then, louder up close.
@@ -605,19 +692,36 @@ export class Game {
           z.tuneTimer = 5.5;
           if (toSpeaker < 11) sound.melody(z.melody, 0.04 + 0.3 * (1 - toSpeaker / 11));
         }
-        if (toSpeaker < REACH && level) {
-          action = '<kbd>E</kbd> Solve the music puzzle';
-          use = () => this.openPuzzle(z);
-        } else if (toCandle < REACH && level) {
+        if (toSpeaker < REACH && atSpeaker) {
+          if (hunted) {
+            action = 'Bad guys are after you! Deal with them, lose them, or hide first.';
+          } else {
+            action = '<kbd>E</kbd> Solve the music puzzle';
+            use = () => this.openPuzzle(z);
+          }
+        } else if (toCandle < REACH && atCandle) {
           action = 'The light is caged. Solve the speaker’s puzzle to free it.';
         }
-      } else if (!z.taken && toCandle < REACH && level) {
+      } else if (!z.taken && toCandle < REACH && atCandle) {
         action = '<kbd>E</kbd> Take the candle’s light';
         use = () => this.takeLight(z);
       }
     }
     this.hud.setAction(p.hidden ? 'Hidden in your fairy home. Press <kbd>Q</kbd> to come out.' : action);
     if (use && !p.hidden && this.input.hit('KeyE')) use();
+  }
+
+  /** Move the shared lights onto the burning candles nearest the player. */
+  private updateCandleLights(): void {
+    const p = this.player.pos;
+    const near = this.puzzles
+      .filter((z) => !z.taken)
+      .sort((a, b) => a.candlePos.distanceToSquared(p) - b.candlePos.distanceToSquared(p));
+    this.candleLights.forEach((light, n) => {
+      const z = near[n];
+      light.intensity = z ? 3 * z.flicker : 0;
+      if (z) light.position.set(z.candlePos.x, z.candlePos.y + 1.4, z.candlePos.z);
+    });
   }
 
   /** The lights you carry circle around you; new ones fly in from the candle. */
@@ -676,7 +780,7 @@ export class Game {
       this.finder.visible = hits.length > 0 && !p.dead && this.playing;
     }
     if (this.finder.visible) {
-      const lift = (p.formIndex === 1 ? 0.9 : 1.5) + Math.sin(this.time * 5) * 0.08;
+      const lift = p.form.arrowLift + Math.sin(this.time * 5) * 0.08;
       this.finder.position.set(head.x, head.y + lift, head.z);
       this.finder.rotation.y = this.time * 2;
     }
@@ -711,9 +815,7 @@ export class Game {
       level: p.level,
       lights: p.lights,
       formIndex: p.formIndex,
-      energy: p.energyFraction,
-      showEnergy: p.form.canFly,
-      exhausted: p.exhausted,
+      meter: p.meter,
     });
     if (this.playing) this.hud.setHint(this.currentHint());
   }
@@ -727,6 +829,21 @@ export class Game {
       enemies: this.enemies,
       puzzles: this.puzzles,
       world: this.world,
+      /** Activate a checkpoint and stand on it, as if the player had walked there. */
+      warp: (id: string): boolean => {
+        const c = this.checkpoints.find((k) => k.id === id);
+        if (!c) return false;
+        this.activeCheckpoint = id;
+        for (const k of this.checkpoints) k.setActive(k === c);
+        this.toCheckpoint();
+        this.snapCamera();
+        return true;
+      },
+      setLevel: (n: number) => {
+        this.player.level = n;
+        this.player.lights = 0;
+        this.player.refreshGear();
+      },
       takeLight: (n: number) => {
         this.puzzles[n].solved = true;
         this.takeLight(this.puzzles[n]);
