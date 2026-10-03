@@ -1,9 +1,9 @@
 // Every form from PLAN.md, as data. The number key that selects a form is its
 // index in this list, and it unlocks when the player reaches `level`.
 //
-// Human, Fairy, Orangutan and Bunny are playable; the rest are listed so the
-// form bar can show them as locked and so later islands can fill them in
-// without changing the shape of this table.
+// Human, Fairy, Orangutan, Bunny and Winter Wolf are playable; the rest are
+// listed so the form bar can show them as locked and so later islands can fill
+// them in without changing the shape of this table.
 
 /**
  * The physics every mover shares. player.ts runs on these, and the level
@@ -16,6 +16,16 @@ export const PHYSICS = {
   /** How far above the last ground she stood on a fairy can climb. */
   flyCeiling: 3,
 };
+
+// Thin ice holds only under something moving fast. The Winter Wolf (7.0) is
+// the only form quicker than ICE_SPEED; the Bunny (5.0) is not.
+
+/** Real ground speed, in tiles per second, that thin ice needs to hold. */
+export const ICE_SPEED = 6;
+/** Seconds a fast form may be slow on thin ice (a stumble, a turn) before it breaks. */
+export const ICE_STUMBLE = 0.15;
+/** Seconds after breaking before a thin-ice tile grows back. */
+export const ICE_REGROW = 4;
 
 export type FormId =
   | 'human'
@@ -138,8 +148,8 @@ export const FORMS: readonly FormDef[] = [
     arrowLift: 1.5,
     sword: 'none',
     canFly: false,
-    blurb: 'A giant wolf that outruns everything so far.',
-    playable: false,
+    blurb: 'A giant wolf that outruns everything so far, and can run across thin ice.',
+    playable: true,
   },
   {
     id: 'ant',

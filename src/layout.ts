@@ -12,6 +12,10 @@ export const enum Kind {
   Stone,
   Cloud,
   Dirt,
+  /** Ordinary ground with a white top, for the cold islands. */
+  Snow,
+  /** Ordinary ground with a pale blue top. Not the thin kind: see `setThinIce`. */
+  Ice,
 }
 
 export interface Spot {
@@ -19,7 +23,8 @@ export interface Spot {
   z: number;
 }
 
-export type TreeKind = 'regular' | 'great';
+/** 'pine' and 'greatPine' climb and block exactly like 'regular' and 'great'. */
+export type TreeKind = 'regular' | 'great' | 'pine' | 'greatPine';
 
 /**
  * How high a tree's solid block stands above the ground. A fairy can rise at
@@ -29,6 +34,8 @@ export type TreeKind = 'regular' | 'great';
 export const TREE_BLOCK: Record<TreeKind, number> = {
   regular: 4.0,
   great: 5.0,
+  pine: 4.0,
+  greatPine: 5.0,
 };
 
 export type TreeSpot = Spot & { kind: TreeKind };
@@ -91,7 +98,16 @@ export interface Terrain {
   kindAt(i: number, j: number): Kind;
   /** Back to empty sky. */
   clear(i: number, j: number): void;
-  setWater(i: number, j: number, wet: boolean): void;
+  /** `level` is the height of the surface; it defaults to the world's usual 2.7. */
+  setWater(i: number, j: number, wet: boolean, level?: number): void;
+  /**
+   * Lay a sheet of thin ice with its top at height `h` over whatever the tile
+   * already is: empty sky or a water tile (the tile underneath is unchanged).
+   * It holds only under a fast runner and breaks under anything else; see
+   * ICE_SPEED in forms.ts. `h` may be fractional, so a row of tiles can climb
+   * like stairs. `clear` removes it again.
+   */
+  setThinIce(i: number, j: number, h: number): void;
   /** Call `fn` for every tile in the box, bounds inclusive. */
   rect(i0: number, j0: number, i1: number, j1: number, fn: (i: number, j: number) => void): void;
   /** Call `fn` for every tile whose centre lies inside an ellipse. */

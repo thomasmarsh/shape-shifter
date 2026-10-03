@@ -20,6 +20,7 @@ const L0: FormId[] = ['human'];
 const L1: FormId[] = ['human', 'fairy'];
 const L2: FormId[] = ['human', 'fairy', 'orangutan'];
 const L3: FormId[] = ['human', 'fairy', 'orangutan', 'bunny'];
+const L4: FormId[] = [...L3, 'wolf'];
 
 describe('the journey', () => {
   it('level 0: a human cannot leave the meadow island', () => {
@@ -49,6 +50,26 @@ describe('the journey', () => {
   it('level 3: a bunny climbs the Giant Stair to Frostfang', () => {
     expect(explore(world, arrival('highcrag'), L3, 'easy').canStand(arrival('frostfang'))).toBe(true);
   });
+
+  it('level 3: the four forms reach nothing of the run past the frozen lake, nor Underroot', () => {
+    for (const [name, from] of [['the Frostfang arrival', arrival('frostfang')], ['the world spawn', spawn]] as const) {
+      const r = explore(world, from, L3, 'max');
+      let checked = 0;
+      for (let j = 0; j < world.depth; j++) {
+        for (let i = 274; i < world.width; i++) {
+          if (world.isVoid(i + 0.5, j + 0.5)) continue;
+          checked++;
+          expect(r.has(i, j), `from ${name}: tile ${i},${j}`).toBe(false);
+        }
+      }
+      expect(checked, name).toBeGreaterThan(500);
+      expect(r.canStand(arrival('underroot')), `from ${name}: Underroot`).toBe(false);
+    }
+  });
+
+  it('level 4: with the Winter Wolf as well, all five forms run the lake and reach Underroot', () => {
+    expect(explore(world, arrival('frostfang'), L4, 'easy').canStand(arrival('underroot'))).toBe(true);
+  });
 });
 
 describe('the candles', () => {
@@ -64,13 +85,17 @@ describe('the candles', () => {
     expect(puzzlesOn('meadow')).toHaveLength(lightsNeeded(0));
     expect(puzzlesOn('tanglewood')).toHaveLength(lightsNeeded(1));
     expect(puzzlesOn('highcrag')).toHaveLength(lightsNeeded(2));
-    expect(puzzlesOn('meadow').length + puzzlesOn('tanglewood').length + puzzlesOn('highcrag').length).toBe(
-      layout.puzzles.length,
-    );
+    expect(puzzlesOn('frostfang')).toHaveLength(lightsNeeded(3));
+    expect(
+      puzzlesOn('meadow').length +
+        puzzlesOn('tanglewood').length +
+        puzzlesOn('highcrag').length +
+        puzzlesOn('frostfang').length,
+    ).toBe(layout.puzzles.length);
   });
 
   it('keeps each puzzle on one island: speaker and candle', () => {
-    for (const island of ['meadow', 'tanglewood', 'highcrag']) {
+    for (const island of ['meadow', 'tanglewood', 'highcrag', 'frostfang']) {
       const b = world.bounds.find((k) => k.id === island)!;
       for (const p of puzzlesOn(island)) {
         expect(p.candle.x, p.id).toBeGreaterThanOrEqual(b.i0);

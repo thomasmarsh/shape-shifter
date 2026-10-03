@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Island, Kind, World } from './world';
+import type { FormId } from './forms';
+import { Island, Kind, TREE_BLOCK, World } from './world';
 import { explore } from './levelcheck';
 
 const world = new World();
@@ -110,4 +111,260 @@ describe('forms on a test island', () => {
     expect(crosses(1, 'human')).toBe(true);
     expect(crosses(2, 'human')).toBe(false);
   });
+});
+
+// ---- thin ice ----------------------------------------------------------
+
+const FLOOR = 2;
+const bank = { x: 2.5, z: 15.5 };
+const farBank = { x: 45.5, z: 15.5 };
+const onIce = { x: 20.5, z: 15.5 };
+
+/**
+ * A bank (tiles 0-9), a thin-ice bridge 30 tiles long (10-39) over sky and a
+ * far bank (40-50), all in rows 14-16. Optional extras stand off the bridge
+ * (one at a time, so they cannot be stepping stones for each other):
+ *  - `bunnyPillar`: row 11, 4 high, two empty rows from the bridge (only a
+ *    bunny hops that, and the bank is too far from it);
+ *  - `fairyPillar`: row 11, 2 high (a fairy flies up it from the bridge);
+ *  - `peg`: a lump 1.4 high in row 17, which a wolf cannot hop onto on easy.
+ *    With `pegBeside: 'ground'` the tile of the bridge next to it is ordinary.
+ */
+function bridge(extra: 'none' | 'bunnyPillar' | 'fairyPillar' | 'peg', pegBeside: 'ice' | 'ground' = 'ice'): World {
+  return new World([
+    {
+      id: 'bridge',
+      name: 'Bridge',
+      build(t) {
+        t.rect(0, 14, 9, 16, (i, j) => t.set(i, j, FLOOR, Kind.Snow));
+        t.rect(40, 14, 50, 16, (i, j) => t.set(i, j, FLOOR, Kind.Snow));
+        const plain = extra === 'peg' && pegBeside === 'ground';
+        t.rect(10, 14, 39, 16, (i, j) => {
+          if (plain && i === 19 && j === 16) t.set(i, j, FLOOR, Kind.Snow);
+          else t.setThinIce(i, j, FLOOR);
+        });
+        if (extra === 'bunnyPillar') t.set(20, 11, FLOOR + 4, Kind.Stone);
+        if (extra === 'fairyPillar') t.set(25, 11, FLOOR + 2, Kind.Stone);
+        if (extra === 'peg') {
+          t.set(19, 17, FLOOR + 1.4, Kind.Stone);
+        }
+        return { spawn: bank };
+      },
+    },
+  ]);
+}
+const ice = bridge('none');
+const pillarBunny = { x: 20.5, z: 11.5 };
+const pillarFairy = { x: 25.5, z: 11.5 };
+const peg = { x: 19.5, z: 17.5 };
+
+describe('thin ice', () => {
+  const others = ['human', 'fairy', 'orangutan', 'bunny'] as const;
+
+  it('is ground for a set with the wolf, and the whole bridge is crossed', () => {
+    for (const profile of ['easy', 'max'] as const) {
+      const r = explore(ice, bank, ['human', 'wolf'], profile);
+      expect(r.canStand(onIce), profile).toBe(true);
+      expect(r.canStand(farBank), profile).toBe(true);
+    }
+  });
+
+  it('cannot be entered without the wolf, even at the limit', () => {
+    for (const profile of ['easy', 'max'] as const) {
+      const r = explore(ice, bank, others, profile);
+      expect(r.has(10, 15), profile).toBe(false);
+      expect(r.canStand(onIce), profile).toBe(false);
+      expect(r.canStand(farBank), profile).toBe(false);
+    }
+  });
+
+  it('does not count an ice tile as a place to stand and use something from', () => {
+    // The peg is 1.4 above the bridge, beside it: close enough to use from an
+    // ice tile, but a wolf cannot hop onto it.
+    const w = bridge('peg');
+    const r = explore(w, bank, ['wolf'], 'easy');
+    expect(r.canStand({ x: 19.5, z: 16.5 })).toBe(true);
+    expect(r.canStand(peg)).toBe(false);
+    expect(r.canUse(peg)).toBe(false);
+    // The same, with ordinary ground where the ice was: now it can be used.
+    const control = explore(bridge('peg', 'ground'), bank, ['wolf'], 'easy');
+    expect(control.canUse(peg)).toBe(true);
+  });
+
+  it('lets only a wolf (and a flying fairy) leave the ice on easy', () => {
+    // Bunny: the pillar 4 high is a hop from the bridge, but nobody on easy
+    // can stand there to hop.
+    const w = bridge('bunnyPillar');
+    expect(explore(w, bank, ['wolf', 'bunny'], 'easy').canStand(onIce)).toBe(true);
+    expect(explore(w, bank, ['wolf', 'bunny'], 'easy').canStand(pillarBunny)).toBe(false);
+    // A fairy dropped through the ice flaps away: the pillar 2 high.
+    const f = bridge('fairyPillar');
+    expect(explore(f, bank, ['wolf', 'fairy'], 'easy').canStand(pillarFairy)).toBe(true);
+    // Not from the bank: the pillar is too far to fly to from there.
+    expect(explore(f, bank, ['fairy'], 'easy').canStand(pillarFairy)).toBe(false);
+    // The wolf alone cannot get up either pillar.
+    expect(explore(w, bank, ['wolf'], 'easy').canStand(pillarBunny)).toBe(false);
+    expect(explore(f, bank, ['wolf'], 'easy').canStand(pillarFairy)).toBe(false);
+  });
+
+  it('lets every form in the set leave the ice at the limit', () => {
+    const w = bridge('bunnyPillar');
+    expect(explore(w, bank, ['wolf', 'bunny'], 'max').canStand(pillarBunny)).toBe(true);
+    // ... but only from the ice: the bunny cannot reach it from the bank.
+    expect(explore(w, bank, ['bunny'], 'max').canStand(pillarBunny)).toBe(false);
+    expect(explore(w, bank, ['wolf'], 'max').canStand(pillarBunny)).toBe(false);
+  });
+
+  it('is not disturbed by ice that is already broken in the world', () => {
+    ice.breakIce([onIce]);
+    expect(explore(ice, bank, ['wolf'], 'easy').canStand(farBank)).toBe(true);
+    ice.resetIce();
+  });
+
+  it('knows the wolf, and still refuses forms it does not know', () => {
+    expect(() => explore(ice, bank, ['wolf'], 'easy')).not.toThrow();
+    expect(() => explore(ice, bank, ['ant'], 'easy')).toThrow(/ant/);
+  });
+});
+
+// ---- hop-then-fly --------------------------------------------------------
+
+/** A platform (tiles 0-19) and a ledge `rise` higher starting `gap` tiles of sky past it. */
+function gapIsland(gap: number, rise: number): Island {
+  return {
+    id: 'gap',
+    name: 'Gap',
+    build(t) {
+      t.rect(0, 12, 19, 18, (i, j) => t.set(i, j, FLOOR, Kind.Stone));
+      t.rect(20 + gap, 12, 60, 18, (i, j) => t.set(i, j, FLOOR + rise, Kind.Stone));
+      return { spawn: { x: 2.5, z: 15.5 } };
+    },
+  };
+}
+
+function crossesGap(forms: readonly FormId[], profile: 'easy' | 'max', gap: number, rise: number): boolean {
+  const w = new World([gapIsland(gap, rise)]);
+  return explore(w, { x: 2.5, z: 15.5 }, forms, profile).canStand({ x: 20 + gap + 0.5, z: 15.5 });
+}
+
+describe('hop-then-fly', () => {
+  it('reaches a ledge 4 high across a 6-tile gap on easy with a bunny and a fairy', () => {
+    expect(crossesGap(['bunny', 'fairy'], 'easy', 6, 4)).toBe(true);
+  });
+
+  it('is out of reach for either alone, or with a human, even at the limit', () => {
+    for (const forms of [['bunny'], ['fairy'], ['human', 'bunny'], ['human', 'fairy'], ['human', 'orangutan']] as const) {
+      expect(crossesGap(forms, 'max', 6, 4), forms.join('+')).toBe(false);
+    }
+  });
+
+  it('flies a long way on the flat, but not forever', () => {
+    expect(crossesGap(['bunny', 'fairy'], 'easy', 12, 0)).toBe(true);
+    expect(crossesGap(['bunny', 'fairy'], 'easy', 20, 0)).toBe(false);
+    expect(crossesGap(['bunny', 'fairy'], 'max', 20, 0)).toBe(true);
+    expect(crossesGap(['bunny', 'fairy'], 'max', 26, 0)).toBe(false);
+  });
+
+  it('does not reach higher than about the bunny hop', () => {
+    expect(crossesGap(['bunny', 'fairy'], 'max', 6, 5.5)).toBe(false);
+    expect(crossesGap(['bunny', 'fairy'], 'max', 6, 4.9)).toBe(true);
+    expect(crossesGap(['bunny', 'fairy'], 'easy', 6, 4.6)).toBe(false);
+  });
+
+  it('is blocked by a wall in the way, like a flight', () => {
+    const w = new World([
+      {
+        id: 'wall',
+        name: 'Wall',
+        build(t) {
+          gapIsland(10, 0).build(t);
+          t.rect(25, 12, 25, 18, (i, j) => t.set(i, j, FLOOR + 9, Kind.Stone));
+          return { spawn: { x: 2.5, z: 15.5 } };
+        },
+      },
+    ]);
+    // The wall is 9 high and runs the whole width, so nothing gets over it.
+    expect(explore(w, { x: 2.5, z: 15.5 }, ['bunny', 'fairy'], 'max').canStand({ x: 35.5, z: 15.5 })).toBe(false);
+  });
+});
+
+describe('water at its own height', () => {
+  /** A bank at 15, a pond (surface 14.7, bed 12.5) and a ledge across it `ledge` high. */
+  function pondWorld(ledge: number): World {
+    return new World([
+      {
+        id: 'pond',
+        name: 'Pond',
+        build(t) {
+          t.rect(0, 12, 19, 18, (i, j) => t.set(i, j, 15, Kind.Snow));
+          t.rect(40, 12, 50, 18, (i, j) => t.set(i, j, ledge, Kind.Stone));
+          t.rect(20, 12, 39, 18, (i, j) => {
+            t.set(i, j, 12.5, Kind.Sand);
+            t.setWater(i, j, true, 14.7);
+          });
+          return { spawn: { x: 2.5, z: 15.5 } };
+        },
+      },
+    ]);
+  }
+  const across = { x: 45.5, z: 15.5 };
+
+  it('uses the float height of that pond as its surface', () => {
+    // A human floats at 13.9: a ledge 1.2 above that is a hop, 1.7 is not.
+    const w = pondWorld(15.1);
+    expect(explore(w, w.layout.spawn, ['human'], 'easy').canStand(across)).toBe(true);
+    const high = pondWorld(15.6);
+    expect(explore(high, high.layout.spawn, ['human'], 'max').canStand(across)).toBe(false);
+  });
+
+  it('leaves the old ponds at the default level', () => {
+    const real = new World();
+    let wet = 0;
+    for (let j = 0; j < real.depth; j++) {
+      for (let i = 0; i < real.width; i++) {
+        if (!real.isWater(i + 0.5, j + 0.5)) continue;
+        wet++;
+        expect(real.waterLevelAt(i + 0.5, j + 0.5)).toBe(real.waterLevel);
+      }
+    }
+    expect(wet).toBeGreaterThan(0);
+  });
+});
+
+describe('great trees stay for the orangutan', () => {
+  it('keeps a human, fairy and bunny off a great pine top on open flat ground, even at the limit', () => {
+    const w = new World([
+      {
+        id: 'pine',
+        name: 'Pine',
+        build(t) {
+          t.rect(0, 0, 40, 40, (i, j) => t.set(i, j, 15, Kind.Snow));
+          return { spawn: { x: 5.5, z: 20.5 }, trees: [{ x: 20.5, z: 20.5, kind: 'greatPine' }] };
+        },
+      },
+    ]);
+    const r = explore(w, w.layout.spawn, ['human', 'fairy', 'bunny'], 'max');
+    expect(w.solidAt(20.5, 20.5)).toBe(15 + TREE_BLOCK.greatPine);
+    expect(r.canStand({ x: 20.5, z: 20.5 })).toBe(false);
+    expect(r.canStand({ x: 5.5, z: 20.5 })).toBe(true);
+  });
+});
+
+describe('the search keeps its results', () => {
+  // Tile counts recorded from the checker before it was sped up. Humans cannot
+  // leave their island, so these do not depend on the later islands. If one
+  // changes, a "faster" search changed what it finds: do not just update the number.
+  const cases: { name: string; from: { x: number; z: number }; profile: 'easy' | 'max'; tiles: number }[] = [
+    { name: 'the meadow', from: { x: world.layout.spawn.x, z: world.layout.spawn.z }, profile: 'easy', tiles: 966 },
+    { name: 'the meadow at the limit', from: { x: world.layout.spawn.x, z: world.layout.spawn.z }, profile: 'max', tiles: 971 },
+    { name: 'Tanglewood', from: { x: 63.5, z: 24.5 }, profile: 'easy', tiles: 1448 },
+    { name: 'Tanglewood at the limit', from: { x: 63.5, z: 24.5 }, profile: 'max', tiles: 1448 },
+    { name: 'Highcrag', from: { x: 129.5, z: 28.5 }, profile: 'easy', tiles: 986 },
+    { name: 'Highcrag at the limit', from: { x: 129.5, z: 28.5 }, profile: 'max', tiles: 986 },
+  ];
+  for (const c of cases) {
+    it(`reaches the same ${c.tiles} tiles for a human on ${c.name}`, () => {
+      expect(explore(world, c.from, ['human'], c.profile).tiles).toBe(c.tiles);
+    });
+  }
 });

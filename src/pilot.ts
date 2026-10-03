@@ -11,6 +11,8 @@ import type { Spot, World } from './world';
 // steer, tap Space and hold Space, like a person.
 
 const DT = 1 / 60;
+/** How far a fairy glides along per unit of height she still has to lose. */
+const GLIDE = 0.85;
 /** Player radius, as in player.ts. */
 const RADIUS = 0.3;
 
@@ -63,6 +65,8 @@ export class Pilot {
   /** The highest the feet have been, and the least flying energy left, for margins. */
   peak = -Infinity;
   lowestEnergy = Infinity;
+  /** The slowest ground speed (tiles per second) seen on thin ice during `sprint`, for ice tests. */
+  minIceSpeed = Infinity;
   /** A hop is under way, so Space stays down until we land. */
   private jumping = false;
 
@@ -82,7 +86,9 @@ export class Pilot {
     if (world.solidAt(start.x, start.z) !== world.groundAt(start.x, start.z)) {
       throw new Error(`cannot start at (${start.x}, ${start.z}): something solid stands there`);
     }
-    this.player.level = 3;
+    // Tests share one World, so a pilot starts with all the thin ice whole.
+    world.resetIce();
+    this.player.level = 4;
     this.shift(form);
     this.player.hearts = this.player.form.maxHearts;
     this.player.place(start.x, start.z);
@@ -153,7 +159,7 @@ export class Pilot {
 
   // ---- moves -------------------------------------------------------------
 
-  /** Change shape, which needs the level to be high enough (the pilot is level 3). */
+  /** Change shape, which needs the level to be high enough (the pilot is level 4). */
   shift(form: FormId): void {
     const index = FORMS.findIndex((f) => f.id === form);
     if (index !== this.player.formIndex) {
@@ -247,6 +253,40 @@ export class Pilot {
     return ok;
   }
 
+  /**
+   * Hop-then-fly: as a bunny, take a full hop toward `target` (jumping at the
+   * edge, as `hop` does), shift to a fairy at the top and keep flying on, then
+   * settle onto the target tile. Fails if she lands anywhere else or runs out
+   * of time. Works for a target on the ground level or on a ledge.
+   */
+  hopThenFly(target: Spot, opts: HopOptions & FlyOptions = {}): boolean {
+    const { edge = 0.25, seconds = 20, release = 0.5 } = opts;
+    this.shift('bunny');
+    // Up to the top of the hop: the first frame the feet stop rising.
+    let last = this.y;
+    let airborne = false;
+    const atApex = (): boolean => {
+      airborne = airborne || !this.onGround;
+      const falling = airborne && this.y < last - 1e-9;
+      last = this.y;
+      return falling;
+    };
+    const start = this.time;
+    if (!this.hop(target, { edge, seconds, done: atApex })) return false;
+    // Now a fairy, still holding Space: she hovers at this height until her
+    // energy runs out. Let go early enough to glide down onto the target.
+    this.shift('fairy');
+    const flying = (): void => {
+      const d = this.steerTo(target);
+      const above = Math.max(0, this.y - this.world.groundAt(target.x, target.z));
+      if (d < release + GLIDE * above) this.pad.down.delete('Space');
+      else this.pad.down.add('Space');
+    };
+    const ok = this.run(() => this.standingOn(target), seconds - (this.time - start), flying);
+    this.stopSteering();
+    return ok;
+  }
+
   /** Stay on the ground until the fairy's flying energy is full. */
   rest(seconds = 6): boolean {
     this.stopSteering();
@@ -275,5 +315,77 @@ export class Pilot {
     const ok = this.run(() => !this.player.climbing && this.onGround, opts.seconds ?? 10);
     this.stopSteering();
     return ok && this.standingOn(centre);
+  }
+
+  // ---- running (the Winter Wolf and thin ice) ----------------------------
+
+  /**
+   * Run toward `target` without ever stopping to wait: for the Wolf on thin
+   * ice, which breaks under anything slower than a run. Optionally jumps when
+   * the edge ahead is within `edge` tiles (once per tile, like `hop`; no jumps
+   * without `edge`). Done when `done` is true (by default: standing on the
+   * target's tile). Records the slowest speed seen on thin ice in `minIceSpeed`.
+   * Leaves the keys as they are, so a following move carries on at speed.
+   */
+  sprint(target: Spot, opts: MoveOptions & { edge?: number; done?: () => boolean } = {}): boolean {
+    const { edge, seconds = 15 } = opts;
+    const done = opts.done ?? ((): boolean => this.standingOn(target));
+    const launched = new Set<number>();
+    let lastX = this.x;
+    let lastZ = this.z;
+    let wasOnIce = false;
+    const ok = this.run(done, seconds, () => {
+      // What the last frame did: its speed counts if it ended on thin ice.
+      const speed = Math.hypot(this.x - lastX, this.z - lastZ) / DT;
+      if (wasOnIce) this.minIceSpeed = Math.min(this.minIceSpeed, speed);
+      lastX = this.x;
+      lastZ = this.z;
+      wasOnIce = this.onGround && this.world.isThinIce(this.x, this.z);
+      this.steerTo(target);
+      if (edge === undefined) return;
+      if (this.onGround) {
+        this.pad.down.delete('Space');
+        this.jumping = false;
+        const tile = this.tile.j * this.world.width + this.tile.i;
+        if (!launched.has(tile) && this.edgeAhead() <= edge) {
+          launched.add(tile);
+          this.pad.tapped.add('Space');
+          this.jumping = true;
+        }
+      }
+      if (this.jumping && !this.onGround) this.pad.down.add('Space');
+    });
+    this.stopSteering();
+    return ok;
+  }
+
+  /**
+   * Run, then fly: as a wolf, sprint toward `along` until `shiftWhen` is true,
+   * shift to a fairy in the very same frame (no stopping) and fly to `target`.
+   * Fails if the run fails, or she does not land on the target's tile.
+   */
+  runThenFly(along: Spot, shiftWhen: () => boolean, target: Spot, opts: FlyOptions = {}): boolean {
+    const { seconds = 10, release = 0.5 } = opts;
+    if (!this.sprint(along, { done: shiftWhen, seconds })) return false;
+    this.shift('fairy');
+    return this.fly(target, { seconds, release });
+  }
+
+  /**
+   * Toward `target`, hopping at every chance: Space is tapped the moment the
+   * feet touch anything (ground, water or ice) and held through the whole hop.
+   * The cheat a person might try, for tests that say "nothing gets across by
+   * hopping". Done when `done` is true (by default: standing on the target's tile).
+   */
+  bounce(target: Spot, opts: MoveOptions & { done?: () => boolean } = {}): boolean {
+    const { seconds = 20 } = opts;
+    const done = opts.done ?? ((): boolean => this.standingOn(target));
+    const ok = this.run(done, seconds, () => {
+      this.steerTo(target);
+      if (this.onGround) this.pad.tapped.add('Space');
+      else this.pad.down.add('Space');
+    });
+    this.stopSteering();
+    return ok;
   }
 }

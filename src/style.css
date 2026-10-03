@@ -34,6 +34,17 @@ body {
   -webkit-user-select: none;
 }
 
+/* On Frostfang the sky goes cold: game.ts sets --cold from 0 to 1. */
+#game::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, #7d9fce 0%, #b9d3ec 45%, #e6f1fb 100%);
+  opacity: var(--cold, 0);
+}
+
 .view {
   display: block;
   width: 100%;

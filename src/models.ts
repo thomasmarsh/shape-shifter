@@ -283,6 +283,103 @@ export function makeBunny(): BunnyModel {
   return { group, body, earL, earR, footL, footR };
 }
 
+export interface WolfModel {
+  group: THREE.Group;
+  /** Body, head and tail together, to bob while galloping. */
+  body: THREE.Group;
+  tail: THREE.Group;
+  legFL: THREE.Group;
+  legFR: THREE.Group;
+  legBL: THREE.Group;
+  legBR: THREE.Group;
+}
+
+/**
+ * A big white wolf with a grey saddle and dark paws, about 1.7 tall to the ear
+ * tips and 2 long with its tail. Faces +z. The grey and dark parts are there so
+ * it still reads against the snow it runs on.
+ */
+export function makeWolf(): WolfModel {
+  const group = new THREE.Group();
+  const body = new THREE.Group();
+  const white = mat(0xf4f7fb);
+  const cream = mat(0xdfe6ee);
+  const grey = mat(0x8e9bad);
+  const slate = mat(0x5d6a7c);
+  const dark = mat(0x232833);
+  const eye = mat(0xffd34d, { emissive: 0xb07a10 });
+
+  // The torso and head ride on long legs.
+  const LIFT = 0.18;
+  const lift = (bw: number, bh: number, bd: number, m: THREE.Material, x: number, y: number, z: number): THREE.Mesh =>
+    box(bw, bh, bd, m, x, y + LIFT, z);
+
+  // Legs pivot at the hip. The paws and "socks" are dark, so the gait shows.
+  const makeLeg = (side: number, z: number, back: boolean): THREE.Group => {
+    const w = back ? 0.2 : 0.17;
+    const pivot = limb(w, 0.84, w + 0.02, back ? cream : white, side * 0.2, 0.88);
+    pivot.position.z = z;
+    pivot.add(
+      box(w + 0.02, 0.3, w + 0.04, slate, 0, -0.69, 0),
+      box(w + 0.03, 0.09, w + 0.14, dark, 0, -0.8, 0.04),
+    );
+    return pivot;
+  };
+  const legFL = makeLeg(-1, 0.42, false);
+  const legFR = makeLeg(1, 0.42, false);
+  const legBL = makeLeg(-1, -0.5, true);
+  const legBR = makeLeg(1, -0.5, true);
+
+  // A big bushy brush of a tail with a dark tip, hanging from the rump.
+  const tail = new THREE.Group();
+  tail.position.set(0, 1.05 + LIFT, -0.66);
+  tail.rotation.x = -0.6;
+  tail.add(
+    box(0.3, 0.3, 0.45, white, 0, 0, -0.18),
+    box(0.36, 0.36, 0.4, white, 0, 0, -0.55),
+    box(0.26, 0.26, 0.3, grey, 0, 0, -0.88),
+    box(0.16, 0.16, 0.18, dark, 0, 0, -1.08),
+  );
+
+  body.add(
+    // Barrel, with a lighter belly and a grey saddle along the back.
+    lift(0.56, 0.5, 1.2, white, 0, 0.94, -0.06),
+    lift(0.46, 0.14, 1.0, cream, 0, 0.72, -0.04),
+    lift(0.42, 0.1, 0.95, grey, 0, 1.2, -0.1),
+    lift(0.3, 0.06, 0.55, slate, 0, 1.25, -0.2),
+    // Deep chest, thick ruff and a neck that lifts the head.
+    lift(0.68, 0.64, 0.4, white, 0, 0.96, 0.42),
+    lift(0.74, 0.3, 0.34, cream, 0, 0.76, 0.5),
+    lift(0.4, 0.42, 0.34, white, 0, 1.2, 0.66),
+    // Head: broad cheeks, a long pale snout, a dark nose and a grey brow.
+    lift(0.52, 0.44, 0.44, white, 0, 1.2, 0.92),
+    lift(0.58, 0.2, 0.26, cream, 0, 1.1, 0.88),
+    lift(0.46, 0.08, 0.34, grey, 0, 1.4, 0.9),
+    lift(0.24, 0.22, 0.42, cream, 0, 1.12, 1.26),
+    lift(0.2, 0.06, 0.3, grey, 0, 1.0, 1.2),
+    lift(0.13, 0.11, 0.07, dark, 0, 1.19, 1.48),
+    // Tall pointed ears, grey outside and dark inside.
+    lift(0.13, 0.28, 0.1, grey, -0.15, 1.57, 0.84),
+    lift(0.13, 0.28, 0.1, grey, 0.15, 1.57, 0.84),
+    lift(0.07, 0.12, 0.08, dark, -0.15, 1.75, 0.84),
+    lift(0.07, 0.12, 0.08, dark, 0.15, 1.75, 0.84),
+    lift(0.06, 0.18, 0.04, slate, -0.15, 1.55, 0.9),
+    lift(0.06, 0.18, 0.04, slate, 0.15, 1.55, 0.9),
+    // Glowing amber eyes under a dark brow.
+    lift(0.08, 0.06, 0.04, eye, -0.15, 1.24, 1.125),
+    lift(0.08, 0.06, 0.04, eye, 0.15, 1.24, 1.125),
+    lift(0.11, 0.03, 0.04, slate, -0.15, 1.29, 1.125),
+    lift(0.11, 0.03, 0.04, slate, 0.15, 1.29, 1.125),
+    legFL,
+    legFR,
+    legBL,
+    legBR,
+    tail,
+  );
+  group.add(body);
+  return { group, body, tail, legFL, legFR, legBL, legBR };
+}
+
 export interface BadGuyModel {
   group: THREE.Group;
   armL: THREE.Group;
@@ -436,6 +533,81 @@ export function makeGreatTree(seed: number): THREE.Group {
     // A lighter rim on top picks out the flat landing.
     box(1.5, 0.04, 1.5, leafLight, 0, 4.98, 0),
   );
+  group.rotation.y = (seed % 4) * 0.1;
+  return group;
+}
+
+/** A pine: a short trunk and stacked tiers with snow on top. Its top is 3.8 to 4.0 up, matching its solid block. */
+export function makePine(seed: number): THREE.Group {
+  const group = new THREE.Group();
+  const needle = mat([0x1f5a3a, 0x255f3f, 0x1b5036][seed % 3]);
+  const snow = mat(0xf4f8ff);
+  const top = 3.8 + (seed % 2) * 0.2;
+  group.add(
+    box(0.3, 1.0, 0.3, mat(0x5a3c24), 0, 0.5, 0),
+    box(1.7, 0.7, 1.7, needle, 0, 1.2, 0),
+    box(1.75, 0.08, 1.75, snow, 0, 1.58, 0),
+    box(1.3, 0.7, 1.3, needle, 0, 1.95, 0),
+    box(1.35, 0.08, 1.35, snow, 0, 2.33, 0),
+    box(0.9, 0.7, 0.9, needle, 0, 2.7, 0),
+    box(0.95, 0.08, 0.95, snow, 0, 3.08, 0),
+    box(0.5, top - 3.12, 0.5, needle, 0, 3.12 + (top - 3.12) / 2, 0),
+    box(0.54, 0.1, 0.54, snow, 0, top - 0.05, 0),
+  );
+  group.rotation.y = (seed % 4) * 0.2;
+  return group;
+}
+
+/**
+ * A great pine: a thick trunk and wide, snow-laden tiers that step in toward a
+ * flat white top you can stand on. Much wider and fuller than a small pine.
+ * Exactly 5.0 tall, matching its solid block.
+ */
+export function makeGreatPine(seed: number): THREE.Group {
+  const group = new THREE.Group();
+  const bark = mat(0x4f3420);
+  const barkLight = mat(0x6a4a30);
+  const dark = mat([0x15472f, 0x1a5035][seed % 2]);
+  const mid = mat([0x1d5a3c, 0x226640][seed % 2]);
+  const snow = mat(0xf6faff);
+  const shade = mat(0xdbe8f6);
+
+  group.add(
+    box(0.6, 4.2, 0.6, bark, 0, 2.1, 0),
+    // Bark stripes and two stubby branches, so the trunk reads as climbable.
+    box(0.64, 3.0, 0.2, barkLight, 0, 1.6, 0.2),
+    box(0.9, 0.2, 0.22, bark, 0.5, 2.3, 0),
+    box(0.22, 0.2, 0.9, bark, 0, 3.0, -0.5),
+    // Snow drifted round the foot of the trunk.
+    box(1.1, 0.14, 1.1, snow, 0, 0.07, 0),
+  );
+
+  // Four tiers, each a dark skirt under a lighter body with snow piled on top.
+  const tiers: { w: number; y: number; h: number; c: THREE.Material }[] = [
+    { w: 2.6, y: 2.75, h: 0.45, c: dark },
+    { w: 2.3, y: 3.35, h: 0.5, c: mid },
+    { w: 2.0, y: 3.95, h: 0.5, c: dark },
+    { w: 1.7, y: 4.5, h: 0.5, c: mid },
+  ];
+  tiers.forEach((t, n) => {
+    group.add(
+      // A wider, lower skirt of boughs, then the tier itself.
+      box(t.w + 0.2, 0.16, t.w + 0.2, dark, 0, t.y - t.h / 2 + 0.08, 0),
+      box(t.w, t.h, t.w, t.c, 0, t.y, 0),
+      // Snow lies thick along the rim of each tier and a little further in.
+      box(t.w + 0.06, 0.1, t.w + 0.06, snow, 0, t.y + t.h / 2 + 0.03, 0),
+      box(t.w * 0.55, 0.08, t.w * 0.55, shade, 0, t.y + t.h / 2 + 0.1, 0),
+    );
+    // Clumps of snow slumped over the corners, and bough tips poking out.
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+      const d = t.w / 2;
+      group.add(box(0.34, 0.2, 0.34, snow, sx * (d - 0.08), t.y + t.h / 2 - 0.1, sz * (d - 0.08)));
+      if ((n + sx + sz + seed) % 3 === 0) group.add(box(0.22, 0.1, 0.22, snow, sx * (d + 0.05), t.y - t.h / 2 + 0.05, sz * (d + 0.05)));
+    }
+  });
+
+  // The flat white top you can stand on: exactly 5.0.
+  group.add(box(1.8, 0.2, 1.8, snow, 0, 4.82, 0), box(1.9, 0.12, 1.9, snow, 0, 4.94, 0));
   group.rotation.y = (seed % 4) * 0.1;
   return group;
 }

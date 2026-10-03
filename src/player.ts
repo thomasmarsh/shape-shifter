@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FORMS, FormDef, PHYSICS, SWORD_COLOR, SWORD_DAMAGE, swordTier } from './forms';
+import { FORMS, FormDef, ICE_SPEED, ICE_STUMBLE, PHYSICS, SWORD_COLOR, SWORD_DAMAGE, swordTier } from './forms';
 import type { Meter } from './hud';
 import type { Controls } from './input';
 import {
@@ -9,10 +9,12 @@ import {
   makeFairyHome,
   makeHuman,
   makeOrangutan,
+  makeWolf,
   BunnyModel,
   FairyModel,
   HumanModel,
   OrangutanModel,
+  WolfModel,
 } from './models';
 import { Particles } from './particles';
 import { sound } from './audio';
@@ -38,6 +40,9 @@ const DENIED_GAP = 0.8; // seconds between "too tired" sounds
 // Bunny
 const HOP_FULL_SPEED = 12; // still rising this fast after a moment: a full hop
 const LAND_TIME = 0.2; // squash after landing
+
+// Winter Wolf on thin ice
+const FROST_RATE = 22; // frost puffs per second while running on ice
 
 const ATTACK_TIME = 0.3;
 const ATTACK_REACH = 1.75;
@@ -121,6 +126,12 @@ export class Player {
   fullHops = 0;
   private landTimer = 0;
 
+  // Thin ice
+  /** Seconds spent slower than ICE_SPEED on thin ice, or since last on real ground. */
+  private iceSlow = 0;
+  /** Tiles run at full speed on thin ice, for the tutorial. */
+  iceRun = 0;
+
   private lastGroundY = 0;
   private attackTimer = 0;
   private attackHit = false;
@@ -134,6 +145,7 @@ export class Player {
   private fairy: FairyModel;
   private orangutan: OrangutanModel;
   private bunny: BunnyModel;
+  private wolf: WolfModel;
   private home: THREE.Group;
 
   constructor(
@@ -145,9 +157,10 @@ export class Player {
     this.fairy = makeFairy();
     this.orangutan = makeOrangutan();
     this.bunny = makeBunny();
+    this.wolf = makeWolf();
     this.home = makeFairyHome();
     this.home.visible = false;
-    this.group.add(this.human.group, this.fairy.group, this.orangutan.group, this.bunny.group);
+    this.group.add(this.human.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group);
     this.applyForm();
   }
 
@@ -197,6 +210,7 @@ export class Player {
     this.climb = null;
     this.treesClimbed = 0;
     this.lastTree = -1;
+    this.iceSlow = 0;
     this.leaveHome();
     this.sync(0);
   }
@@ -233,6 +247,7 @@ export class Player {
     this.fairy.group.visible = id === 'fairy';
     this.orangutan.group.visible = id === 'orangutan';
     this.bunny.group.visible = id === 'bunny';
+    this.wolf.group.visible = id === 'wolf';
     const color = SWORD_COLOR[swordTier(this.level)];
     for (const blade of [this.human.blade, this.orangutan.blade]) {
       (blade.material as THREE.MeshLambertMaterial).color.setHex(color);
@@ -332,11 +347,15 @@ export class Player {
     if (this.climb) {
       this.climbStep(dt, input);
     } else {
+      const fromX = this.pos.x;
+      const fromZ = this.pos.z;
       this.moveAround(dt, input, isFairy);
       this.tryGrab(dt);
       if (!this.climb) this.moveUpDown(dt, input, isFairy);
       this.touchGround();
+      this.thinIce(dt, Math.hypot(this.pos.x - fromX, this.pos.z - fromZ));
     }
+    this.world.stepIce(dt, this.pos.x, this.pos.z, RADIUS);
     this.swingSword(dt, input, enemies);
 
     if (this.pos.y < -8) this.events.onFell();
@@ -509,13 +528,50 @@ export class Player {
     this.lastTree = -1;
   }
 
+  /**
+   * Thin ice holds only under a fast runner. Called each frame after moving,
+   * with how far we really moved. On the ground over whole ice: fast keeps it,
+   * slow wears it down, and past the allowance every tile under us breaks.
+   * Only a runner (a form whose top speed is ICE_SPEED or more) gets the
+   * stumble allowance; everyone else breaks it the frame they touch it. The
+   * slow time resets only when running fast or standing on real ground, never
+   * in the air, so a landing every few frames cannot skip across.
+   */
+  private thinIce(dt: number, moved: number): void {
+    if (!this.onGround || dt <= 0) return;
+    const holding = this.world.iceHolding(this.pos.x, this.pos.z, RADIUS, this.pos.y);
+    if (holding.length === 0) {
+      this.iceSlow = 0;
+      return;
+    }
+    if (moved / dt >= ICE_SPEED) {
+      this.iceSlow = 0;
+      this.iceRun += moved;
+      if (Math.random() < dt * FROST_RATE) {
+        this.particles.burst(this.pos, 0xeaf8ff, 1, 0.9, 0.09, 1);
+      }
+      return;
+    }
+    this.iceSlow += dt;
+    const allowance = this.form.speed >= ICE_SPEED ? ICE_STUMBLE : 0;
+    if (this.iceSlow <= allowance) return;
+    this.world.breakIce(holding);
+    for (const s of holding) {
+      this.particles.burst(new THREE.Vector3(s.x, this.pos.y, s.z), 0xd6f1ff, 7, 2.6, 0.13, 9);
+    }
+    sound.crack();
+    // Off the ground at once, so a bunny cannot land and hop off a tile that just broke.
+    this.onGround = false;
+    this.iceSlow = 0;
+  }
+
   private moveUpDown(dt: number, input: Controls, isFairy: boolean): void {
     const wasOnGround = this.onGround;
     const impact = this.vy;
     let ground = this.world.solidUnder(this.pos.x, this.pos.z, RADIUS);
     // Water holds you up: you float with your head out.
     const inWater = this.world.isWater(this.pos.x, this.pos.z);
-    const floatY = this.world.waterLevel - (isFairy ? 0.25 : 0.8);
+    const floatY = this.world.waterLevelAt(this.pos.x, this.pos.z) - (isFairy ? 0.25 : 0.8);
     if (inWater) ground = Math.max(ground, floatY);
 
     const flapping = isFairy && input.held('Space') && !this.exhausted && this.energy > 0;
@@ -630,6 +686,9 @@ export class Player {
       case 'bunny':
         this.animateBunny(dt);
         break;
+      case 'wolf':
+        this.animateWolf();
+        break;
       default:
         this.animateFairy(dt);
     }
@@ -705,6 +764,37 @@ export class Player {
     for (const ear of [b.earL, b.earR]) ear.rotation.x += (earTarget - ear.rotation.x) * k;
     b.footL.rotation.x = footKick;
     b.footR.rotation.x = footKick;
+  }
+
+  private animateWolf(): void {
+    const w = this.wolf;
+    const airborne = !this.onGround && !this.swimming;
+    const now = performance.now() / 1000;
+    let front = 0;
+    let back = 0;
+    let bob = 0;
+    let wag = Math.sin(now * 2.5) * 0.15;
+    let tailUp = -0.6;
+    if (airborne) {
+      // Legs tucked in, tail streaming out behind.
+      front = -0.8;
+      back = 0.8;
+      tailUp = -0.15;
+    } else if (this.walkPhase > 0) {
+      // A gallop: the front pair and the back pair swing out of phase.
+      front = Math.sin(this.walkPhase) * 0.9;
+      back = -front;
+      bob = Math.abs(Math.sin(this.walkPhase)) * 0.07;
+      wag = Math.sin(this.walkPhase * 0.5) * 0.25;
+      tailUp = -0.3;
+    }
+    w.legFL.rotation.x = front;
+    w.legFR.rotation.x = front;
+    w.legBL.rotation.x = back;
+    w.legBR.rotation.x = back;
+    w.body.position.y = bob;
+    w.tail.rotation.y = wag;
+    w.tail.rotation.x = tailUp;
   }
 
   private animateFairy(dt: number): void {

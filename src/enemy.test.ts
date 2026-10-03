@@ -258,3 +258,27 @@ describe('regular bad guys', () => {
     expect(d.enemy.alert).toBe(false);
   });
 });
+
+describe('thin ice', () => {
+  // Two tiles of thin ice across the whole width, at the height of the ground.
+  const strip = (t: Terrain) =>
+    t.rect(10, 0, 11, 30, (i, j) => {
+      t.clear(i, j);
+      t.setThinIce(i, j, FLOOR);
+    });
+
+  it('stops a bad guy chasing a player across it', () => {
+    const d = new Duel('human', island(strip), { x: 14.5, z: 15.5 }, { x: 8.5, z: 15.5 }, regularSpot);
+    d.run(8);
+    expect(d.enemy.alert).toBe(true);
+    expect(d.enemy.pos.x).toBeLessThan(10);
+    expect(d.enemy.pos.y).toBe(FLOOR);
+    expect(d.world.isIceIntact(10.5, 15.5)).toBe(true);
+  });
+
+  it('would have crossed ordinary ground in the same place', () => {
+    const d = new Duel('human', island(), { x: 14.5, z: 15.5 }, { x: 8.5, z: 15.5 }, regularSpot);
+    d.run(8);
+    expect(d.enemy.pos.x).toBeGreaterThan(12);
+  });
+});

@@ -418,7 +418,7 @@ export class Enemy implements Attackable {
     }
   }
 
-  /** Bad guys can't jump, won't step off edges and stay out of the water. */
+  /** Bad guys can't jump, won't step off edges and stay out of the water and off thin ice. */
   private walk(stepX: number, stepZ: number): void {
     const ok = (x: number, z: number): boolean => {
       const top = this.world.solidUnder(x, z, RADIUS);
@@ -428,7 +428,7 @@ export class Enemy implements Attackable {
         [x, z],
         [x + Math.sign(x - this.pos.x) * lead, z + Math.sign(z - this.pos.z) * lead],
       ]) {
-        if (this.world.isWater(ax, az)) return false;
+        if (this.world.isWater(ax, az) || this.world.isThinIce(ax, az)) return false;
         if (this.world.groundAt(ax, az) < this.pos.y - 0.5) return false;
       }
       return true;

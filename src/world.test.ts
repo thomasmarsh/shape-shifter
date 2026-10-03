@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NOTES } from './audio';
+import { ICE_REGROW } from './forms';
 import { Island, Kind, NO_STAND, TREE_BLOCK, World } from './world';
 
 const tiny = (extra: Partial<ReturnType<Island['build']>> = {}, id = 'tiny'): Island => ({
@@ -15,8 +16,8 @@ describe('the default world', () => {
   const world = new World();
   const { layout } = world;
 
-  it('is 220 by 64 tiles with the meadow where it always was', () => {
-    expect(world.width).toBe(220);
+  it('is 320 by 64 tiles with the meadow where it always was', () => {
+    expect(world.width).toBe(320);
     expect(world.depth).toBe(64);
     expect(layout.spawn).toEqual({ x: 10.5, z: 27.5 });
     expect(world.groundAt(10.5, 27.5)).toBe(2);
@@ -80,5 +81,86 @@ describe('building from islands', () => {
   it('refuses two things with the same id', () => {
     const cp = { checkpoints: [{ id: 'same', x: 4.5, z: 4.5 }] };
     expect(() => new World([tiny(cp, 'one'), tiny(cp, 'two')])).toThrow(/same/);
+  });
+});
+
+// A small island with a strip of thin ice at height 3.5 beside it: tile 10
+// over sky, tile 11 over a water tile (a pond bed at height 1).
+const iceyIsland: Island = {
+  id: 'icey',
+  name: 'Icey',
+  build(t) {
+    t.rect(2, 2, 6, 6, (i, j) => t.set(i, j, 3, Kind.Grass));
+    t.set(11, 4, 1, Kind.Sand);
+    t.setWater(11, 4, true);
+    t.setThinIce(10, 4, 3.5);
+    t.setThinIce(11, 4, 3.5);
+    return { spawn: { x: 3.5, z: 3.5 } };
+  },
+};
+
+describe('thin ice', () => {
+  const sky = { x: 10.5, z: 4.5 };
+  const pond = { x: 11.5, z: 4.5 };
+
+  it('is solid ground at its height while whole, over sky and over water', () => {
+    const w = new World([iceyIsland]);
+    for (const s of [sky, pond]) {
+      expect(w.solidAt(s.x, s.z)).toBe(3.5);
+      expect(w.groundAt(s.x, s.z)).toBe(3.5);
+      expect(w.solidUnder(s.x, s.z, 0.3)).toBe(3.5);
+      expect(w.isVoid(s.x, s.z)).toBe(false);
+      expect(w.isWater(s.x, s.z)).toBe(false);
+      expect(w.isThinIce(s.x, s.z)).toBe(true);
+    }
+  });
+
+  it('leaves the tile underneath unchanged, so broken ice is sky or water again', () => {
+    const w = new World([iceyIsland]);
+    w.breakIce([sky, pond]);
+    expect(w.solidAt(sky.x, sky.z)).toBe(-Infinity);
+    expect(w.isVoid(sky.x, sky.z)).toBe(true);
+    expect(w.isWater(pond.x, pond.z)).toBe(true);
+    expect(w.groundAt(pond.x, pond.z)).toBe(1);
+    // Still thin ice, just not whole.
+    expect(w.isThinIce(sky.x, sky.z)).toBe(true);
+    expect(w.isIceIntact(sky.x, sky.z)).toBe(false);
+  });
+
+  it('counts for the island bounds, and a plain tile is not thin ice', () => {
+    const w = new World([iceyIsland]);
+    expect(w.bounds[0].i1).toBe(11);
+    expect(w.isThinIce(3.5, 3.5)).toBe(false);
+  });
+
+  it('grows back ICE_REGROW seconds after breaking, but not under the player', () => {
+    const w = new World([iceyIsland]);
+    w.breakIce([sky]);
+    const away = { x: 30, z: 30 };
+    w.stepIce(ICE_REGROW - 0.1, away.x, away.z, 0.3);
+    expect(w.isIceIntact(sky.x, sky.z)).toBe(false);
+    // Someone is in the column, even only just: it waits.
+    w.stepIce(0.2, sky.x + 0.65, sky.z, 0.3);
+    expect(w.isIceIntact(sky.x, sky.z)).toBe(false);
+    w.stepIce(0.01, sky.x + 0.8, sky.z, 0.3);
+    expect(w.isIceIntact(sky.x, sky.z)).toBe(true);
+    expect(w.solidAt(sky.x, sky.z)).toBe(3.5);
+  });
+
+  it('comes back all at once on resetIce', () => {
+    const w = new World([iceyIsland]);
+    w.breakIce([sky, pond]);
+    w.resetIce();
+    expect(w.isIceIntact(sky.x, sky.z)).toBe(true);
+    expect(w.isIceIntact(pond.x, pond.z)).toBe(true);
+  });
+
+  it('names its whole tiles under a footprint, but not ones far below the feet', () => {
+    const w = new World([iceyIsland]);
+    // Standing on the seam of the two tiles.
+    expect(w.iceHolding(11, 4.5, 0.3, 3.5)).toHaveLength(2);
+    expect(w.iceHolding(11, 4.5, 0.3, 6)).toHaveLength(0);
+    w.breakIce([sky]);
+    expect(w.iceHolding(11, 4.5, 0.3, 3.5)).toEqual([pond]);
   });
 });

@@ -82,8 +82,14 @@ function thingsGrid(): Map<string, string> {
   for (const c of layout.checkpoints) put(c, 'K');
   for (const e of layout.enemies) put(e, 'E');
   for (const b of layout.bread) put(b, 'B');
-  for (const t of layout.trees) put(t, t.kind === 'great' ? 'T' : 't');
+  for (const t of layout.trees) put(t, t.kind === 'great' || t.kind === 'greatPine' ? 'T' : 't');
   for (const b of layout.boulders) put(b, 'o');
+  // Thin ice with nothing else on it.
+  for (let j = 0; j < world.depth; j++) {
+    for (let i = 0; i < world.width; i++) {
+      if (world.isThinIce(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, '=');
+    }
+  }
   return marks;
 }
 const marks = thingsGrid();
@@ -131,6 +137,6 @@ for (const b of islands) {
   const h = b.j1 - b.j0 + 1;
   console.log(`=== ${b.id} (${b.name}): x ${b.i0}..${b.i1}, z ${b.j0}..${b.j1}, ${w} by ${h} tiles ===`);
   printGrid('heights: digit = height (0-9, a-z for 10-35), ~ water', b, heightChar);
-  printGrid('things: T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
+  printGrid('things: = thin ice, T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
   if (reach) printGrid(`${reachTitle}; # reached, . not reached`, b, reachChar);
 }

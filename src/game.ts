@@ -5,14 +5,15 @@ import { Enemy } from './enemy';
 import { FORMS, lightsNeeded, swordTier } from './forms';
 import { Card, Hud } from './hud';
 import { Input } from './input';
+import { coldAt, Snowfall } from './frost';
 import { hash } from './layout';
-import { makeBoulder, makeCloud, makeGreatTree, makeTree } from './models';
+import { makeBoulder, makeCloud, makeGreatPine, makeGreatTree, makePine, makeTree } from './models';
 import { Particles } from './particles';
 import { Player } from './player';
 import { PuzzleUi } from './puzzleUi';
 import { clearSave, freshSave, loadSave, SaveData, writeSave } from './save';
 import { BreadPickup, Checkpoint, Puzzle } from './things';
-import { Arrival, World } from './world';
+import { Arrival, World, WORLD_WIDTH } from './world';
 
 const VIEW_HEIGHT = 15; // world units visible top to bottom
 // The camera sits to the south-west and looks north-east, so ground that
@@ -24,8 +25,8 @@ const REACH_HEIGHT = 1.5; // and how far above or below the thing's ground you m
 const CANDLE_LIGHTS = 4; // point lights shared by the candles nearest the player
 // Background clouds drift east across the whole world, then wrap around.
 const CLOUD_MIN_X = -30;
-const CLOUD_MAX_X = 230;
-const CLOUD_COUNT = 64;
+const CLOUD_MAX_X = WORLD_WIDTH + 10;
+const CLOUD_COUNT = Math.round((CLOUD_MAX_X - CLOUD_MIN_X) / 4); // about one per four tiles
 
 interface Hint {
   id: string;
@@ -48,6 +49,8 @@ export class Game {
   private camera: THREE.OrthographicCamera;
   private camTarget = new THREE.Vector3();
   private sun: THREE.DirectionalLight;
+  private hemi: THREE.HemisphereLight;
+  private snowfall: Snowfall;
   private clock = new THREE.Clock();
   private time = 0;
 
@@ -99,7 +102,8 @@ export class Game {
 
     // Light: soft sky light plus a sun that casts shadows, so you can judge
     // where a jumping or flying character is above the ground.
-    this.scene.add(new THREE.HemisphereLight(0xe6f6ff, 0x9a8f78, 1.35));
+    this.hemi = new THREE.HemisphereLight(0xe6f6ff, 0x9a8f78, 1.35);
+    this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xfff0d2, 1.9);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -123,6 +127,9 @@ export class Game {
       this.scene.add(light);
     }
     this.buildScenery();
+    // Snow falls round the camera on Frostfang; ?fast keeps only a few flakes.
+    this.snowfall = new Snowfall(fast, this.renderer.getPixelRatio());
+    this.scene.add(this.snowfall.points);
 
     this.input = new Input(this.renderer.domElement);
     this.hud = new Hud(mount);
@@ -191,7 +198,8 @@ export class Game {
       // The look depends on where the tree stands, so adding trees elsewhere
       // never changes the ones that are already there.
       const seed = Math.floor(hash(Math.floor(t.x), Math.floor(t.z), 4) * 1000);
-      const tree = t.kind === 'great' ? makeGreatTree(seed) : makeTree(seed);
+      const makers = { regular: makeTree, great: makeGreatTree, pine: makePine, greatPine: makeGreatPine };
+      const tree = makers[t.kind](seed);
       tree.position.set(t.x, this.world.groundAt(t.x, t.z), t.z);
       this.scenery.add(tree);
     }
@@ -273,6 +281,7 @@ export class Game {
   private toCheckpoint(): void {
     const c = this.checkpoints.find((k) => k.id === this.activeCheckpoint);
     const spot = c ? c.standSpot : this.world.layout.spawn;
+    this.world.resetIce();
     this.player.place(spot.x, spot.z);
   }
 
@@ -549,6 +558,18 @@ export class Game {
         done: () => p.fullHops > 0,
       },
       {
+        id: 'wolf',
+        text: 'New shape! Press <kbd>4</kbd> to become a Winter Wolf, then run across the frozen lake in the east.',
+        when: () => p.level >= 4 && p.form.id === 'human',
+        done: () => this.flags.has('used:wolf'),
+      },
+      {
+        id: 'ice',
+        text: 'Thin ice only holds for a runner. Keep running and do not stop.',
+        when: () => p.form.id === 'wolf',
+        done: () => p.iceRun >= 3,
+      },
+      {
         id: 'cross',
         text: 'Find the stone bluff past the pond, then fly from cloud to cloud to the next island.',
         when: () => p.level >= 1 && this.flags.has('fairy') && !this.arrived.has('tanglewood'),
@@ -611,6 +632,7 @@ export class Game {
     this.updateLanding();
     this.updateFinder(dt);
     this.updateCamera(dt);
+    this.updateCold();
     this.updateHud();
     this.input.endFrame();
     this.renderer.render(this.scene, this.camera);
@@ -759,7 +781,7 @@ export class Game {
     const p = this.player;
     const below = Math.max(
       this.world.solidAt(p.pos.x, p.pos.z),
-      this.world.isWater(p.pos.x, p.pos.z) ? this.world.waterLevel : -Infinity,
+      this.world.isWater(p.pos.x, p.pos.z) ? this.world.waterLevelAt(p.pos.x, p.pos.z) : -Infinity,
     );
     const show = !p.hidden && !p.dead && Number.isFinite(below) && p.pos.y - below > 0.25;
     this.landing.visible = show;
@@ -804,6 +826,20 @@ export class Game {
     this.camera.lookAt(this.camTarget.x, this.camTarget.y + 0.8, this.camTarget.z);
     this.sun.position.set(this.camTarget.x - 10, this.camTarget.y + 30, this.camTarget.z + 6);
     this.sun.target.position.copy(this.camTarget);
+  }
+
+  private static readonly WARM = { sky: new THREE.Color(0xe6f6ff), ground: new THREE.Color(0x9a8f78), sun: new THREE.Color(0xfff0d2) };
+  private static readonly COLD = { sky: new THREE.Color(0xd2e4ff), ground: new THREE.Color(0x8590ac), sun: new THREE.Color(0xf0f2ff) };
+
+  /** On Frostfang the light turns a little colder, the sky greyer, and snow falls. */
+  private updateCold(): void {
+    const cold = coldAt(this.camTarget.x);
+    const { WARM, COLD } = Game;
+    this.hemi.color.copy(WARM.sky).lerp(COLD.sky, cold);
+    this.hemi.groundColor.copy(WARM.ground).lerp(COLD.ground, cold);
+    this.sun.color.copy(WARM.sun).lerp(COLD.sun, cold);
+    this.snowfall.update(this.time, this.camTarget, cold);
+    this.mount.style.setProperty('--cold', cold.toFixed(3));
   }
 
   private updateHud(): void {

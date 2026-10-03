@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FORMS, FormId } from './forms';
+import { FORMS, FormId, ICE_REGROW, ICE_SPEED, ICE_STUMBLE } from './forms';
 import type { Controls } from './input';
 import { Particles } from './particles';
 import { Player } from './player';
@@ -311,5 +311,299 @@ describe('Bunny', () => {
     expect(peak(1)).toBeLessThan(2);
     expect(peak(4)).toBeGreaterThan(1 - 0.35);
     expect(peak(4)).toBeLessThan(2);
+  });
+});
+
+// ---- the Winter Wolf and thin ice --------------------------------------
+
+/**
+ * A start bank (tiles 0 to 9) and a far bank (24 on) with a 14-tile bridge of
+ * thin ice between them, tiles 10 to 23. Over 'sky' the bridge hangs in the
+ * air; over 'water' there is a pond bed 1.5 high under it. With a `slope` the
+ * bridge climbs that much per tile and the far bank is a step above its end.
+ */
+function iceBridge(over: 'sky' | 'water', slope = 0): Island {
+  const top = (i: number): number => FLOOR + slope * (i - 9);
+  return {
+    id: 'bridge',
+    name: 'Bridge',
+    build(t) {
+      t.rect(0, 10, 9, 20, (i, j) => t.set(i, j, FLOOR, Kind.Snow));
+      t.rect(24, 10, 40, 20, (i, j) => t.set(i, j, top(23) + slope, Kind.Snow));
+      t.rect(10, 10, 23, 20, (i, j) => {
+        if (over === 'water') {
+          t.set(i, j, 1.5, Kind.Sand);
+          t.setWater(i, j, true);
+        }
+        t.setThinIce(i, j, top(i));
+      });
+      return { spawn: { x: 2.5, z: 15.5 } };
+    },
+  };
+}
+
+const ICE_START = { x: 6.5, z: 15.5 };
+const east = { x: 1, z: 0 };
+
+describe('Winter Wolf', () => {
+  it('is the fastest form so far, and unlocks at level 4', () => {
+    expect(FORMS.find((f) => f.id === 'wolf')!.speed).toBe(7);
+    expect(FORMS.filter((f) => f.playable && f.id !== 'wolf').every((f) => f.speed < ICE_SPEED)).toBe(true);
+    const world = new World([island()]);
+    const player = new Player(world, new Particles(), { onFell: () => {}, onDied: () => {}, onAte: () => {}, onHome: () => {} });
+    player.level = 3;
+    expect(player.canShiftTo(4)).toBe('locked');
+    player.level = 4;
+    expect(player.canShiftTo(4)).toBe('ok');
+    expect(player.shiftTo(4)).toBe(true);
+    expect(player.form.id).toBe('wolf');
+  });
+
+  it('really runs 7 tiles a second', () => {
+    const rig = new Rig('wolf', island());
+    rig.pad.dir = east;
+    rig.frames(60);
+    expect(rig.player.pos.x - 6.5).toBeCloseTo(7, 1);
+  });
+});
+
+describe('Thin ice', () => {
+  it('holds a running wolf across 14 tiles over sky', () => {
+    const rig = new Rig('wolf', iceBridge('sky'), ICE_START);
+    rig.pad.dir = east;
+    expect(rig.until(() => rig.player.pos.x > 27)).toBe(true);
+    expect(rig.player.pos.y).toBe(FLOOR);
+    expect(rig.player.onGround).toBe(true);
+    for (let i = 10; i < 24; i++) expect(rig.world.isIceIntact(i + 0.5, 15.5), `tile ${i}`).toBe(true);
+    expect(rig.player.iceRun).toBeGreaterThan(12);
+  });
+
+  it('holds a running wolf across 14 tiles over water, with no swimming', () => {
+    const rig = new Rig('wolf', iceBridge('water'), ICE_START);
+    rig.pad.dir = east;
+    let swam = false;
+    expect(
+      rig.until(() => {
+        swam = swam || rig.player.swimming;
+        return rig.player.pos.x > 27;
+      }),
+    ).toBe(true);
+    expect(swam).toBe(false);
+    expect(rig.player.pos.y).toBe(FLOOR);
+  });
+
+  it('lets a wolf run up a ramp of 0.25 a tile, like stairs', () => {
+    const rig = new Rig('wolf', iceBridge('sky', 0.25), ICE_START);
+    rig.pad.dir = east;
+    expect(rig.until(() => rig.player.pos.x > 27)).toBe(true);
+    expect(rig.player.pos.y).toBeCloseTo(FLOOR + 0.25 * 15, 6);
+    expect(rig.world.isIceIntact(23.5, 15.5)).toBe(true);
+  });
+
+  it('gives way under a human, orangutan, bunny and fairy on the first tile, over sky', () => {
+    for (const form of ['human', 'orangutan', 'bunny', 'fairy'] as const) {
+      const rig = new Rig(form, iceBridge('sky'), ICE_START);
+      rig.pad.dir = east;
+      expect(rig.until(() => !rig.world.isIceIntact(10.5, 15.5), 120), form).toBe(true);
+      expect(rig.player.pos.x, form).toBeLessThan(11);
+      expect(rig.player.onGround, form).toBe(false);
+      if (form !== 'fairy') {
+        expect(rig.until(() => rig.player.pos.y < FLOOR - 3), form).toBe(true);
+      }
+    }
+  });
+
+  it('leaves them swimming over water', () => {
+    for (const form of ['human', 'orangutan', 'bunny', 'fairy'] as const) {
+      const rig = new Rig(form, iceBridge('water'), ICE_START);
+      rig.pad.dir = east;
+      expect(rig.until(() => !rig.world.isIceIntact(10.5, 15.5), 120), form).toBe(true);
+      // Keep walking: she steps onto the next tile and drops in too.
+      rig.frames(120);
+      rig.pad.dir = { x: 0, z: 0 };
+      rig.frames(30);
+      expect(rig.player.swimming, form).toBe(true);
+      expect(rig.player.pos.y, form).toBeLessThan(rig.world.waterLevel);
+    }
+  });
+
+  it('lets a fairy that dropped through flap away from the height she fell from', () => {
+    const rig = new Rig('fairy', iceBridge('sky'), ICE_START);
+    rig.pad.dir = east;
+    expect(rig.until(() => !rig.world.isIceIntact(10.5, 15.5), 120)).toBe(true);
+    rig.pad.down.add('Space');
+    let peak = -Infinity;
+    for (let n = 0; n < 60; n++) {
+      rig.frame();
+      peak = Math.max(peak, rig.player.pos.y);
+    }
+    expect(peak).toBeGreaterThan(FLOOR);
+    expect(rig.player.pos.y).toBeGreaterThan(FLOOR + 1);
+  });
+
+  it('breaks under a wolf that stops, after the stumble allowance', () => {
+    const rig = new Rig('wolf', iceBridge('sky'), ICE_START);
+    rig.pad.dir = east;
+    expect(rig.until(() => rig.player.pos.x > 14)).toBe(true);
+    rig.pad.dir = { x: 0, z: 0 };
+    const stumble = Math.floor(ICE_STUMBLE / DT);
+    rig.frames(stumble - 1);
+    expect(rig.world.isIceIntact(14.5, 15.5)).toBe(true);
+    expect(rig.until(() => !rig.world.isIceIntact(14.5, 15.5), 12)).toBe(true);
+    expect(rig.player.onGround).toBe(false);
+  });
+
+  it('survives a single slow frame', () => {
+    const rig = new Rig('wolf', iceBridge('sky'), ICE_START);
+    rig.pad.dir = east;
+    expect(rig.until(() => rig.player.pos.x > 14)).toBe(true);
+    rig.pad.dir = { x: 0, z: 0 };
+    rig.frame();
+    rig.pad.dir = east;
+    expect(rig.until(() => rig.player.pos.x > 27)).toBe(true);
+    expect(rig.player.pos.y).toBe(FLOOR);
+  });
+
+  it('does not let a bunny skip across by hopping again at every landing', () => {
+    const rig = new Rig('bunny', iceBridge('sky'), ICE_START);
+    rig.pad.dir = east;
+    rig.pad.down.add('Space');
+    let brokeOnLanding = false;
+    let reached = false;
+    for (let n = 0; n < 900; n++) {
+      if (rig.player.onGround) rig.pad.tapped.add('Space');
+      const wasAir = !rig.player.onGround;
+      rig.frame();
+      const broken = [...Array(14).keys()].some((k) => !rig.world.isIceIntact(10.5 + k, 15.5));
+      if (broken && wasAir && !brokeOnLanding) {
+        brokeOnLanding = true;
+        // The tile went from under her in the same frame she touched it.
+        expect(rig.player.onGround).toBe(false);
+      }
+      if (rig.player.pos.x > 25 && rig.player.pos.y > FLOOR - 0.5) reached = true;
+    }
+    expect(brokeOnLanding).toBe(true);
+    expect(reached).toBe(false);
+  });
+
+  it('grows back after ICE_REGROW, but not while the player is in its column, and all at once on resetIce', () => {
+    const rig = new Rig('human', iceBridge('water'), ICE_START);
+    rig.pad.dir = east;
+    expect(rig.until(() => rig.player.swimming, 240)).toBe(true);
+    rig.pad.dir = { x: 0, z: 0 };
+    // Treading water in a column: still broken well after the regrowth time.
+    const here = { x: rig.player.pos.x, z: rig.player.pos.z };
+    rig.frames(Math.round((ICE_REGROW + 2) / DT));
+    expect(rig.player.swimming).toBe(true);
+    expect(rig.world.isIceIntact(here.x, here.z)).toBe(false);
+    // Swim back to the bank, and it grows back as soon as she is clear.
+    rig.pad.dir = { x: -1, z: 0 };
+    expect(rig.until(() => rig.world.isIceIntact(here.x, here.z), 600)).toBe(true);
+    expect(rig.player.pos.x + 0.3).toBeLessThan(Math.floor(here.x) + 0.01);
+
+    // And it takes ICE_REGROW when nobody is near.
+    const s = rig.world;
+    s.breakIce([{ x: 20.5, z: 15.5 }]);
+    rig.pad.dir = { x: 0, z: 0 };
+    rig.frames(Math.round((ICE_REGROW - 0.5) / DT));
+    expect(s.isIceIntact(20.5, 15.5)).toBe(false);
+    rig.frames(Math.round(1 / DT));
+    expect(s.isIceIntact(20.5, 15.5)).toBe(true);
+
+    s.breakIce([{ x: 21.5, z: 15.5 }, { x: 22.5, z: 15.5 }]);
+    s.resetIce();
+    expect(s.isIceIntact(21.5, 15.5) && s.isIceIntact(22.5, 15.5)).toBe(true);
+  });
+
+  it('lets a wolf jump over and onto thin ice, and keeps its speed on landing', () => {
+    const rig = new Rig('wolf', iceBridge('sky'), ICE_START);
+    rig.pad.dir = east;
+    // Hop all the way across: airborne is fine, and every landing keeps steering.
+    for (let n = 0; n < 600 && rig.player.pos.x < 27; n++) {
+      if (rig.player.onGround) rig.pad.tapped.add('Space');
+      rig.frame();
+    }
+    expect(rig.player.pos.x).toBeGreaterThan(27);
+    expect(rig.until(() => rig.player.onGround)).toBe(true);
+    expect(rig.player.pos.y).toBe(FLOOR);
+  });
+});
+
+// ---- a high pond ---------------------------------------------------------
+
+const SHORE = 15;
+const LEVEL = 14.7;
+
+/**
+ * A bank (tiles 0-19) and a far bank (40 on) at height 15, with a pond between
+ * (20-39): bed 12.5, surface 14.7. With `ice` there is a sheet of thin ice at
+ * 15 over the whole pond.
+ */
+function highPond(ice: boolean): Island {
+  return {
+    id: 'pond',
+    name: 'Pond',
+    build(t) {
+      t.rect(0, 10, 19, 20, (i, j) => t.set(i, j, SHORE, Kind.Snow));
+      t.rect(40, 10, 60, 20, (i, j) => t.set(i, j, SHORE, Kind.Snow));
+      t.rect(20, 10, 39, 20, (i, j) => {
+        t.set(i, j, 12.5, Kind.Sand);
+        t.setWater(i, j, true, LEVEL);
+        if (ice) t.setThinIce(i, j, SHORE);
+      });
+      return { spawn: { x: 2.5, z: 15.5 } };
+    },
+  };
+}
+
+describe('Water at its own height', () => {
+  it('floats a human at 13.9, and lets them jump out onto the shore', () => {
+    const rig = new Rig('human', highPond(false), { x: 17.5, z: 15.5 });
+    expect(rig.world.waterLevelAt(25.5, 15.5)).toBe(LEVEL);
+    rig.pad.dir = east;
+    expect(rig.until(() => rig.player.swimming, 240)).toBe(true);
+    rig.pad.dir = { x: 0, z: 0 };
+    rig.frames(30);
+    expect(rig.player.pos.y).toBeCloseTo(LEVEL - 0.8, 6);
+    // Back to the shore: jump at the bank, pressing on.
+    rig.pad.dir = { x: -1, z: 0 };
+    let out = false;
+    for (let n = 0; n < 600 && !out; n++) {
+      if (rig.player.onGround) rig.pad.tapped.add('Space');
+      rig.frame();
+      out = rig.player.pos.y >= SHORE - 1e-6 && rig.player.onGround && !rig.player.swimming;
+    }
+    expect(out).toBe(true);
+  });
+
+  it('floats a fairy at 14.45, and she can take off from it', () => {
+    const rig = new Rig('fairy', highPond(false), { x: 17.5, z: 15.5 });
+    rig.pad.dir = east;
+    expect(rig.until(() => rig.player.swimming, 240)).toBe(true);
+    rig.pad.dir = { x: 0, z: 0 };
+    rig.frames(30);
+    expect(rig.player.pos.y).toBeCloseTo(LEVEL - 0.25, 6);
+    rig.pad.down.add('Space');
+    rig.frames(30);
+    expect(rig.player.pos.y).toBeGreaterThan(LEVEL + 0.5);
+  });
+
+  it('drops a human through thin ice over it, to swim at 13.9', () => {
+    const rig = new Rig('human', highPond(true), { x: 17.5, z: 15.5 });
+    rig.pad.dir = east;
+    expect(rig.until(() => !rig.world.isIceIntact(20.5, 15.5), 120)).toBe(true);
+    rig.frames(120);
+    rig.pad.dir = { x: 0, z: 0 };
+    rig.frames(30);
+    expect(rig.player.swimming).toBe(true);
+    expect(rig.player.pos.y).toBeCloseTo(LEVEL - 0.8, 6);
+  });
+
+  it('lets a wolf run across the ice over it', () => {
+    const rig = new Rig('wolf', highPond(true), { x: 17.5, z: 15.5 });
+    rig.pad.dir = east;
+    expect(rig.until(() => rig.player.pos.x > 42, 600)).toBe(true);
+    expect(rig.player.pos.y).toBe(SHORE);
+    expect(rig.player.swimming).toBe(false);
   });
 });

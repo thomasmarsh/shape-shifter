@@ -150,6 +150,13 @@ class Sound {
     this.tone(140, 0, 0.09, 0.18, 'square', 60);
   }
 
+  /** Thin ice giving way: a sharp snap and a tinkle of falling shards. */
+  crack(): void {
+    this.tone(1800, 0, 0.05, 0.16, 'square', 400);
+    this.tone(900, 0.02, 0.12, 0.12, 'sawtooth', 200);
+    [2400, 3100, 2700].forEach((f, k) => this.tone(f, 0.08 + k * 0.05, 0.12, 0.05, 'sine'));
+  }
+
   magic(): void {
     [880, 1174.7, 1568].forEach((f, k) => this.tone(f, k * 0.06, 0.3, 0.18, 'sine'));
   }
