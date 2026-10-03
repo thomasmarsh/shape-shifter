@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FORMS, FormId, ICE_REGROW, ICE_SPEED, ICE_STUMBLE } from './forms';
 import type { Controls } from './input';
 import { Particles } from './particles';
+import { Pilot } from './pilot';
 import { Player } from './player';
 import { Island, Kind, TreeSpot, World } from './world';
 
@@ -605,5 +606,83 @@ describe('Water at its own height', () => {
     expect(rig.until(() => rig.player.pos.x > 42, 600)).toBe(true);
     expect(rig.player.pos.y).toBe(SHORE);
     expect(rig.player.swimming).toBe(false);
+  });
+});
+
+// ---- root tangles --------------------------------------------------------
+
+/** A wall of tangle 3 tiles thick (tiles 20-22) across every row. */
+const tangleWall = (t: Parameters<Island['build']>[0]): void =>
+  t.rect(20, 0, 22, 30, (i, j) => t.setTangle(i, j));
+
+describe('Root tangles', () => {
+  it('let the Ant walk through a 3-tile corridor, and stop a Human', () => {
+    const ant = new Rig('ant', island(tangleWall));
+    ant.pad.dir = east;
+    expect(ant.until(() => ant.player.pos.x > 24)).toBe(true);
+    expect(ant.player.pos.y).toBe(FLOOR);
+
+    const human = new Rig('human', island(tangleWall));
+    human.pad.dir = east;
+    human.frames(600);
+    expect(human.player.pos.x).toBeLessThan(20 - 0.3 + 1e-6);
+  });
+
+  it('cannot be flown over by a Fairy, or hopped, or landed on by a Bunny', () => {
+    const fairy = new Rig('fairy', island(tangleWall));
+    fairy.pad.dir = east;
+    fairy.pad.down.add('Space');
+    fairy.frames(900);
+    expect(fairy.player.pos.x).toBeLessThan(20);
+
+    const bunny = new Rig('bunny', island(tangleWall));
+    bunny.hopEast(900);
+    expect(bunny.player.pos.x).toBeLessThan(20);
+
+    const pilot = new Pilot(new World([island(tangleWall)]), 'bunny', { x: 10.5, z: 15.5 });
+    expect(pilot.hopThenFly({ x: 25.5, z: 15.5 })).toBe(false);
+    expect(pilot.x).toBeLessThan(20);
+    // A pilot can also be an Ant and walk over the tangle.
+    const walker = new Pilot(new World([island(tangleWall)]), 'ant', { x: 10.5, z: 15.5 });
+    expect(walker.walk({ x: 25.5, z: 15.5 }, { seconds: 20 })).toBe(true);
+  });
+
+  it('keep the Ant from jumping, and from shifting, until it is fully out', () => {
+    const rig = new Rig('ant', island(tangleWall), { x: 21.5, z: 15.5 });
+    const human = FORMS.findIndex((f) => f.id === 'human');
+    rig.pad.tapped.add('Space');
+    rig.frames(30);
+    expect(rig.player.pos.y).toBe(FLOOR);
+    expect(rig.player.onGround).toBe(true);
+    expect(rig.player.canShiftTo(human)).toBe('cramped');
+    expect(rig.player.shiftTo(human)).toBe(false);
+
+    // Out on the west side: still cramped while any corner touches the tangle.
+    rig.pad.dir = { x: -1, z: 0 };
+    expect(rig.until(() => rig.player.pos.x < 20 + 0.3 - 0.01 && rig.player.pos.x > 19.9)).toBe(true);
+    expect(rig.player.canShiftTo(human)).toBe('cramped');
+    expect(rig.until(() => !rig.player.inTangle)).toBe(true);
+    rig.pad.dir = { x: 0, z: 0 };
+    expect(rig.player.canShiftTo(human)).toBe('ok');
+    rig.pad.tapped.add('Space');
+    rig.frame();
+    expect(rig.player.pos.y).toBeGreaterThan(FLOOR);
+    expect(rig.player.shiftTo(human)).toBe(true);
+  });
+
+  it('leave the Ant a slow walker and a Human-like jumper elsewhere', () => {
+    const ant = FORMS.find((f) => f.id === 'ant')!;
+    expect(ant.speed).toBeLessThan(ICE_SPEED);
+    expect(ant.jump).toBe(FORMS[0].jump);
+  });
+
+  it('unlocks the Ant at level 5, the form after the Wolf', () => {
+    const idx = FORMS.findIndex((f) => f.id === 'ant');
+    expect(FORMS[idx].level).toBe(5);
+    const player = new Player(new World([island()]), new Particles(), { onFell: () => {}, onDied: () => {}, onAte: () => {}, onHome: () => {} });
+    player.level = 4;
+    expect(player.canShiftTo(idx)).toBe('locked');
+    player.level = 5;
+    expect(player.canShiftTo(idx)).toBe('ok');
   });
 });

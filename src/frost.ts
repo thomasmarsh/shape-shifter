@@ -24,6 +24,8 @@ export interface FrostGround {
   height(i: number, j: number): number;
   kind(i: number, j: number): Kind;
   wet(i: number, j: number): boolean;
+  /** True on the tiles that Frostfang built; only those get frost decor. */
+  frost(i: number, j: number): boolean;
   layout: Layout;
 }
 
@@ -34,10 +36,21 @@ const SIDES = [
   { di: 0, dj: 1, seen: true }, // south: the camera sees it
 ] as const;
 
-/** 0 where the camera is well away from Frostfang, 1 once it is properly there. */
-export function coldAt(x: number): number {
-  const t = Math.min(1, Math.max(0, (x - 190) / 14));
-  return t * t * (3 - 2 * t);
+/**
+ * 0 where the camera is well away from Frostfang, 1 once it is properly there.
+ * Underroot's landing touches the end of Frostfang's last run (x 303..305, z 45),
+ * so from x = 294 east the cold also fades out to the south: it is 1 at z <= 30 and
+ * 0 from z = 52. East of x = 320 it is 0 whatever z is.
+ */
+export function coldAt(x: number, z = 0): number {
+  const smooth = (t: number): number => {
+    const u = Math.min(1, Math.max(0, t));
+    return u * u * (3 - 2 * u);
+  };
+  const west = smooth((x - 190) / 14);
+  const east = 1 - smooth((x - 306) / 14);
+  const south = smooth((x - 294) / 6) * smooth((z - 30) / 22);
+  return west * east * (1 - south);
 }
 
 class Bucket {
@@ -115,7 +128,7 @@ export function buildFrostDecor(g: FrostGround): THREE.Group {
     for (let i = FROST_X; i < g.width - 1; i++) {
       const h = g.height(i, j);
       const kind = g.kind(i, j);
-      if (!Number.isFinite(h) || kind === Kind.Void) continue;
+      if (!Number.isFinite(h) || kind === Kind.Void || !g.frost(i, j)) continue;
       const rand = (seed: number): number => hash(i, j, 40 + seed);
       const solidTop = kind === Kind.Snow || kind === Kind.Ice || kind === Kind.Stone;
 

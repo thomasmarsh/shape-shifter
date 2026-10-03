@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NOTES } from './audio';
 import { FormId, lightsNeeded } from './forms';
-import { explore } from './levelcheck';
+import { exploreCached as explore } from './explorecache';
 import { World } from './world';
 
 // The whole game as a chain of gates: each form set reaches the next island,
@@ -72,6 +72,43 @@ describe('the journey', () => {
   });
 });
 
+describe('the journey through Underroot', () => {
+  const without = (forms: FormId[], f: FormId): FormId[] => forms.filter((x) => x !== f);
+  const L5: FormId[] = [...L4, 'ant'];
+  const from = arrival('underroot');
+
+  it('level 4: the five forms on max reach no tangle, nothing at x >= 426, and not Saltmere', () => {
+    const r = explore(world, from, L4, 'max');
+    let checked = 0;
+    for (let j = 0; j < world.depth; j++) {
+      for (let i = 0; i < world.width; i++) {
+        if (world.isVoid(i + 0.5, j + 0.5)) continue;
+        if (world.isTangle(i + 0.5, j + 0.5)) expect(r.has(i, j), `tangle ${i},${j}`).toBe(false);
+        if (i >= 426) expect(r.has(i, j), `tile ${i},${j}`).toBe(false);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(500);
+    expect(r.canStand(arrival('saltmere')), 'Saltmere').toBe(false);
+  });
+
+  it('level 4: the five forms on easy can use the speaker and the candle of all five Underroot puzzles', () => {
+    const r = explore(world, from, L4, 'easy');
+    const ids = layout.puzzles.filter((p) => p.id.startsWith('ur-'));
+    expect(ids).toHaveLength(5);
+    for (const p of ids) {
+      expect(r.canUse(p.speaker), `${p.id} speaker`).toBe(true);
+      expect(r.canUse(p.candle), `${p.id} candle`).toBe(true);
+    }
+  });
+
+  it('level 5: all six forms on easy reach Saltmere; without the ant or the fairy, not even at the limit', () => {
+    expect(explore(world, from, L5, 'easy').canStand(arrival('saltmere'))).toBe(true);
+    expect(explore(world, from, without(L5, 'ant'), 'max').canStand(arrival('saltmere')), 'no ant').toBe(false);
+    expect(explore(world, from, without(L5, 'fairy'), 'max').canStand(arrival('saltmere')), 'no fairy').toBe(false);
+  });
+});
+
 describe('the candles', () => {
   /** Puzzles whose speaker stands on the given island. */
   const puzzlesOn = (island: string) => {
@@ -86,16 +123,18 @@ describe('the candles', () => {
     expect(puzzlesOn('tanglewood')).toHaveLength(lightsNeeded(1));
     expect(puzzlesOn('highcrag')).toHaveLength(lightsNeeded(2));
     expect(puzzlesOn('frostfang')).toHaveLength(lightsNeeded(3));
+    expect(puzzlesOn('underroot')).toHaveLength(lightsNeeded(4));
     expect(
       puzzlesOn('meadow').length +
         puzzlesOn('tanglewood').length +
         puzzlesOn('highcrag').length +
-        puzzlesOn('frostfang').length,
+        puzzlesOn('frostfang').length +
+        puzzlesOn('underroot').length,
     ).toBe(layout.puzzles.length);
   });
 
   it('keeps each puzzle on one island: speaker and candle', () => {
-    for (const island of ['meadow', 'tanglewood', 'highcrag', 'frostfang']) {
+    for (const island of ['meadow', 'tanglewood', 'highcrag', 'frostfang', 'underroot']) {
       const b = world.bounds.find((k) => k.id === island)!;
       for (const p of puzzlesOn(island)) {
         expect(p.candle.x, p.id).toBeGreaterThanOrEqual(b.i0);

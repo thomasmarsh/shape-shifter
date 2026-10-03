@@ -380,6 +380,40 @@ export function makeWolf(): WolfModel {
   return { group, body, tail, legFL, legFR, legBL, legBR };
 }
 
+export interface AntModel {
+  group: THREE.Group;
+  /** Three on each side, front to back, left side first. Each pivots at the body. */
+  legs: THREE.Group[];
+}
+
+/**
+ * A tiny dark red-brown ant, about 0.35 long and 0.2 tall. Faces +z. Head,
+ * thorax and abdomen, six legs that swing and two antennae.
+ */
+export function makeAnt(): AntModel {
+  const group = new THREE.Group();
+  const body = mat(0x6b2a1c);
+  const dark = mat(0x3e1710);
+  group.add(
+    box(0.1, 0.1, 0.1, body, 0, 0.12, 0.13),
+    box(0.1, 0.09, 0.1, body, 0, 0.12, 0.02),
+    box(0.14, 0.12, 0.17, dark, 0, 0.13, -0.11),
+    box(0.015, 0.015, 0.1, dark, -0.035, 0.2, 0.2).rotateX(-0.5),
+    box(0.015, 0.015, 0.1, dark, 0.035, 0.2, 0.2).rotateX(-0.5),
+  );
+  const legs: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    for (const z of [0.08, 0.02, -0.04]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(side * 0.04, 0.08, z);
+      pivot.add(box(0.1, 0.02, 0.02, dark, side * 0.05, -0.02, 0), box(0.02, 0.07, 0.02, dark, side * 0.1, -0.045, 0));
+      group.add(pivot);
+      legs.push(pivot);
+    }
+  }
+  return { group, legs };
+}
+
 export interface BadGuyModel {
   group: THREE.Group;
   armL: THREE.Group;

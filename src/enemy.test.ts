@@ -282,3 +282,21 @@ describe('thin ice', () => {
     expect(d.enemy.pos.x).toBeGreaterThan(12);
   });
 });
+
+describe('root tangles', () => {
+  const tangleWall = (x: number) => (t: Terrain) => t.rect(x, 0, x, 30, (i, j) => t.setTangle(i, j));
+
+  it('stop a bad guy walking in', () => {
+    const d = new Duel('human', island(tangleWall(24)), { x: 28.5, z: 15.5 }, { x: 20.5, z: 15.5 }, regularSpot);
+    d.run(6);
+    expect(d.enemy.pos.x).toBeLessThan(24);
+  });
+
+  it('stop an arrow', () => {
+    const d = new Duel('human', island(tangleWall(24)), { x: 28.5, z: 15.5 }, { x: 20.5, z: 15.5 }, archerSpot);
+    d.arrows.shoot(new THREE.Vector3(20.5, FLOOR + 1.1, 15.5), new THREE.Vector3(28.5, FLOOR + 0.9, 15.5), 20.5, 15.5);
+    for (let n = 0; n < 120; n++) d.arrows.update(DT, d.player);
+    expect(d.player.hearts).toBe(10);
+    expect(d.arrows.count).toBe(0);
+  });
+});

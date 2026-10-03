@@ -4,12 +4,14 @@ import type { Meter } from './hud';
 import type { Controls } from './input';
 import {
   APE_ARM_REST,
+  makeAnt,
   makeBunny,
   makeFairy,
   makeFairyHome,
   makeHuman,
   makeOrangutan,
   makeWolf,
+  AntModel,
   BunnyModel,
   FairyModel,
   HumanModel,
@@ -146,6 +148,7 @@ export class Player {
   private orangutan: OrangutanModel;
   private bunny: BunnyModel;
   private wolf: WolfModel;
+  private ant: AntModel;
   private home: THREE.Group;
 
   constructor(
@@ -158,9 +161,10 @@ export class Player {
     this.orangutan = makeOrangutan();
     this.bunny = makeBunny();
     this.wolf = makeWolf();
+    this.ant = makeAnt();
     this.home = makeFairyHome();
     this.home.visible = false;
-    this.group.add(this.human.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group);
+    this.group.add(this.human.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.ant.group);
     this.applyForm();
   }
 
@@ -217,12 +221,27 @@ export class Player {
 
   // ---- shape-shifting ----------------------------------------------------
 
-  canShiftTo(index: number): 'ok' | 'locked' | 'soon' | 'same' {
+  /** True while any part of the footprint (centre and the four corners) is on a root tangle. */
+  get inTangle(): boolean {
+    const { x, z } = this.pos;
+    const w = this.world;
+    return (
+      w.isTangle(x, z) ||
+      w.isTangle(x - RADIUS, z - RADIUS) ||
+      w.isTangle(x + RADIUS, z - RADIUS) ||
+      w.isTangle(x - RADIUS, z + RADIUS) ||
+      w.isTangle(x + RADIUS, z + RADIUS)
+    );
+  }
+
+  /** 'cramped' means a root tangle leaves no room to change shape. */
+  canShiftTo(index: number): 'ok' | 'locked' | 'soon' | 'same' | 'cramped' {
     const form = FORMS[index];
     if (!form) return 'locked';
     if (index === this.formIndex) return 'same';
     if (this.level < form.level) return 'locked';
     if (!form.playable) return 'soon';
+    if (this.inTangle) return 'cramped';
     return 'ok';
   }
 
@@ -248,6 +267,7 @@ export class Player {
     this.orangutan.group.visible = id === 'orangutan';
     this.bunny.group.visible = id === 'bunny';
     this.wolf.group.visible = id === 'wolf';
+    this.ant.group.visible = id === 'ant';
     const color = SWORD_COLOR[swordTier(this.level)];
     for (const blade of [this.human.blade, this.orangutan.blade]) {
       (blade.material as THREE.MeshLambertMaterial).color.setHex(color);
@@ -391,12 +411,12 @@ export class Player {
     // steering into a wall makes a note of any tree trunk it is pressed against.
     const climber = this.form.id === 'orangutan';
     this.pushed = null;
-    if (this.world.solidUnder(this.pos.x + stepX, this.pos.z, RADIUS) <= this.pos.y + STEP) {
+    if (this.world.solidUnder(this.pos.x + stepX, this.pos.z, RADIUS, this.form.height) <= this.pos.y + STEP) {
       this.pos.x += stepX;
     } else if (climber && dx !== 0) {
       this.pushed = this.trunkAt(this.pos.x + stepX, this.pos.z);
     }
-    if (this.world.solidUnder(this.pos.x, this.pos.z + stepZ, RADIUS) <= this.pos.y + STEP) {
+    if (this.world.solidUnder(this.pos.x, this.pos.z + stepZ, RADIUS, this.form.height) <= this.pos.y + STEP) {
       this.pos.z += stepZ;
     } else if (climber && dz !== 0) {
       this.pushed = this.pushed ?? this.trunkAt(this.pos.x, this.pos.z + stepZ);
@@ -415,7 +435,7 @@ export class Player {
       const cx = i + 0.5;
       const cz = j + 0.5;
       if (this.world.treeAt(cx, cz) <= 0) continue;
-      if (this.world.solidAt(cx, cz) <= this.pos.y + STEP) continue;
+      if (this.world.solidAt(cx, cz, this.form.height) <= this.pos.y + STEP) continue;
       if (this.pos.y < this.world.groundAt(cx, cz) - CLIMB_SLACK) continue;
       const d = Math.hypot(cx - x, cz - z);
       if (d < bestDist) {
@@ -458,7 +478,7 @@ export class Player {
       tile: t.tile,
       cx: t.cx,
       cz: t.cz,
-      top: this.world.solidAt(t.cx, t.cz),
+      top: this.world.solidAt(t.cx, t.cz, this.form.height),
       over: -1,
       fromX: 0,
       fromZ: 0,
@@ -568,7 +588,7 @@ export class Player {
   private moveUpDown(dt: number, input: Controls, isFairy: boolean): void {
     const wasOnGround = this.onGround;
     const impact = this.vy;
-    let ground = this.world.solidUnder(this.pos.x, this.pos.z, RADIUS);
+    let ground = this.world.solidUnder(this.pos.x, this.pos.z, RADIUS, this.form.height);
     // Water holds you up: you float with your head out.
     const inWater = this.world.isWater(this.pos.x, this.pos.z);
     const floatY = this.world.waterLevelAt(this.pos.x, this.pos.z) - (isFairy ? 0.25 : 0.8);
@@ -588,7 +608,7 @@ export class Player {
         this.exhausted = true;
         sound.denied();
       }
-    } else if (this.form.jump > 0 && this.onGround && input.hit('Space')) {
+    } else if (this.form.jump > 0 && this.onGround && input.hit('Space') && !this.inTangle) {
       this.vy = this.form.jump;
       this.onGround = false;
       this.hopCounted = false;
@@ -689,6 +709,9 @@ export class Player {
       case 'wolf':
         this.animateWolf();
         break;
+      case 'ant':
+        this.animateAnt(swing);
+        break;
       default:
         this.animateFairy(dt);
     }
@@ -764,6 +787,13 @@ export class Player {
     for (const ear of [b.earL, b.earR]) ear.rotation.x += (earTarget - ear.rotation.x) * k;
     b.footL.rotation.x = footKick;
     b.footR.rotation.x = footKick;
+  }
+
+  private animateAnt(swing: number): void {
+    // Legs swing in two groups of three, like a real ant's walk.
+    this.ant.legs.forEach((leg, n) => {
+      leg.rotation.y = (n % 2 === 0 ? swing : -swing) * 0.5;
+    });
   }
 
   private animateWolf(): void {

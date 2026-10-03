@@ -223,7 +223,7 @@ describe('thin ice', () => {
 
   it('knows the wolf, and still refuses forms it does not know', () => {
     expect(() => explore(ice, bank, ['wolf'], 'easy')).not.toThrow();
-    expect(() => explore(ice, bank, ['ant'], 'easy')).toThrow(/ant/);
+    expect(() => explore(ice, bank, ['mermaid'], 'easy')).toThrow(/mermaid/);
   });
 });
 
@@ -367,4 +367,70 @@ describe('the search keeps its results', () => {
       expect(explore(world, c.from, ['human'], c.profile).tiles).toBe(c.tiles);
     });
   }
+});
+
+// ---- root tangles ------------------------------------------------------
+
+type Terrain = Parameters<Island['build']>[0];
+
+/** A world from one island; `build` shapes it. Tiles are on rows 10-30 unless said. */
+const tinyWorld = (build: (t: Terrain) => void): World =>
+  new World([{ id: 'tiny', name: 'Tiny', build: (t) => (build(t), { spawn: { x: 2.5, z: 20.5 } }) }]);
+
+const OLD_FORMS: FormId[] = ['human', 'fairy', 'orangutan', 'bunny', 'wolf'];
+
+describe('root tangles', () => {
+  // A pad (tiles 30-32, rows 19-21) in a 4-connected ring of tangle, with a
+  // pillar 4 high (a bunny hops it) outside the ring to launch glides from.
+  // Without the tangle the same pad is open, so the ring is what keeps them out.
+  const ring = (tangled: boolean): World =>
+    tinyWorld((t) => {
+    t.rect(0, 15, 40, 25, (i, j) => t.set(i, j, FLOOR, Kind.Grass));
+    t.rect(25, 19, 25, 21, (i, j) => t.set(i, j, FLOOR + 4, Kind.Stone));
+    if (tangled) t.rect(28, 17, 34, 23, (i, j) => t.setTangle(i, j));
+    t.rect(30, 19, 32, 21, (i, j) => (t.clear(i, j), t.set(i, j, FLOOR, Kind.Sand)));
+  });
+  const ringed = ring(true);
+  const pad = { x: 31.5, z: 20.5 };
+  const start = { x: 2.5, z: 20.5 };
+
+  it('keeps every old form out of a ringed pad, but lets the Ant in', () => {
+    expect(explore(ring(false), start, OLD_FORMS, 'max').canStand(pad)).toBe(true);
+    const old = explore(ringed, start, OLD_FORMS, 'max');
+    expect(old.canStand(pad)).toBe(false);
+    expect(old.has(29, 20)).toBe(false);
+    expect(explore(ringed, start, ['ant'], 'easy').canStand(pad)).toBe(true);
+  });
+
+  // A 1-wide tangle bridge over sky, climbing 0.25 a tile, then a far side.
+  const LEN = 30;
+  const climbing = tinyWorld((t) => {
+    t.rect(0, 18, 9, 22, (i, j) => t.set(i, j, FLOOR, Kind.Grass));
+    for (let n = 0; n < LEN; n++) {
+      t.set(10 + n, 20, FLOOR + 0.25 * (n + 1), Kind.Bark);
+      t.setTangle(10 + n, 20);
+    }
+    t.rect(10 + LEN, 18, 20 + LEN, 22, (i, j) => t.set(i, j, FLOOR + 0.25 * LEN + 0.25, Kind.Moss));
+  });
+  const far = { x: 15 + LEN + 0.5, z: 20.5 };
+
+  it('lets the Ant cross a tangle bridge that climbs, and nobody else', () => {
+    expect(explore(climbing, start, ['ant'], 'easy').canStand(far)).toBe(true);
+    const old = explore(climbing, start, OLD_FORMS, 'max');
+    expect(old.has(10, 20)).toBe(false);
+    expect(old.canStand(far)).toBe(false);
+  });
+
+  it('does not let the Ant hop from a tangle, but hops from plain ground', () => {
+    // Ground, a tangle strip (or more ground), then 1 tile of sky, then a landing, in a row of ground.
+    const gapWorld = (tangled: boolean): World =>
+      tinyWorld((t) => {
+        t.rect(0, 20, 12, 20, (i, j) => t.set(i, j, FLOOR, Kind.Grass));
+        if (tangled) t.rect(10, 20, 12, 20, (i, j) => t.setTangle(i, j));
+        t.set(14, 20, FLOOR, Kind.Grass);
+      });
+    const land = { x: 14.5, z: 20.5 };
+    expect(explore(gapWorld(false), start, ['ant'], 'max').canStand(land)).toBe(true);
+    expect(explore(gapWorld(true), start, ['ant'], 'max').canStand(land)).toBe(false);
+  });
 });

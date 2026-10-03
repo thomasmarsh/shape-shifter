@@ -1,7 +1,7 @@
 // Every form from PLAN.md, as data. The number key that selects a form is its
 // index in this list, and it unlocks when the player reaches `level`.
 //
-// Human, Fairy, Orangutan, Bunny and Winter Wolf are playable; the rest are
+// Human, Fairy, Orangutan, Bunny, Winter Wolf and Ant are playable; the rest are
 // listed so the form bar can show them as locked and so later islands can fill
 // them in without changing the shape of this table.
 
@@ -159,13 +159,13 @@ export const FORMS: readonly FormDef[] = [
     speed: 2.5,
     jump: 7.6,
     jumpCut: 0,
-    chest: 0.9,
+    chest: 0.1,
     height: 0.2,
-    arrowLift: 1.5,
+    arrowLift: 0.5,
     sword: 'none',
     canFly: false,
     blurb: 'Squeeze into really tiny spaces to reach hidden candles.',
-    playable: false,
+    playable: true,
   },
   {
     id: 'mermaid',

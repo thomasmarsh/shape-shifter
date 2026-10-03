@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { makeBunny, makeGreatPine, makePine, makeGreatTree, makeTree, makeWolf } from './models';
+import { makeAnt, makeBunny, makeGreatPine, makePine, makeGreatTree, makeTree, makeWolf } from './models';
 import { TREE_BLOCK } from './world';
 
 const top = (o: THREE.Object3D): number => new THREE.Box3().setFromObject(o).max.y;
@@ -55,5 +55,17 @@ describe('the wolf model', () => {
     expect(wolf.max.y - wolf.min.y).toBeGreaterThan(1.2 * (bunny.max.y - bunny.min.y));
     expect(wolf.max.z - wolf.min.z).toBeGreaterThan(2 * (bunny.max.z - bunny.min.z));
     expect(wolf.min.y).toBeGreaterThanOrEqual(-1e-6);
+  });
+});
+
+describe('the ant model', () => {
+  it('is tiny: about 0.35 long and 0.2 tall, standing on its feet', () => {
+    const ant = makeAnt();
+    const b = new THREE.Box3().setFromObject(ant.group);
+    expect(b.max.y).toBeLessThanOrEqual(0.25);
+    expect(b.max.y).toBeGreaterThan(0.15);
+    expect(b.max.z - b.min.z).toBeLessThan(0.5);
+    expect(b.min.y).toBeGreaterThanOrEqual(-1e-6);
+    expect(ant.legs).toHaveLength(6);
   });
 });

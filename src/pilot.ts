@@ -83,13 +83,13 @@ export class Pilot {
       onAte: () => {},
       onHome: () => {},
     });
-    if (world.solidAt(start.x, start.z) !== world.groundAt(start.x, start.z)) {
-      throw new Error(`cannot start at (${start.x}, ${start.z}): something solid stands there`);
-    }
     // Tests share one World, so a pilot starts with all the thin ice whole.
     world.resetIce();
-    this.player.level = 4;
+    this.player.level = 5;
     this.shift(form);
+    if (world.solidAt(start.x, start.z, this.player.form.height) !== world.groundAt(start.x, start.z)) {
+      throw new Error(`cannot start at (${start.x}, ${start.z}): something solid stands there`);
+    }
     this.player.hearts = this.player.form.maxHearts;
     this.player.place(start.x, start.z);
   }
@@ -159,7 +159,7 @@ export class Pilot {
 
   // ---- moves -------------------------------------------------------------
 
-  /** Change shape, which needs the level to be high enough (the pilot is level 4). */
+  /** Change shape, which needs the level to be high enough (the pilot is level 5). */
   shift(form: FormId): void {
     const index = FORMS.findIndex((f) => f.id === form);
     if (index !== this.player.formIndex) {
@@ -203,9 +203,9 @@ export class Pilot {
       const qx = this.x + ux * t;
       const qz = this.z + uz * t;
       // A wall: the body (a circle) would be stopped by a taller block ahead.
-      if (this.world.solidUnder(qx + ux * stride, qz + uz * stride, RADIUS) > y + PHYSICS.step) return t;
+      if (this.world.solidUnder(qx + ux * stride, qz + uz * stride, RADIUS, this.player.form.height) > y + PHYSICS.step) return t;
       // The ground ends under the centre of the body.
-      if (this.world.solidAt(qx, qz) < y - PHYSICS.step) return t;
+      if (this.world.solidAt(qx, qz, this.player.form.height) < y - PHYSICS.step) return t;
     }
     return Infinity;
   }

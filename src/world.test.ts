@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NOTES } from './audio';
 import { ICE_REGROW } from './forms';
-import { Island, Kind, NO_STAND, TREE_BLOCK, World } from './world';
+import { Island, Kind, NO_STAND, TANGLE_GAP, TREE_BLOCK, World } from './world';
 
 const tiny = (extra: Partial<ReturnType<Island['build']>> = {}, id = 'tiny'): Island => ({
   id,
@@ -16,8 +16,8 @@ describe('the default world', () => {
   const world = new World();
   const { layout } = world;
 
-  it('is 320 by 64 tiles with the meadow where it always was', () => {
-    expect(world.width).toBe(320);
+  it('is 510 by 64 tiles with the meadow where it always was', () => {
+    expect(world.width).toBe(510);
     expect(world.depth).toBe(64);
     expect(layout.spawn).toEqual({ x: 10.5, z: 27.5 });
     expect(world.groundAt(10.5, 27.5)).toBe(2);
@@ -162,5 +162,44 @@ describe('thin ice', () => {
     expect(w.iceHolding(11, 4.5, 0.3, 6)).toHaveLength(0);
     w.breakIce([sky]);
     expect(w.iceHolding(11, 4.5, 0.3, 3.5)).toEqual([pond]);
+  });
+});
+
+describe('root tangles', () => {
+  const world = new World([
+    {
+      id: 'tangly',
+      name: 'Tangly',
+      build(t) {
+        t.rect(2, 2, 8, 6, (i, j) => t.set(i, j, 3, Kind.Moss));
+        t.setTangle(5, 4);
+        t.setTangle(6, 4, 0.5);
+        t.setTangle(7, 4);
+        t.clear(7, 4);
+        t.set(7, 4, 3, Kind.Bark);
+        return { spawn: { x: 3.5, z: 3.5 } };
+      },
+    },
+  ]);
+
+  it('is a wall to anything taller than the gap and plain ground to the rest', () => {
+    expect(world.isTangle(5.5, 4.5)).toBe(true);
+    expect(world.tangleGapAt(5.5, 4.5)).toBe(TANGLE_GAP);
+    expect(world.tangleGapAt(6.5, 4.5)).toBe(0.5);
+    expect(world.solidAt(5.5, 4.5)).toBeGreaterThanOrEqual(NO_STAND);
+    expect(world.solidAt(5.5, 4.5, 0.3)).toBeGreaterThanOrEqual(NO_STAND);
+    expect(world.solidAt(5.5, 4.5, 0.2)).toBe(3);
+    expect(world.solidUnder(5.5, 4.5, 0.3, 0.2)).toBe(3);
+    expect(world.solidUnder(5.5, 3.9, 0.3)).toBeGreaterThanOrEqual(NO_STAND);
+    expect(world.groundAt(5.5, 4.5)).toBe(3);
+    // A gap of 0.5 lets a taller body in too, up to its own height.
+    expect(world.solidAt(6.5, 4.5, 0.4)).toBe(3);
+    expect(world.solidAt(6.5, 4.5, 0.6)).toBeGreaterThanOrEqual(NO_STAND);
+  });
+
+  it('is removed by clear, and Moss and Bark are ordinary ground', () => {
+    expect(world.isTangle(7.5, 4.5)).toBe(false);
+    expect(world.solidAt(7.5, 4.5)).toBe(3);
+    expect(world.solidAt(3.5, 3.5)).toBe(3);
   });
 });

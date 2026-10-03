@@ -16,7 +16,17 @@ export const enum Kind {
   Snow,
   /** Ordinary ground with a pale blue top. Not the thin kind: see `setThinIce`. */
   Ice,
+  /** Ordinary ground with a deep green-teal top, for the roots. Behaves like Grass. */
+  Moss,
+  /** Ordinary ground with a warm brown top, for the roots. Behaves like Grass. */
+  Bark,
 }
+
+/**
+ * How big a gap a root tangle leaves, by default. A form fits when its height
+ * (FormDef.height) is at most the gap: only the Ant (0.2) does.
+ */
+export const TANGLE_GAP = 0.25
 
 export interface Spot {
   x: number;
@@ -108,6 +118,14 @@ export interface Terrain {
    * like stairs. `clear` removes it again.
    */
   setThinIce(i: number, j: number, h: number): void;
+  /**
+   * Mark an ordinary ground tile as a root tangle with a gap of `gap` (default
+   * TANGLE_GAP). For any form taller than the gap it is a "no standing" column,
+   * like a candle: nothing walks in, lands on it or flies over it. For a form
+   * that fits (only the Ant today) it is plain ground. The tile keeps its one
+   * height. `clear` removes the tangle again.
+   */
+  setTangle(i: number, j: number, gap?: number): void;
   /** Call `fn` for every tile in the box, bounds inclusive. */
   rect(i0: number, j0: number, i1: number, j1: number, fn: (i: number, j: number) => void): void;
   /** Call `fn` for every tile whose centre lies inside an ellipse. */

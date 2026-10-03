@@ -15,6 +15,13 @@ import type { Spot, World } from './world';
 // It holds only a runner, so only the wolf can step onto it, and nobody can
 // stand still on it.
 //
+// A root tangle (see `setTangle` in layout.ts) is plain ground for the Ant and a
+// wall as tall as NO_STAND for everyone else: no old form walks, hops, flies or
+// hop-then-flies onto one, and none can pass a flight line over one. The Ant
+// walks on and off a tangle and can land on one, but cannot hop from one. A ring
+// of tangle must be 4-connected (no diagonal-only joins), because the 'max'
+// profile lets a flight line pass through the corner where two tiles touch.
+//
 // Hop-then-fly is a move of its own: with a Bunny and a Fairy, a Bunny shifts at
 // the top of her hop and keeps that height. Because of it, every raised thing
 // (a ledge, a wall top, a treetop) is a launch pad for the rest of the level.
@@ -78,7 +85,7 @@ const MARGINS = {
 const CENTRE_EXTRA = Math.SQRT2;
 
 /** Forms that move by jumping; their speed and jump come from FORMS. */
-const JUMPERS = ['human', 'orangutan', 'bunny', 'wolf'] as const;
+const JUMPERS = ['human', 'orangutan', 'bunny', 'wolf', 'ant'] as const;
 type Jumper = (typeof JUMPERS)[number];
 
 /** What the checker says about hop-then-fly for a launch from `a` to a target, for tests. */
@@ -117,7 +124,7 @@ export interface Reach {
 export function explore(world: World, from: Spot, forms: readonly FormId[], profile: Profile): Reach {
   const { width, depth } = world;
   for (const f of forms) {
-    if (f !== 'human' && f !== 'fairy' && f !== 'orangutan' && f !== 'bunny' && f !== 'wolf') {
+    if (f !== 'human' && f !== 'fairy' && f !== 'orangutan' && f !== 'bunny' && f !== 'wolf' && f !== 'ant') {
       throw new Error(`levelcheck does not know how to move as ${f}`);
     }
   }
@@ -134,8 +141,12 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
   const exists = new Uint8Array(width * depth);
   /** The tile is a thin-ice sheet, whole or broken. */
   const ice = new Uint8Array(width * depth);
-  /** Solid height of the tile with every thin-ice sheet counted as whole. */
+  /** The tile is a root tangle. */
+  const tangle = new Uint8Array(width * depth);
+  /** Solid height of the tile with every thin-ice sheet counted as whole, for a body too big for a tangle. */
   const top = new Float64Array(width * depth);
+  /** The same for the Ant, who fits in a tangle: a tangle is plain ground. */
+  const topAnt = new Float64Array(width * depth);
   /** Height of the surface a human, orangutan, bunny or wolf stands on (floating in water). */
   const surfaceHuman = new Float64Array(width * depth);
   /** The same for the fairy, who floats a little higher. */
@@ -144,6 +155,7 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
   const tree = new Float64Array(width * depth);
   /** Bare ground under the tile (no trees or speakers). */
   const ground = new Float64Array(width * depth);
+  const antHeight = FORMS.find((f) => f.id === 'ant')!.height;
 
   for (let j = 0; j < depth; j++) {
     for (let i = 0; i < width; i++) {
@@ -151,19 +163,23 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
       const x = i + 0.5;
       const z = j + 0.5;
       const isIce = world.isThinIce(x, z);
-      const t = Math.max(world.solidAt(x, z), world.iceTopAt(x, z));
+      const iceTop = world.iceTopAt(x, z);
+      const t = Math.max(world.solidAt(x, z), iceTop);
+      const tAnt = Math.max(world.solidAt(x, z, antHeight), iceTop);
+      tangle[k] = world.isTangle(x, z) ? 1 : 0;
       ice[k] = isIce ? 1 : 0;
       exists[k] = isIce || !world.isVoid(x, z) ? 1 : 0;
       top[k] = t;
+      topAnt[k] = tAnt;
       tree[k] = world.treeAt(x, z);
       ground[k] = world.groundAt(x, z);
       if (isIce || !world.isWater(x, z)) {
-        surfaceHuman[k] = t;
-        surfaceFairy[k] = t;
+        surfaceHuman[k] = tAnt;
+        surfaceFairy[k] = tAnt;
       } else {
         const level = world.waterLevelAt(x, z);
-        surfaceHuman[k] = Math.max(t, level - MARGINS.float.human);
-        surfaceFairy[k] = Math.max(t, level - MARGINS.float.fairy);
+        surfaceHuman[k] = Math.max(tAnt, level - MARGINS.float.human);
+        surfaceFairy[k] = Math.max(tAnt, level - MARGINS.float.fairy);
       }
     }
   }
@@ -179,6 +195,53 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
     lowHuman = Math.min(lowHuman, surfaceHuman[k]);
     lowFairy = Math.min(lowFairy, surfaceFairy[k]);
   }
+
+  // Lowest existing surface per x column, with a sparse table for range minima.
+  const buildMin = (surf: Float64Array): Float64Array[] => {
+    const col = new Float64Array(width).fill(Infinity);
+    for (let j = 0; j < depth; j++) {
+      for (let i = 0; i < width; i++) {
+        const k = tileIndex(i, j);
+        if (exists[k] && surf[k] < col[i]) col[i] = surf[k];
+      }
+    }
+    const levels = [col];
+    for (let len = 2; len <= width; len *= 2) {
+      const prev = levels[levels.length - 1];
+      const next = new Float64Array(width - len + 1);
+      for (let i = 0; i < next.length; i++) next[i] = Math.min(prev[i], prev[i + len / 2]);
+      levels.push(next);
+    }
+    return levels;
+  };
+  const minHuman = buildMin(surfaceHuman);
+  const minFairy = buildMin(surfaceFairy);
+  /** Lowest existing surface in columns [i0, i1] (both inside the grid). */
+  const lowestIn = (levels: Float64Array[], i0: number, i1: number): number => {
+    const lv = 31 - Math.clz32(i1 - i0 + 1);
+    return Math.min(levels[lv][i0], levels[lv][i1 - (1 << lv) + 1]);
+  };
+
+  // Every existing tile of each row, in order of i, so the search skips empty sky.
+  const rowStart = new Int32Array(depth + 1);
+  for (let k = 0; k < width * depth; k++) if (exists[k]) rowStart[Math.floor(k / width) + 1]++;
+  for (let j = 0; j < depth; j++) rowStart[j + 1] += rowStart[j];
+  const rowTiles = new Int32Array(rowStart[depth]);
+  {
+    let n = 0;
+    for (let k = 0; k < width * depth; k++) if (exists[k]) rowTiles[n++] = k % width;
+  }
+  /** Index into rowTiles of the first existing tile of row j with i >= at. */
+  const firstAtOrAfter = (j: number, at: number): number => {
+    let lo = rowStart[j];
+    let hi = rowStart[j + 1];
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (rowTiles[mid] < at) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
 
   /** Gap between the two unit squares of tiles A and B. */
   const gap = (ai: number, aj: number, bi: number, bj: number): number =>
@@ -212,13 +275,29 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
    * The farthest any move of a form can reach from a tile whose surface is `a`,
    * to limit the search window. A drop can be no deeper than down to the lowest
    * surface, so this is tighter than using the world's highest point.
+   *
+   * Soundness of the local bound: let w0 be the window from the world's lowest
+   * surface. Every target lies within w0 of the tile, so its surface is at least
+   * the lowest existing surface in the columns [ai - w0, ai + w0] (all rows),
+   * call it lowLocal >= the global low. Reach grows with the drop, so the
+   * farthest move of any target is at most the range computed with drop
+   * a - lowLocal, which is <= w0. The tile itself is in those columns, so
+   * lowLocal is finite and <= a.
    */
-  const windowOf = (form: FormId, a: number): number => {
-    if (form === 'fairy') return flyRange(a - lowFairy);
-    const drop = a - lowHuman;
+  const rangeFor = (form: FormId, a: number, low: number): number => {
+    if (form === 'fairy') return flyRange(a - low);
+    const drop = a - low;
     const hop = hopRange(form as Jumper, drop);
     // The combined move is her farthest, and it has no drop-off, so use the flat range.
     return form === 'bunny' && hopFly ? Math.max(hop, hopFly.range(-drop)) : hop;
+  };
+  const windowOf = (form: FormId, a: number, ai: number): number => {
+    const levels = form === 'fairy' ? minFairy : minHuman;
+    const w0 = Math.ceil(rangeFor(form, a, form === 'fairy' ? lowFairy : lowHuman)) + 1;
+    const lo = Math.max(0, ai - w0);
+    const hi = Math.min(width - 1, ai + w0);
+    const low = lowestIn(levels, lo, hi);
+    return Math.min(w0, Math.ceil(rangeFor(form, a, low)) + 1);
   };
 
   /**
@@ -226,12 +305,19 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
    * `limit`? Tiles the line only touches at a corner count in the easy profile
    * (be careful) but not in max (be generous).
    */
-  const lineClear = (ai: number, aj: number, bi: number, bj: number, limit: number): boolean => {
+  const lineClear = (
+    tops: Float64Array,
+    ai: number,
+    aj: number,
+    bi: number,
+    bj: number,
+    limit: number,
+  ): boolean => {
     const dx = bi - ai;
     const dz = bj - aj;
     const eps = 1e-9;
     const check = (i: number, j: number): boolean =>
-      (i === ai && j === aj) || (i === bi && j === bj) || !onGrid(i, j) || top[tileIndex(i, j)] <= limit;
+      (i === ai && j === aj) || (i === bi && j === bj) || !onGrid(i, j) || tops[tileIndex(i, j)] <= limit;
     // Walk the grid along the line, tile by tile.
     let i = ai;
     let j = aj;
@@ -289,6 +375,8 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
 
     const onIce = ice[ak] === 1;
     for (const form of can) {
+      // Only the Ant fits in a tangle, so nobody else stands or moves from one.
+      if (tangle[ak] && form !== 'ant') continue;
       // Nobody can stand on thin ice, so leaving it takes a runner's moves; in
       // 'easy' that is the wolf, plus a fairy who has dropped through and
       // flaps away. 'max' lets every form leave, since a shift and a jump in
@@ -304,6 +392,7 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
         if (!onGrid(bi, bj)) continue;
         const bk = tileIndex(bi, bj);
         if (!exists[bk] || reached[bk]) continue;
+        if (tangle[bk] && form !== 'ant') continue;
         // Only a runner can step onto thin ice; a fairy on it cannot walk off.
         if (ice[bk] && form !== 'wolf') continue;
         if (onIce && profile === 'easy' && form === 'fairy') continue;
@@ -311,9 +400,13 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
         if (b - a <= MOVER.step) reach(bk, b);
       }
 
+      // The Ant walks out of a tangle but cannot hop from one.
+      if (form === 'ant' && tangle[ak]) continue;
+      const tops = form === 'ant' ? topAnt : top;
+
       // Per-form numbers for this tile, worked out once for the whole window.
       const jump = form === 'fairy' ? null : jumps.get(form as Jumper)!;
-      const w = Math.ceil(windowOf(form, a)) + 1;
+      const w = windowOf(form, a, ai);
       const j0 = Math.max(0, aj - w);
       const j1 = Math.min(depth - 1, aj + w);
       const i0 = Math.max(0, ai - w);
@@ -324,17 +417,21 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
       const highestHop = jump ? Math.max(jump.up, hopFlyUp) : flyUp;
 
       for (let bj = j0; bj <= j1; bj++) {
-        for (let bi = i0; bi <= i1; bi++) {
+        const rowEnd = rowStart[bj + 1];
+        for (let n = firstAtOrAfter(bj, i0); n < rowEnd; n++) {
+          const bi = rowTiles[n];
+          if (bi > i1) break;
           const bk = tileIndex(bi, bj);
           if (reached[bk] || !exists[bk]) continue;
           if (ice[bk] && form !== 'wolf') continue;
+          if (tangle[bk] && form !== 'ant') continue;
           const b = surfaces[bk];
 
           if (form === 'fairy') {
             // She does not jump: she flaps up, then glides.
             if (b > canFlyFrom) continue;
             const D = gap(ai, aj, bi, bj);
-            if (D <= flyRange(a - b) && lineClear(ai, aj, bi, bj, canFlyFrom)) reach(bk, b);
+            if (D <= flyRange(a - b) && lineClear(tops, ai, aj, bi, bj, canFlyFrom)) reach(bk, b);
             continue;
           }
 
@@ -345,7 +442,7 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
           const d = a - b;
 
           const jumper = jump!;
-          if (b - a <= jumper.up && D <= hopRange(form as Jumper, d) && lineClear(ai, aj, bi, bj, a + jumper.apex)) {
+          if (b - a <= jumper.up && D <= hopRange(form as Jumper, d) && lineClear(tops, ai, aj, bi, bj, a + jumper.apex)) {
             reach(bk, b);
             continue;
           }
@@ -357,7 +454,7 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
             hopFly &&
             b - a <= hopFly.up &&
             D <= hopFly.range(b - a) &&
-            lineClear(ai, aj, bi, bj, a + hopFly.up)
+            lineClear(tops, ai, aj, bi, bj, a + hopFly.up)
           ) {
             reach(bk, b);
             continue;
@@ -368,7 +465,7 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
             const base = ground[bk];
             if (a < base - MARGINS.climbSlack) continue;
             const next = Math.abs(bi - ai) + Math.abs(bj - aj) === 1;
-            if (next || (D <= hopRange('orangutan', a - base) && lineClear(ai, aj, bi, bj, a + jumper.apex))) {
+            if (next || (D <= hopRange('orangutan', a - base) && lineClear(tops, ai, aj, bi, bj, a + jumper.apex))) {
               reach(bk, b);
             }
           }

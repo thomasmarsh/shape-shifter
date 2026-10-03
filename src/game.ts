@@ -384,6 +384,10 @@ export class Game {
         sound.denied();
         this.hud.toast(`${form.name} arrives on a later island`);
         break;
+      case 'cramped':
+        sound.denied();
+        this.hud.toast('No room to change shape in here.');
+        break;
       case 'same':
         break;
     }
@@ -562,6 +566,12 @@ export class Game {
         text: 'New shape! Press <kbd>4</kbd> to become a Winter Wolf, then run across the frozen lake in the east.',
         when: () => p.level >= 4 && p.form.id === 'human',
         done: () => this.flags.has('used:wolf'),
+      },
+      {
+        id: 'ant',
+        text: 'New shape! Press <kbd>5</kbd> to become an Ant and squeeze under the root tangles.',
+        when: () => p.level >= 5 && p.form.id === 'human',
+        done: () => this.flags.has('used:ant'),
       },
       {
         id: 'ice',
@@ -799,7 +809,7 @@ export class Game {
       this.raycaster.set(from, CAMERA_DIR.clone().negate());
       this.raycaster.far = 59.3;
       const hits = this.raycaster.intersectObjects([...this.world.solidMeshes, this.scenery], true);
-      this.finder.visible = hits.length > 0 && !p.dead && this.playing;
+      this.finder.visible = (hits.length > 0 || p.form.height < 0.5) && !p.dead && this.playing;
     }
     if (this.finder.visible) {
       const lift = p.form.arrowLift + Math.sin(this.time * 5) * 0.08;
@@ -833,7 +843,7 @@ export class Game {
 
   /** On Frostfang the light turns a little colder, the sky greyer, and snow falls. */
   private updateCold(): void {
-    const cold = coldAt(this.camTarget.x);
+    const cold = coldAt(this.camTarget.x, this.camTarget.z);
     const { WARM, COLD } = Game;
     this.hemi.color.copy(WARM.sky).lerp(COLD.sky, cold);
     this.hemi.groundColor.copy(WARM.ground).lerp(COLD.ground, cold);

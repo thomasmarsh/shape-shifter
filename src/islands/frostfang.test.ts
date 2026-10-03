@@ -13,10 +13,10 @@ const world = new World();
 const { layout } = world;
 
 const WEST_END = 243;
-const west = (s: { x: number }) => s.x >= 203 && s.x < WEST_END;
-const east = (s: { x: number }) => s.x >= WEST_END;
 /** Everything of Frostfang: Underroot's stub sits south of the last run, from z = 46. */
-const onIsland = (s: { x: number; z: number }) => s.x >= 200 && !(s.x >= 298 && s.z >= 46);
+const onIsland = (s: { x: number; z: number }) => s.x >= 200 && (s.x < 298 || (s.x < 308 && s.z < 46));
+const west = (s: { x: number; z: number }) => onIsland(s) && s.x >= 203 && s.x < WEST_END;
+const east = (s: { x: number; z: number }) => onIsland(s) && s.x >= WEST_END;
 const respawn = (c: { x: number; z: number }) => ({ x: c.x - 1, z: c.z + 1 });
 
 /** The real arrival, where Highcrag's last step drops you. */
@@ -46,7 +46,7 @@ const eastBread = layout.bread.filter(east);
 const eastTiles: [number, number][] = [];
 for (let j = 0; j < world.depth; j++) {
   for (let i = WEST_END; i < world.width; i++) {
-    if (!world.isVoid(i + 0.5, j + 0.5)) eastTiles.push([i, j]);
+    if (east({ x: i + 0.5, z: j + 0.5 }) && !world.isVoid(i + 0.5, j + 0.5)) eastTiles.push([i, j]);
   }
 }
 
@@ -147,7 +147,7 @@ describe('Frostfang east, with all five forms on easy', () => {
   });
 
   it('reaches every checkpoint respawn spot and every piece of bread', () => {
-    expect(eastCheckpoints.length).toBeGreaterThanOrEqual(5);
+    expect(eastCheckpoints.length).toBeGreaterThanOrEqual(4);
     for (const c of eastCheckpoints) expect(r.canStand(respawn(c)), `checkpoint ${c.id}`).toBe(true);
     expect(eastBread.length).toBeGreaterThanOrEqual(3);
     for (const b of eastBread) expect(r.canStand(b), `bread ${b.id}`).toBe(true);
@@ -242,10 +242,10 @@ describe('Frostfang things', () => {
   });
 
   it('has exactly eight trees on the whole island, all great pines, and no boulders', () => {
-    const trees = layout.trees.filter((t) => t.x >= 200);
+    const trees = layout.trees.filter(onIsland);
     expect(trees).toHaveLength(8);
     for (const t of trees) expect(t.kind, `(${t.x}, ${t.z})`).toBe('greatPine');
-    expect(layout.boulders.filter((b) => b.x >= 200)).toHaveLength(0);
+    expect(layout.boulders.filter(onIsland)).toHaveLength(0);
   });
 
   it('has no tree in the east half but the one great pine, by the upper glacier', () => {

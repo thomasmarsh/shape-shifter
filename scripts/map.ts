@@ -62,12 +62,30 @@ if (reachArg !== undefined) {
 
 const DIGITS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
+/** Subtracted from every height printed for the island being drawn; 0 when it fits in 0..35. */
+let heightBase = 0;
+
+/** The base to print an island's heights from: 0 if it fits the digits, else its lowest ground, floored. */
+function baseFor(b: IslandBounds): number {
+  let low = Infinity;
+  let high = -Infinity;
+  for (let j = b.j0; j <= b.j1; j++) {
+    for (let i = b.i0; i <= b.i1; i++) {
+      if (world.isVoid(i + 0.5, j + 0.5)) continue;
+      const h = world.groundAt(i + 0.5, j + 0.5);
+      low = Math.min(low, h);
+      high = Math.max(high, h);
+    }
+  }
+  return high > 35 ? Math.floor(low) : 0;
+}
+
 function heightChar(i: number, j: number): string {
   const x = i + 0.5;
   const z = j + 0.5;
   if (world.isVoid(x, z)) return ' ';
   if (world.isWater(x, z)) return '~';
-  return DIGITS[Math.max(0, Math.min(35, Math.floor(world.groundAt(x, z))))];
+  return DIGITS[Math.max(0, Math.min(35, Math.floor(world.groundAt(x, z) - heightBase)))];
 }
 
 /** Everything that stands on a tile, as one character: the first match wins. */
@@ -84,9 +102,10 @@ function thingsGrid(): Map<string, string> {
   for (const b of layout.bread) put(b, 'B');
   for (const t of layout.trees) put(t, t.kind === 'great' || t.kind === 'greatPine' ? 'T' : 't');
   for (const b of layout.boulders) put(b, 'o');
-  // Thin ice with nothing else on it.
+  // Root tangles, then thin ice, each with nothing else on it.
   for (let j = 0; j < world.depth; j++) {
     for (let i = 0; i < world.width; i++) {
+      if (world.isTangle(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, '%');
       if (world.isThinIce(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, '=');
     }
   }
@@ -136,7 +155,9 @@ for (const b of islands) {
   const w = b.i1 - b.i0 + 1;
   const h = b.j1 - b.j0 + 1;
   console.log(`=== ${b.id} (${b.name}): x ${b.i0}..${b.i1}, z ${b.j0}..${b.j1}, ${w} by ${h} tiles ===`);
-  printGrid('heights: digit = height (0-9, a-z for 10-35), ~ water', b, heightChar);
-  printGrid('things: = thin ice, T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
+  heightBase = baseFor(b);
+  const minus = heightBase > 0 ? `, heights minus ${heightBase}` : '';
+  printGrid(`heights: digit = height (0-9, a-z for 10-35)${minus}, ~ water`, b, heightChar);
+  printGrid('things: = thin ice, % root tangle, T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
   if (reach) printGrid(`${reachTitle}; # reached, . not reached`, b, reachChar);
 }

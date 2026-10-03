@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { ISLANDS } from './islands';
 import { ICE_REGROW } from './forms';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { buildFrostDecor, FROST_X, SNOW_CAP } from './frost';
-import { hash, Island, Kind, Layout, Spot, Terrain, TREE_BLOCK } from './layout';
+import { buildFrostDecor, SNOW_CAP } from './frost';
+import { hash, Island, Kind, Layout, Spot, TANGLE_GAP, Terrain, TREE_BLOCK } from './layout';
 
-export { Kind, TREE_BLOCK } from './layout';
+export { Kind, TANGLE_GAP, TREE_BLOCK } from './layout';
 export type {
   Arrival,
   EnemySpot,
@@ -49,7 +49,7 @@ export const NO_STAND = 100;
 const BOULDER = 0.9;
 
 /** Tiles from west to east. Background clouds in game.ts follow it. */
-export const WORLD_WIDTH = 320;
+export const WORLD_WIDTH = 510;
 
 /** How thick the slab of thin ice is drawn. */
 const ICE_SLAB = 0.14;
@@ -82,6 +82,10 @@ export class World {
   private iceAge: Float32Array;
   /** Every tile that has thin ice, intact or not. */
   private iceTiles: number[] = [];
+  /** The gap of the root tangle on each tile, 0 where there is none. */
+  private tangle: Float32Array;
+  /** 1 on the tiles that the 'frostfang' island built (the last island to touch a tile owns it). */
+  private frostTile: Uint8Array;
   private iceMesh: THREE.InstancedMesh | null = null;
   /** The white frame and cracks drawn on top of each thin-ice slab. */
   private iceCracks: THREE.InstancedMesh | null = null;
@@ -108,6 +112,8 @@ export class World {
     this.iceTop = new Float32Array(n).fill(-Infinity);
     this.iceOn = new Uint8Array(n);
     this.iceAge = new Float32Array(n);
+    this.tangle = new Float32Array(n);
+    this.frostTile = new Uint8Array(n);
 
     this.layout = this.buildIslands(islands);
     this.placeBlocks();
@@ -123,11 +129,15 @@ export class World {
     return j * this.width + i;
   }
 
-  /** Height of solid ground at a point, including anything standing on it. */
-  solidAt(x: number, z: number): number {
+  /**
+   * Height of solid ground at a point, including anything standing on it. A
+   * root tangle is a wall to a body taller than its gap; `body` is the height
+   * of whoever asks, and anyone who does not say is treated as too big.
+   */
+  solidAt(x: number, z: number, body = Infinity): number {
     const k = this.index(x, z);
     if (k < 0) return -Infinity;
-    const ground = this.height[k] + this.block[k];
+    const ground = this.height[k] + this.block[k] + (body > this.tangle[k] && this.tangle[k] > 0 ? NO_STAND : 0);
     return this.iceOn[k] ? Math.max(ground, this.iceTop[k]) : ground;
   }
 
@@ -145,14 +155,31 @@ export class World {
   }
 
   /** Highest solid ground under a circle of radius r. */
-  solidUnder(x: number, z: number, r: number): number {
+  solidUnder(x: number, z: number, r: number, body = Infinity): number {
     return Math.max(
-      this.solidAt(x, z),
-      this.solidAt(x - r, z - r),
-      this.solidAt(x + r, z - r),
-      this.solidAt(x - r, z + r),
-      this.solidAt(x + r, z + r),
+      this.solidAt(x, z, body),
+      this.solidAt(x - r, z - r, body),
+      this.solidAt(x + r, z - r, body),
+      this.solidAt(x - r, z + r, body),
+      this.solidAt(x + r, z + r, body),
     );
+  }
+
+  /** True on a tile that Frostfang built: only those are drawn with the frost look. */
+  isFrostTile(i: number, j: number): boolean {
+    return i >= 0 && j >= 0 && i < this.width && j < this.depth && this.frostTile[j * this.width + i] === 1;
+  }
+
+  /** True on a root tangle tile. */
+  isTangle(x: number, z: number): boolean {
+    const k = this.index(x, z);
+    return k >= 0 && this.tangle[k] > 0;
+  }
+
+  /** The gap of the root tangle on a tile, 0 if none. */
+  tangleGapAt(x: number, z: number): number {
+    const k = this.index(x, z);
+    return k < 0 ? 0 : this.tangle[k];
   }
 
   isWater(x: number, z: number): boolean {
@@ -314,6 +341,7 @@ export class World {
         this.water[at(i, j)] = 0;
         this.iceTop[at(i, j)] = -Infinity;
         this.iceOn[at(i, j)] = 0;
+        this.tangle[at(i, j)] = 0;
       },
       setWater: (i, j, wet, level = this.waterLevel) => {
         if (!inside(i, j)) return;
@@ -324,6 +352,10 @@ export class World {
         if (!inside(i, j)) return;
         this.iceTop[at(i, j)] = h;
         this.iceOn[at(i, j)] = 1;
+      },
+      setTangle: (i, j, gap = TANGLE_GAP) => {
+        if (!inside(i, j)) return;
+        this.tangle[at(i, j)] = gap;
       },
       rect: (i0, j0, i1, j1, fn) => {
         for (let j = j0; j <= j1; j++) {
@@ -363,8 +395,10 @@ export class World {
     for (const island of islands) {
       const before = this.height.slice();
       const beforeIce = this.iceTop.slice();
+      const beforeKind = this.kind.slice();
       const part = island.build(terrain);
       this.noteBounds(island, before, beforeIce);
+      this.noteOwner(island, before, beforeIce, beforeKind);
       if (part.spawn && !hasSpawn) {
         layout.spawn = part.spawn;
         hasSpawn = true;
@@ -397,6 +431,14 @@ export class World {
       }
     }
     return layout;
+  }
+
+  /** Remember which tiles this island changed are Frostfang's, for the frost look. */
+  private noteOwner(island: Island, before: Float32Array, beforeIce: Float32Array, beforeKind: Uint8Array): void {
+    for (let k = 0; k < before.length; k++) {
+      if (this.height[k] === before[k] && this.iceTop[k] === beforeIce[k] && this.kind[k] === beforeKind[k]) continue;
+      this.frostTile[k] = island.id === 'frostfang' ? 1 : 0;
+    }
   }
 
   /** Remember the box around every tile this island changed, thin ice included. */
@@ -451,7 +493,7 @@ export class World {
 
     tiles.forEach((t, n) => {
       const v = hash(t.i, t.j, 1);
-      const frost = t.i >= FROST_X;
+      const frost = this.frostTile[t.j * this.width + t.i] === 1;
       // Frostfang's snow is a thick white blanket over dark rock.
       const CAP = frost && t.kind === Kind.Snow ? SNOW_CAP : CAP_THIN;
       // Top
@@ -463,6 +505,12 @@ export class World {
           break;
         case Kind.Sand:
           c.setHSL(0.12, 0.55, 0.74 + v * 0.05);
+          break;
+        case Kind.Moss:
+          c.setHSL(0.43 + v * 0.03, 0.55, 0.3 + v * 0.06);
+          break;
+        case Kind.Bark:
+          c.setHSL(0.07 + v * 0.02, 0.5, 0.36 + v * 0.06);
           break;
         case Kind.Stone:
           // Frostfang's rock is dark and frosted, not Highcrag's grey.
@@ -535,7 +583,7 @@ export class World {
         water.setMatrixAt(n, m);
         // Pond water is bright; a frozen lake is deep, cold and dark under its ice.
         if (this.iceTop[k] > -Infinity) c.setHex(0x2f7fb5);
-        else if (t.i >= FROST_X) c.setHex(0x3aa0d0);
+        else if (this.frostTile[k] === 1) c.setHex(0x3aa0d0);
         else c.setHex(0x4cc3f0);
         water.setColorAt(n, c);
       });
@@ -544,6 +592,7 @@ export class World {
     }
 
     this.buildThinIce();
+    this.buildTangles();
     this.buildCloudSkirt(tiles);
     this.group.add(
       buildFrostDecor({
@@ -552,6 +601,7 @@ export class World {
         height: (i, j) => this.get(i, j),
         kind: (i, j) => this.kind[j * this.width + i],
         wet: (i, j) => this.water[j * this.width + i] === 1,
+        frost: (i, j) => this.frostTile[j * this.width + i] === 1,
         layout: this.layout,
       }),
     );
@@ -560,11 +610,12 @@ export class World {
   /**
    * One thin, see-through pale slab per thin-ice tile, with no column under it,
    * and a white frame and cracks on top so it reads as ice you could fall through.
+   * Off Frostfang the same slab is a leaf mat: green-amber, with a dark green frame.
    */
   private buildThinIce(): void {
     if (this.iceTiles.length === 0) return;
     const mat = new THREE.MeshLambertMaterial({
-      color: 0xa8dcff,
+      color: 0xffffff,
       emissive: 0x2c5f86,
       transparent: true,
       opacity: 0.6,
@@ -581,8 +632,62 @@ export class World {
       this.iceSlot.set(k, n);
       this.iceRot.set(k, Math.floor(hash(k % this.width, Math.floor(k / this.width), 21) * 4) * (Math.PI / 2));
     });
+    const ice = new THREE.Color(0xa8dcff);
+    const leaf = new THREE.Color(0xc4c25a);
+    const frame = new THREE.Color(0x2f5a28);
+    const white = new THREE.Color(0xffffff);
+    this.iceTiles.forEach((k, n) => {
+      const frosted = this.frostTile[k] === 1;
+      mesh.setColorAt(n, frosted ? ice : leaf);
+      cracks.setColorAt(n, frosted ? white : frame);
+    });
     for (const k of this.iceTiles) this.showIce(k);
     this.group.add(mesh, cracks);
+  }
+
+  /**
+   * Each tangle tile is a low brown weave of thin boxes with a few dark strands
+   * rising high above it, so the wall nothing can fly over is visible. Look
+   * only: nothing here collides.
+   */
+  private buildTangles(): void {
+    const tiles: number[] = [];
+    for (let k = 0; k < this.tangle.length; k++) if (this.tangle[k] > 0) tiles.push(k);
+    if (tiles.length === 0) return;
+    const WEAVE = 4;
+    const STRANDS = 4;
+    const unit = new THREE.BoxGeometry(1, 1, 1);
+    const weave = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial(), tiles.length * WEAVE);
+    const strands = new THREE.InstancedMesh(
+      unit,
+      new THREE.MeshLambertMaterial({ color: 0x2b1a10 }),
+      tiles.length * STRANDS,
+    );
+    const m = new THREE.Matrix4();
+    const rot = new THREE.Matrix4();
+    const c = new THREE.Color();
+    tiles.forEach((k, n) => {
+      const i = k % this.width;
+      const j = Math.floor(k / this.width);
+      const h = this.height[k];
+      for (let w = 0; w < WEAVE; w++) {
+        const r = hash(i, j, 40 + w);
+        // Long thin boxes laid crosswise at slightly different heights and angles.
+        m.makeRotationY(r * Math.PI).multiply(rot.makeScale(0.95, 0.12, 0.14));
+        m.setPosition(i + 0.5 + (hash(i, j, 50 + w) - 0.5) * 0.3, h + 0.1 + w * 0.12, j + 0.5 + (hash(i, j, 60 + w) - 0.5) * 0.3);
+        weave.setMatrixAt(n * WEAVE + w, m);
+        c.setHSL(0.07 + r * 0.03, 0.45, 0.22 + hash(i, j, 70 + w) * 0.1);
+        weave.setColorAt(n * WEAVE + w, c);
+      }
+      for (let s = 0; s < STRANDS; s++) {
+        const len = 8 + hash(i, j, 80 + s) * 2;
+        m.makeScale(0.07, len, 0.07);
+        m.setPosition(i + 0.15 + hash(i, j, 90 + s) * 0.7, h + len / 2, j + 0.15 + hash(i, j, 100 + s) * 0.7);
+        strands.setMatrixAt(n * STRANDS + s, m);
+      }
+    });
+    weave.castShadow = true;
+    this.group.add(weave, strands);
   }
 
   /** How far down the rock goes under a tile: deeper toward the middle. */

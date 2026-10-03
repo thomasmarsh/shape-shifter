@@ -4,9 +4,9 @@ A web game. You are a shape shifter stuck on a cloud island. Solve music
 puzzles to free candle lights, collect enough lights to level up, and each
 level lets you shift into a new creature.
 
-The design lives in [`PLAN.md`](PLAN.md). This build has **four islands** to
-play, from level 0 (Human) to level 4 (Winter Wolf), and a small green stub of
-a fifth island at the end where it stops for now.
+The design lives in [`PLAN.md`](PLAN.md). This build has **five islands** to
+play, from level 0 (Human) to level 5 (Ant), and a small sandy stub of a sixth
+island at the end where it stops for now.
 
 ## Play it
 
@@ -32,7 +32,7 @@ If the game runs slowly, add `?fast` to the address to turn off shadows.
 | Click or `J` | Swing your sword (Human and Orangutan) |
 | `E` | Use things: speakers, candles |
 | `F` | Eat a piece of bread (+1 heart) |
-| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, …) |
+| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, …) |
 | `Q` | Fairy only: make a tiny home to hide in |
 | `Esc` | Pause |
 
@@ -47,6 +47,13 @@ is running, so keep running and do not stop. A wolf that stops, or is slowed
 by bumping into something, will fall through. Over the lake it then has to
 swim out and try again; over the sky it falls. Jump gaps in the ice at a run.
 Thin ice grows back a few seconds after it breaks.
+
+**Ant:** tiny, slow, and it has one heart. It is the only form that fits into a
+root tangle (the woven roots with strands hanging up out of sight). Everything
+else bumps into a tangle like a wall, and so do bad guys and arrows, so inside
+one the Ant is safe. Inside a tangle the Ant cannot jump and cannot change
+shape; walk out first. Changing out of the Ant leaves you on one heart, so eat
+before you go on.
 
 **Hop, then fly:** a Bunny can turn into a Fairy at the top of a hop and keep
 the height. Hold `Space` as a Bunny, press `1` when the hop is at its top, and
@@ -74,18 +81,29 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   is what the way off needs: sprint over the thin ice of the frozen lake and up
   the Frozen Falls, then every other form does one job on the way to the end,
   and a last run down to the next island.
-- **Underroot** (the end, for now): a small green stub where the game stops for
-  now. It is the home of the Ant.
-- Five forms: Human (10 hearts, wooden sword), Fairy (3 hearts, short slow
+- **Underroot** (level 4, then 5): a long mossy island of roots, bark and great
+  trees, with a flat glade along its south side and everything else rising to
+  the north and east. Five candles: the Clearing (a plain sword fight), the
+  Leaf Mats (a Wolf up a climbing path of thin leaves, a fight, then a Bunny up
+  a step), the Leaf Pier (run as a Wolf, turn into a Fairy at the end without
+  stopping, then fight), the Root Grove (an Orangutan along a road of great
+  trees, a fight, then a Fairy across) and the Spire (hop, then fly). The fifth
+  candle gives the Ant, and the Ant is what the way off needs: past the gate
+  guards, through the Root Wall into the Yard, up the Long Root over the open
+  sky to the Crown, and one short flight to the next island.
+- **Saltmere** (the end, for now): a small sandy stub where the game stops. It
+  is the home of the Mermaid.
+- Six forms: Human (10 hearts, wooden sword), Fairy (3 hearts, short slow
   flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone sword),
-  Bunny (4 hearts, huge hops, no sword) and Winter Wolf (12 hearts, the fastest
-  so far, no sword, runs on thin ice). Hearts cap at the form's maximum when
+  Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts, the fastest
+  so far, no sword, runs on thin ice) and Ant (1 heart, slow, no sword, fits
+  into root tangles). Hearts cap at the form's maximum when
   you shift and only come back by eating.
 - 100 bread to start, more to find.
 - Two kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
   two slower "testers" on the training ground, and archers (8 hearts) who
   appear once you reach level 3.
-- Seventeen music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
+- Twenty-two music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
   after), each guarding a candle. You cannot use a speaker while a bad guy
   close by is after you: deal with them, lose them or hide first.
 - Checkpoints, falling off the island, fainting and respawning.
@@ -99,7 +117,7 @@ src/
   main.ts       starts the game
   game.ts       the loop, camera, saving, hints, and what happens when
   world.ts      builds the whole world from the islands: terrain, heights, water,
-                thin ice, meshes
+                thin ice, root tangles, meshes
   layout.ts     the shared words of a level: tile kinds, spots, hints, arrivals
   islands/      one file per island, plus the tests for the island
     index.ts      the list of islands, in build order
@@ -107,10 +125,14 @@ src/
     frostfang.ts      Frostfang's hub and its five candles (west half)
     frostfang-run.ts  the frozen lake and the Wolf's exit run (east half),
                       built by frostfang.ts
-    underroot.ts      the stub of island 5, the smallest island to copy
+    underroot.ts      Underroot's landing, the west of its hub and three candles
+    underroot-east.ts the east of the hub, two candles and the Ant's way off,
+                      built by underroot.ts
+    saltmere.ts       the stub of island 6, the smallest island to copy
     scatter.ts    sprinkles ordinary trees over an island's grass
   forms.ts      the ten forms and level rules, as a data table
-  player.ts     movement, flying, climbing, hopping, running on ice, sword, hearts, shape-shifting
+  player.ts     movement, flying, climbing, hopping, running on ice, fitting into
+                tangles, sword, hearts, shape-shifting
   enemy.ts      the regular bad guy and the archer
   arrows.ts     arrows in flight
   things.ts     puzzle speakers, candles, checkpoints, bread
@@ -123,7 +145,8 @@ src/
   input.ts      keyboard and mouse
   save.ts       saving to the browser
   levelcheck.ts the level checker: which places each set of forms can reach
-                (it knows the Winter Wolf, thin ice and hop-then-fly)
+                (it knows the Winter Wolf, thin ice, hop-then-fly, the Ant and
+                root tangles)
   pilot.ts      a scripted player the tests use to walk and fly real routes
   *.test.ts     the tests (next to the code they check)
 scripts/
@@ -138,12 +161,14 @@ bread, trees, hints, arrival cards). To change a form's hearts or speed, edit
 ### Adding an island
 
 1. Make `src/islands/<name>.ts` that exports an `Island` (see
-   `src/islands/underroot.ts` for the smallest one) and add it to the list in
+   `src/islands/saltmere.ts` for the smallest one) and add it to the list in
    `src/islands/index.ts`. Leave a gap of sky between islands. Besides
    `t.set(i, j, height, kind)`, `build(t)` can lay water at any height with
    `t.setWater(i, j, wet, level)`, and a sheet of thin ice at any height with
-   `t.setThinIce(i, j, height)`. An island can also be built in two files, as
-   Frostfang is: its file calls a builder from the other and merges the result.
+   `t.setThinIce(i, j, height)`, and turn a ground tile into a root tangle with
+   `t.setTangle(i, j)`. An island can also be built in two files, as Frostfang
+   and Underroot are: its file calls a builder from the other and merges the
+   result.
 2. Run `npm run map -- --island=<name>` to look at it, and
    `npm run map -- --island=<name> --reach=human,fairy --from=x,z` to see what
    those forms can reach from a spot.
@@ -159,11 +184,11 @@ forms can reach (an easy setting for "a person can do this" and a generous
 one for "nobody can do this"). The route tests in `src/routes.test.ts` back it
 up by really flying and climbing the hard routes with the real physics, using
 the scripted player in `src/pilot.ts`. `npm run map` prints the islands as
-ASCII maps (heights, things, thin ice, and reachable ground) so you can see a
+ASCII maps (heights, things, thin ice, root tangles, and reachable ground) so you can see a
 layout before you run the game, for example
 `npm run map -- --island=frostfang --reach=human,fairy,orangutan,bunny --from=208.5,40.5`.
 
-The checker knows three things beyond walking, hopping, flying and climbing:
+The checker knows four things beyond walking, hopping, flying and climbing:
 
 - **The Winter Wolf:** it moves like a faster Human, and it is the only form
   that can step onto thin ice. Nobody can stand still on thin ice, so nothing there can
@@ -174,6 +199,15 @@ The checker knows three things beyond walking, hopping, flying and climbing:
 - **Hop-then-fly:** a Bunny that turns into a Fairy at the top of its hop keeps
   that height and flies on from there. This needs both forms. The checker has
   an easy and a generous range for it, measured with the real physics.
+
+- **The Ant and root tangles:** a tangle is a wall for every form but the Ant:
+  nobody else walks into one, lands on one or flies over one. For the Ant it is
+  plain ground, except that it cannot hop from inside one. A ring of tangle
+  must have no diagonal-only joins.
+
+The route tests for Underroot sit next to the island, in
+`src/islands/underroot.routes.test.ts` and
+`src/islands/underroot-east.routes.test.ts`.
 
 Because of hop-then-fly, every raised thing (a ledge, a wall top, a treetop) is
 a launch pad. Level designs keep raised ground to where it is needed, and
@@ -188,16 +222,17 @@ The game is in `window.game` in the browser console. Handy while building:
 ```js
 game.debug.warp('hc-prow')   // stand on a checkpoint
 game.debug.setLevel(4)       // become level 4 (then press 4 for the Winter Wolf)
-game.debug.takeLight(7)      // take a candle's light at once (0 to 16)
+game.debug.takeLight(7)      // take a candle's light at once (0 to 21)
 ```
 
 Candles are numbered in the order of the islands: 0 to 2 Meadow Island, 3 to 6
-Tanglewood, 7 to 11 Highcrag, 12 to 16 Frostfang.
+Tanglewood, 7 to 11 Highcrag, 12 to 16 Frostfang, 17 to 21 Underroot.
 
 Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `tw-south`, `tw-grove`, `hc-prow`, `hc-south`, `hc-north`, `hc-east`,
 `hc-stair`, `frostfang`, `ff-north`, `ff-south`, `ff-lake`, `ff-glacier`,
-`ff-brow`, `ff-last`, `underroot`.
+`ff-brow`, `ff-last`, `underroot`, `ur-mat`, `ur-glade`, `ur-mid`, `ur-grove`,
+`ur-wall`, `ur-yard`, `ur-crown`, `saltmere`.
 
 ## Decisions the plan did not spell out
 
@@ -258,16 +293,43 @@ These were chosen to get a playable build. Change any of them freely.
   would open shortcuts. The pines are the Orangutan's way up.
 - **Snow is look-only:** the snow caps, frost and falling snow never change
   where you can stand.
+- **A tiny space is a root tangle:** the world has one height per tile, so
+  there are no tunnels. A tangle is a flag on a ground tile: a wall 100 high
+  for everything taller than its gap (0.25), plain ground for the Ant (0.2
+  tall). It gates by who fits, not by height, so no hop-then-fly or glide gets
+  past it. The gap is a number, so the Snake's bigger holes can use the same
+  rule later.
+- **No jumping and no shape-shifting inside a tangle,** so nobody ends up as a
+  big form inside a wall.
+- **Keeping it fair for a one-heart Ant:** bad guys cannot enter a tangle and
+  arrows stop at it. All the bad guys of Underroot's way off stand before the
+  Root Wall; past it there are none. A checkpoint stands before the wall, in
+  the Yard and on the Crown. A fall costs one heart, which for the Ant is a
+  faint, and a faint returns you with full hearts, so the Ant loses nothing
+  extra by falling. The Yard and the Crown have bread, because changing out of
+  the Ant leaves one heart.
+- **The Ant cannot help with Underroot's own candles,** because it unlocks on
+  the fifth. The way off needs it twice (the Root Wall and the Long Root), and
+  uses only the Human, the Ant and the Fairy.
+- **Underroot's glade is its lowest ground and is flat,** with no trees or
+  boulders on it except the first tree of the Root Grove. Its raised places
+  stand far apart, because a glide from high ground reaches a long way down.
+- **No checkpoint on a rock whose only way off is a fall** (Pier Rock, Bough
+  Rock, the Spire): a fall returns you to the last checkpoint, so one there
+  would be a trap.
+- **Thin leaves are thin ice:** on Underroot the thin sheets are leaf mats with
+  the same rules.
 - **Trees are solid:** a Human walks around them and arrows stop at them.
   Great trees are the tall ones (five steps against four), and the level
   designs rely on them: the Orangutan climbs them to cross the sky.
 
 ## Next
 
-1. Ant (level 5) and the tiny spaces only it can enter, on Underroot, the next
-   island (only a stub for now).
-2. Water areas you can dive into, sea pickles and the Mermaid, then the Axolotl.
-3. Cheetah, and the sword bad guys that come with it.
-4. Snake.
-5. The two bosses (land, then underwater), level 11 and the end of the game.
-6. Wings (level 10) and character customising.
+1. Water areas you can dive into, sea pickles and the Mermaid (level 6), on
+   Saltmere, the next island (only a stub for now). Then the Axolotl.
+2. Cheetah, and the sword bad guys that come with it.
+3. Snake, and small holes that are bigger than a tangle's gap.
+4. The two bosses (land, then underwater), level 11 and the end of the game.
+5. Wings (level 10) and character customising.
+6. More for the other forms to do on Underroot's way off, which today uses only
+   the Human, the Ant and the Fairy.
