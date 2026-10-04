@@ -76,8 +76,9 @@ jump, but she can leap out of the water onto a low shore. While she swims she
 has two water powers. `Q` shoots a ball of water at the nearest bad guy within
 9 tiles (3 hearts, it stops at walls). `R` raises a bubble column under the
 nearest bad guy within 7 tiles: a ring of bubbles warns for a moment, then it
-bursts and does 4 hearts to every bad guy in it. Bad guys stay out of the
-water, so from a pond she can clear a shore without being touched.
+bursts and does 4 hearts to every bad guy in it. Walking bad guys stay out of
+the water, so from a pond she can clear a shore without being touched. In the
+deep pools there are Snappers, and those are hers to fight.
 
 **Cheetah:** the fastest of all, 10 tiles a second, but only for as long as its
 breath lasts. The bar under the hearts is its breath: about 8 seconds of
@@ -229,15 +230,19 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   the Cheetah. The fifth candle gives the wings, and the wings are what the way
   off needs: the heath ends at the open sky, and Kestrel Rock lies 43 tiles out
   and 11 down, too far for a hop and a flight. Jump off the edge and glide.
+  There is a way back: the Kestrel Steps, north of the Rock, five steps a Bunny
+  hops to a top high enough for a glide west to the heath.
 - **Cinderhold** (level 10, the end): ash, black glass and one arena, the Ring.
   It has no candles. You land low, a short Fairy flight east of Kestrel Rock,
-  and walk up the Climb. The Warden stands in the middle of the Ring on a round
-  floor of black stone, the Lid. Beat it and the Lid falls: under it is the
-  Deep, a lake as deep as a Human dives, and in it the Eel. Two Stairs stand on
-  the Ring's north and east sides. Their steps are too tall for the Warden, and
+  and walk up the Climb. The Warden stands in the middle of the Ring on a
+  floor of black stone, the Lid, which fills the Ring but for a walk of ash
+  round its edge. Beat it and the Lid falls: under it is the Deep, a lake as
+  deep as a Human dives, and in it the Eel. Two Stairs stand on the Ring's
+  north and east sides, each marked by beacons. Their steps are too tall for the Warden, and
   from the top the wings carry you anywhere in the Ring, or out over the lake.
   Beat the Eel and you are level 11: the credits roll while the camera pulls
-  back over the whole world. Any key stops them, and you can walk on.
+  back over the whole world and puzzle bells ring at random. Any key stops
+  them, and you can walk on.
 - Ten forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
   slow flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone
   sword), Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts,
@@ -252,20 +257,25 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   you shift and only come back by eating.
 - Wings for the Human at level 10: a glide, never a climb.
 - 100 bread to start, more to find.
-- Four kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
+- Five kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
   two slower "testers" on the training ground, archers (8 hearts) who
   appear once you reach level 3, and two kinds with a sword who appear once you
   reach level 7: a heavy one (5 hearts, slow, a long wind-up, 4 hearts a blow)
   and a light one (3 hearts, faster than a Human, a short wind-up, 2 hearts a
-  blow).
-- Two bosses, at level 10. **The Warden** (16 hearts, slow): it raises its arms
-  for 1.2 seconds while a red ring shows on the ground round it, then slams
-  everything in the ring for 5 hearts and stands still for 1.8 seconds. Walk
+  blow). And the Snapper (6 hearts), a fish that appears once you reach level
+  6 in the deep pools of Sunveld, Hollowfen and Galecrest. It never leaves its
+  pool and takes no notice of anyone on the bank. At a swimmer it glows for
+  half a second, then snaps 3.5 tiles in a straight line for 2 hearts. A pale
+  wake on the surface shows where it is, and a red streak where it will snap.
+- Two bosses, at level 10. **The Warden** (60 hearts, a little slower than a Human): it raises its arms
+  for 0.9 seconds while a red ring shows on the ground round it, then slams
+  everything in the ring for 5 hearts and stands still for 1.3 seconds. Walk
   out of the ring and strike while it stands. Out of its reach (far off, or up
-  a Stair) it throws rocks: 3 hearts, straight, after a glow of a second.
-  **The Eel** (20 hearts, quick): it never leaves the water. It glows for under
-  half a second, then lunges 6 tiles in a straight line for 5 hearts: swim
-  sideways. At anyone within 12 tiles who is not in the water it spits water
+  a Stair) it throws rocks: 3 hearts, straight, after a short glow.
+  **The Eel** (20 hearts, quick, and long): it never leaves the water. It glows
+  for 0.7 seconds while a red streak on the water shows its path, then lunges 8
+  tiles along it for 5 hearts: swim sideways. A pale wake on the surface shows
+  where it is, however deep it swims. At anyone within 12 tiles who is not in the water it spits water
   (3 hearts); the Stairs' tops are out of its reach. A boss does not faint from a Snake's bite. If you faint, a boss that
   is not beaten has all its hearts again; a beaten one stays beaten.
 - Forty-seven music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
@@ -318,14 +328,16 @@ src/
   forms.ts      the ten forms and level rules, as a data table, and the
                 bosses' numbers and rules
   ending.ts     the end of the game: which boss is beaten, when the lid drops,
-                the win, and how the camera pulls back for the credits
+                the win, how the camera pulls back for the credits, and the
+                bells that ring over them
   player.ts     movement, flying, climbing, hopping, running on ice, fitting into
                 tangles, holes and hollows, swimming and diving, breath, sword,
                 bite, hearts and their regrowth, hiding, gliding on wings,
                 shape-shifting
   enemy.ts      the regular bad guy, the archer and the two sword bad guys, how
                 they faint, and which way they look at their posts; the two
-                bosses, the Warden and the Eel
+                bosses, the Warden and the Eel; the Snapper, which swims as
+                the Eel does
   arrows.ts     arrows in flight, and the bosses' rocks and balls of water
   waterpowers.ts  the Mermaid's water shot and bubble column
   things.ts     puzzle speakers, candles and sea pickles, checkpoints, bread
@@ -333,6 +345,8 @@ src/
   hud.ts        hearts, form bar, meters, hints, title and level-up cards
   models.ts     every character and object, built from coloured boxes
   frost.ts      the look of Frostfang: snow caps, frost and falling snow (looks only)
+  cinder.ts     the look of Cinderhold: beacons at the Stairs, embers, glowing
+                cracks and standing stones (looks only)
   audio.ts      notes and sound effects, made in code
   particles.ts  sparkles and puffs
   input.ts      keyboard and mouse
@@ -386,7 +400,7 @@ forms can reach (an easy setting for "a person can do this" and a generous
 one for "nobody can do this"). The route tests in `src/routes.test.ts` back it
 up by really flying and climbing the hard routes with the real physics, using
 the scripted player in `src/pilot.ts`. `npm run map` prints the islands as
-ASCII maps (heights, things, thin ice, root tangles, holes, kelp mats, hollows, water
+ASCII maps (heights, things, thin ice, root tangles, holes, kelp mats, hollows, the lid, water
 depth and reachable ground) so you can see a layout before you run the game, for example
 `npm run map -- --island=frostfang --reach=human,fairy,orangutan,bunny --from=208.5,40.5`.
 
@@ -460,8 +474,9 @@ The checker knows these things beyond walking, hopping, flying and climbing:
   reads the world as it is. A test explores a world before and after
   `dropLid()`.
 - **Bad guys are ignored.** The checker proves where they stand (not near a
-  checkpoint or a respawn spot, not where the player must be an Ant), never
-  that a fight is fair. For the bosses, `src/boss.test.ts` runs the real
+  checkpoint or a respawn spot, not where the player must be an Ant; a Snapper
+  in open water, with no tangle touching its pool), never that a fight is
+  fair. For the bosses, `src/boss.test.ts` runs the real
   attacks: a player who walks out of the red ring is not hit, one who stands
   still is.
 
@@ -476,10 +491,15 @@ in `src/levelcheck.wings.test.ts`. Cinderhold's are in
 `src/islands/cinderhold.routes.test.ts`: the Fairy's flight from Kestrel Rock,
 the Human's climb of a Stair and glide onto the Lid and into the lake, the
 Warden that cannot follow up the steps, the lid dropping under a player, the
-Eel that never leaves its lake, and a scripted Human that beats the Warden
-without losing a heart (four blows of the level 10 sword, in under 12 seconds).
+Eel that never leaves its lake, a Human who dodges its lunge by swimming
+sideways and one who does not, and a scripted Human that beats the Warden
+without losing a heart (twelve blows of the level 10 sword, in about 26
+seconds) next to one who only swings and faints. The Snappers are run in their
+real pools in `src/islands/snapper.routes.test.ts`: they stay in their water, a
+Mermaid beats the Tarn's two and keeps half her hearts, and a player on the
+bank is not noticed.
 
-The suite is 1088 tests in 77 files and runs in about 14 seconds on an 8-core
+The suite is 1138 tests in 80 files and runs in about 14 seconds on an 8-core
 laptop (the 977 tests before Cinderhold took about 12, the 872 before Galecrest
 about 11, the 777 before Hollowfen 8.5; with isolation those took 10 to 11). Test files run in forked workers without
 isolation (`pool: 'forks'`, `isolate: false` in `vite.config.ts`), so the
@@ -518,7 +538,7 @@ Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `cs-rim`, `cs-far`, `cs-foot`, `cs-end`, `hollowfen`, `hf-hub`, `hf-ring`,
 `hf-rim`, `hf-far`, `hf-foot`, `hf-well`, `hf-end`, `galecrest`, `gc-hub`,
 `gc-ring`, `gc-rim`, `gc-far`, `gc-foot`, `gc-edge`, `gc-end`, `cinderhold`,
-`ch-ring`.
+`ch-ring` (on the Climb, below the Ring).
 
 ## Decisions the plan did not spell out
 
@@ -622,8 +642,8 @@ These were chosen to get a playable build. Change any of them freely.
   never walled in.
 - **The Mermaid cannot help with Saltmere's own pickles,** because she unlocks
   on the fifth. The way off needs only her.
-- **The Mermaid's water powers work from the water onto the shore.** Bad guys
-  stay out of the water, so there is nothing under water to fight yet. The
+- **The Mermaid's water powers work from the water onto the shore,** and in
+  the water on Snappers and the Eel. The
   water shot (`Q`, 3 hearts, 9 tiles, stops at walls, 1 s between shots) and
   the bubble column (`R`, 4 hearts, 7 tiles, bursts 0.6 s after a ring of
   bubbles warns, 3 s between columns) both need her to be swimming. The Gate
@@ -812,8 +832,14 @@ These were chosen to get a playable build. Change any of them freely.
   arrival (the Court, the Windbreak, the Sluice) and the way off.
 - **Kestrel Rock is no longer a trap.** Cinderhold's Landing lies 9 tiles east
   of it at the same height, a Fairy's flight. Wings are no use there: a glide
-  never rises. A Fairy can also fly back from the Landing to the Rock, but
-  there is still no way from the Rock back up to Galecrest.
+  never rises. A Fairy can also fly back from the Landing to the Rock.
+- **The way back is the Kestrel Steps.** Five steps of scree north of the Rock,
+  each 4 high: a Bunny's hop, and more than a Fairy rises. The top is at 21,
+  nine above the heath, and a glide from it reaches the heath 46 tiles west.
+  So the way back needs the Bunny and the wings, and the way out still needs
+  the wings: from the heath nothing without them reaches the Rock or the Steps
+  (`src/islands/galecrest-return.test.ts`). The Steps rise north, so they hide
+  nothing from the camera.
 - **Galecrest has its own ground:** heather, scree and quartz, used on no
   other island. Its look, and the wings', were built without being seen on a
   screen.
@@ -822,6 +848,12 @@ These were chosen to get a playable build. Change any of them freely.
   the Lid, and the floor falls when the Warden is beaten. So there is no water
   in the first fight (a Mermaid cannot shoot the Warden from a pond), and the
   second fight starts where the first one ended.
+- **The Lid fills the Ring.** At first it was a round floor in the middle, 208
+  tiles; play showed the second fight wanted more room. Now it is 872 tiles, a
+  rectangle with round corners, and what is left of the Ring is a walk of ash
+  four tiles wide. The checkpoint that stood in the Ring moved down onto the
+  Climb, farther from the lake than the Eel spits, so nobody wakes up under
+  fire.
 - **The lid is a tile that changes.** A lid tile is built as water with a roof.
   While the lid is shut it is plain ground at the roof's height; `dropLid()`
   makes it the water it was built as, at once. Only the slab's picture lingers:
@@ -829,7 +861,10 @@ These were chosen to get a playable build. Change any of them freely.
 - **The credits pull the camera back** until the whole world, 1700 tiles of
   it, is in view (about 49 times the normal view on a wide screen), over 30
   seconds. Any key or a click ends them, except in the first half second, so
-  the blow that won the game does not end them too.
+  the blow that won the game does not end them too. While they roll, puzzle
+  bells ring at random, a little under one a second, and about one time in
+  three a second or third bell rings into the first. They use only C, D, E, G,
+  A and high C, so bells that overlap never clash.
 - **The Stairs are for getting away, not for hiding.** Their steps are 1 high:
   a Human jumps them, a bad guy cannot (it steps up 0.35 at most). So the
   Warden throws rocks at anyone it cannot reach, and the Eel spits at anyone
@@ -839,10 +874,22 @@ These were chosen to get a playable build. Change any of them freely.
   is left alone, and the Warden walks back to its post with the hearts it had.
   One that stays near the foot of the Stair has rocks thrown at it, and they
   hurt: a Human standing still there is beaten in about 20 seconds.
-- **The Warden falls in four blows.** The plan gives it 16 hearts, and the
-  level 10 sword does 5. The fight is in getting the blows in, not in their
-  number. Its numbers are in one place (`WARDEN` in `src/forms.ts`).
-- **The Eel is the first bad guy in the water.** Only it swims; every other
+- **The Warden takes twelve blows.** The plan gives it 16 hearts, four blows
+  of the level 10 sword, and in play that fight was over in two seconds. Now
+  it has 60, walks at 3.2 (a Human at 4.6), and winds up and recovers faster.
+  A Human who stands and swings faints in about 3 seconds with the Warden
+  still on 20 hearts; one who walks out of every ring wins unhurt in about 26
+  seconds. Its numbers are in one place (`WARDEN` in `src/forms.ts`).
+- **Bosses must be easy to read.** In play the Eel was hard to see. Now a
+  swimmer shows a pale wake on the surface over it at any depth, and a red
+  streak along the path of its lunge while it glows, as the Warden shows its
+  red ring. The Eel is twice as long as it was, and the Stairs have beacons.
+- **Snappers are the Eel's small cousins.** One swimming behaviour, two sets
+  of numbers (`EEL` and `SNAPPER` in `src/forms.ts`). A Snapper notices only a
+  swimmer, so it never stops a speaker on the bank from being used, and it is
+  no danger to an Ant on the shore. They stand by the pickles 8 deep, where
+  only the Mermaid and the Axolotl go.
+- **The Eel was the first bad guy in the water.** It and the Snappers swim; every other
   bad guy still stays out. It follows a swimmer's depth, so the Human's sword
   (the lake is 4 deep, a Human's dive) and the Mermaid's sword and water
   powers all reach it.
@@ -861,14 +908,16 @@ These were chosen to get a playable build. Change any of them freely.
 
 ## Next
 
-1. Play the two fights and tune their numbers (`WARDEN` and `EEL` in
-   `src/forms.ts`): nothing of them has been played yet.
-2. More bad guys that can be fought in the water, for the Mermaid's powers.
-3. Work only the Wolf and only the Mermaid can do, that the checker can see.
-4. Character customising.
-5. More for the other forms to do on the ways off Underroot (Human, Ant and
+1. Play the two fights again with their new numbers (`WARDEN` and `EEL` in
+   `src/forms.ts`), and the Snappers (`SNAPPER`): none of the new numbers or
+   looks has been played yet.
+2. Make the later islands denser: from Coilstone on they are big and sparse
+   next to the first ones.
+3. More for the Axolotl to do: in play it had little use.
+4. Work only the Wolf and only the Mermaid can do, that the checker can see.
+5. Character customising.
+6. More for the other forms to do on the ways off Underroot (Human, Ant and
    Fairy only), Saltmere (Mermaid only), Sunveld (Cheetah and Bunny only),
    Coilstone (Snake only), Hollowfen (Axolotl only) and Galecrest (Human
    only).
-6. Rooms of its own for Galecrest, which repeats Hollowfen's.
-7. A way back from Kestrel Rock to Galecrest.
+7. Rooms of its own for Galecrest, which repeats Hollowfen's.
