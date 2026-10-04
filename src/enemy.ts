@@ -14,7 +14,8 @@ import type { Attackable, Player } from './player';
 // is the archer: 8 hearts, holds its post, shoots arrows at anyone it has
 // noticed and punches for 1 heart when you get close. Type 3 is the sword bad
 // guy: 5 hearts, slow and heavy, and one swing costs 4 hearts. The blade bad
-// guy is its light cousin: 3 hearts, fast, and a swing costs 2. The Warden and
+// guy is its light cousin: 3 hearts, a swing costs 2, and at 8.5 it outruns
+// every form but the Cheetah (the Wolf runs 7, the Cheetah 10). The Warden and
 // the Eel are the two bosses; their numbers and rules are in forms.ts.
 
 const PUNCH_REACH = 1.3;
@@ -100,7 +101,7 @@ const KINDS: Record<EnemyKind, Tuning> = {
     damage: SNAPPER.damage,
     reach: SNAPPER.lungeStart,
   },
-  blade: { hearts: 3, speed: 5.5, notice: 7.5, noticeHeight: 3, windup: 0.4, recover: 0.9, damage: 2, reach: 1.4 },
+  blade: { hearts: 3, speed: 8.5, notice: 7.5, noticeHeight: 3, windup: 0.4, recover: 0.9, damage: 2, reach: 1.4 },
 };
 
 /** The rock the Warden throws and the ball of water the Eel spits. */

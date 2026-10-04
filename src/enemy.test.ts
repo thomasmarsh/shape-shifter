@@ -328,12 +328,12 @@ describe('blade bad guys', () => {
     expect(d.time).toBeLessThan(0.55);
   });
 
-  it('run faster than a Human and slower than a Wolf', () => {
+  it('run faster than a Wolf and slower than a Cheetah: only the Cheetah gets away', () => {
     const d = new Duel('human', island(), { x: 27.5, z: 15.5 }, { x: 20.5, z: 15.5 }, bladeSpot);
-    d.run(0.8);
+    d.run(0.6);
     const covered = d.enemy.pos.x - 20.5;
-    expect(covered).toBeGreaterThan(speedOf('human') * 0.8);
-    expect(covered).toBeLessThan(speedOf('wolf') * 0.8);
+    expect(covered).toBeGreaterThan(speedOf('wolf') * 0.6);
+    expect(covered).toBeLessThan(speedOf('cheetah') * 0.6);
   });
 
   it('fall to two human sword hits', () => {
