@@ -91,8 +91,8 @@ export const cinderhold: Island = {
       { id: 'ch-landing', x: 1599.5, z: 30.5, r: 3, text: 'Ash underfoot, and no candle anywhere. Something waits at the top of the Climb.' },
       { id: 'ch-ring', x: 1625.5, z: 29.5, r: 3, text: 'When the red ring shows round the Warden, walk out of the ring, then strike while it stands still. Two Stairs, north and east, are too tall for it: rest there.' },
       { id: 'ch-lid', x: 1625.5, z: 36.5, r: 3, text: 'The black floor rings hollow. Under it is water, as deep as a Human dives. What swims there is quick: swim sideways when it glows.' },
-      { id: 'ch-north', x: 1644.5, z: 16.5, r: 3, text: 'Steps too tall for the Warden, but not for its rocks. From the top, wings carry you anywhere in the Ring.' },
-      { id: 'ch-east', x: 1665.5, z: 31.5, r: 3, text: 'Steps too tall for the Warden, but not for its rocks. From the top, wings carry you anywhere in the Ring.' },
+      { id: 'ch-north', x: 1644.5, z: 16.5, r: 3, text: 'Steps too tall for the Warden, but not for its rocks. The top, between the beacons, is out of reach of what spits from the lake, and from it wings carry you anywhere in the Ring.' },
+      { id: 'ch-east', x: 1665.5, z: 31.5, r: 3, text: 'Steps too tall for the Warden, but not for its rocks. The top, between the beacons, is out of reach of what spits from the lake, and from it wings carry you anywhere in the Ring.' },
     ];
     const arrivals: NonNullable<IslandLayout['arrivals']> = [
       {

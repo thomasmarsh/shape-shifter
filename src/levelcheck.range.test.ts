@@ -100,4 +100,18 @@ describe('a bounded explore', () => {
       expect(digest(explore(world, from, ten, profile, range, true), own), profile).toBe(digest(whole, own));
     }
   }, 30000);
+
+  // Cinderhold's tests search x 1560..1700: Kestrel Rock and its Steps to the
+  // world's end. The lid is shut here, as in a new World.
+  full('reaches inside Cinderhold with wings what the whole world reaches', () => {
+    const own = { x0: 1592, x1: 1682 };
+    const range = { x0: 1560, x1: 1700 };
+    const from = { x: 1594.5, z: 31.5 };
+    const ten: FormId[] = [...SEVEN, 'cheetah', 'snake', 'axolotl'];
+    for (const profile of ['easy', 'max'] as const) {
+      const whole = explore(world, from, ten, profile, undefined, true);
+      expect(whole.canStand({ x: 1645.5, z: 31.5 }), `${profile}: the Lid`).toBe(true);
+      expect(digest(explore(world, from, ten, profile, range, true), own), profile).toBe(digest(whole, own));
+    }
+  }, 30000);
 });
