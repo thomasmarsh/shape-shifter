@@ -24,7 +24,7 @@ import {
 // The Mermaid's bubble column (R) picks the nearest bad guy within BUBBLE_AIM (7)
 // tiles on the flat (x and z only) and bursts under it: the rule ignores walls
 // and heights. The water shot (Q) is stopped by walls. The Sunken Court's guards
-// stand in a pocket walled on three sides, 2 to 5 tiles from the inner water.
+// stand in a cell walled on all four sides (see coilstone-court.test.ts), 1 to 3 tiles from the inner water.
 
 const world = new World();
 const { layout } = world;

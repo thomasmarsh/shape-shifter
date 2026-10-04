@@ -24,8 +24,8 @@ export const COURT_LEVEL = 11.7;
 export const COURT_BED = 4.6;
 /** The Sunken Court's terrace (the Bunny's +4) and the Colonnade's rock and pillar. */
 export const TERRACE = 16;
-/** The parapet of the guards' pocket: out of reach of every form. */
-export const PARAPET = 17;
+/** The wall of the guards' cell: above the reach of every form (a hop then fly from the terrace tops 20.93). */
+export const PARAPET = 21.5;
 export const COL_ROCK = 19;
 export const COL_PILLAR = 22;
 
@@ -46,10 +46,14 @@ function sunkenCourt(t: Terrain): void {
   t.rect(1013, 47, 1021, 55, (i, j) => t.setWater(i, j, false));
   slab(t, 1013, 47, 1021, 55, HUB, Kind.Slate); // the islet
   slab(t, 1018, 47, 1021, 50, TERRACE, Kind.Lichen); // the terrace with the candle
-  // The guards' pocket: a parapet west, north and south of it stops a water shot.
-  // It stands 5 high: a Bunny reaches 16.7 and a Fairy 15.7 from the islet, so no one can stand on it.
-  for (let j = 51; j <= 55; j++) t.set(1014, j, PARAPET, Kind.Basalt);
-  for (let i = 1015; i <= 1017; i++) for (const j of [51, 55]) t.set(i, j, PARAPET, Kind.Basalt);
+  // The guards' cell, at the islet's north-west corner: a floor x 1014, z 47..48 inside a closed wall ring
+  // x 1013..1015, z 46..49, one tile thick (its north row stands on the inner water's edge).
+  // It stands 9.5 over the islet, above a hop then fly from the terrace (20.93): no one stands on it or flies in,
+  // and a water shot stops at it. Only the bubble column, which ignores walls, reaches the guards.
+  band(1013, 46, 1015, 49, 1, (i, j) => {
+    t.setWater(i, j, false);
+    t.set(i, j, PARAPET, Kind.Basalt);
+  });
 }
 
 /** C2: the Colonnade, a great-tree road north to a rock and across to a pillar. */
@@ -95,8 +99,8 @@ export const coilstone: Island = {
       { id: 'cs-tooth', speaker: { x: 970.5, z: 48.5 }, candle: { x: 967.5, z: 45.5 }, melody: [2, 5, 1, 7, 3, 0] },
     ];
     const enemies: EnemySpot[] = [
-      { x: 1016.5, z: 52.5, tester: false }, // the Sunken Court's guards, behind the parapet
-      { x: 1016.5, z: 54.5, tester: false },
+      { x: 1014.5, z: 47.5, tester: false }, // the Sunken Court's guards, inside the walled cell
+      { x: 1014.5, z: 48.5, tester: false },
       { x: 1008.5, z: 36.5, tester: false }, // the Colonnade's, at the foot of T1
       { x: 1015.5, z: 36.5, tester: false },
     ];
