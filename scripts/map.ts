@@ -8,8 +8,9 @@ import { IslandBounds, Spot, World } from '../src/world';
 //   npm run map -- --island=meadow
 //   npm run map -- --reach=human,fairy --profile=max --from=10.5,27.5
 //
-// Three grids per island, one character per tile, with x and z rulers every
-// ten tiles: heights, things, and (with --reach) which surfaces can be reached.
+// Up to four grids per island, one character per tile, with x and z rulers
+// every ten tiles: heights, things, water depth (only if the island has water)
+// and (with --reach) which surfaces can be reached.
 
 function fail(message: string): never {
   console.error(message);
@@ -100,12 +101,13 @@ function thingsGrid(): Map<string, string> {
   for (const c of layout.checkpoints) put(c, 'K');
   for (const e of layout.enemies) put(e, 'E');
   for (const b of layout.bread) put(b, 'B');
-  for (const t of layout.trees) put(t, t.kind === 'great' || t.kind === 'greatPine' ? 'T' : 't');
+  for (const t of layout.trees) put(t, t.kind === 'great' || t.kind === 'greatPine' || t.kind === 'greatPalm' ? 'T' : 't');
   for (const b of layout.boulders) put(b, 'o');
-  // Root tangles, then thin ice, each with nothing else on it.
+  // Root tangles, kelp mats, then thin ice, each with nothing else on it.
   for (let j = 0; j < world.depth; j++) {
     for (let i = 0; i < world.width; i++) {
       if (world.isTangle(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, '%');
+      if (world.isKelp(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, '&');
       if (world.isThinIce(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, '=');
     }
   }
@@ -116,6 +118,22 @@ const marks = thingsGrid();
 function thingChar(i: number, j: number): string {
   if (world.isVoid(i + 0.5, j + 0.5)) return ' ';
   return marks.get(`${i},${j}`) ?? '.';
+}
+
+/** How deep the water is over the bed, rounded down, capped at 9; a dot where it is dry. */
+function depthChar(i: number, j: number): string {
+  const x = i + 0.5;
+  const z = j + 0.5;
+  if (world.isVoid(x, z)) return ' ';
+  if (!world.isWater(x, z)) return '.';
+  return String(Math.min(9, Math.floor(world.waterLevelAt(x, z) - world.groundAt(x, z) + 1e-4)));
+}
+
+function hasWater(b: IslandBounds): boolean {
+  for (let j = b.j0; j <= b.j1; j++) {
+    for (let i = b.i0; i <= b.i1; i++) if (world.isWater(i + 0.5, j + 0.5)) return true;
+  }
+  return false;
 }
 
 function reachChar(i: number, j: number): string {
@@ -158,6 +176,7 @@ for (const b of islands) {
   heightBase = baseFor(b);
   const minus = heightBase > 0 ? `, heights minus ${heightBase}` : '';
   printGrid(`heights: digit = height (0-9, a-z for 10-35)${minus}, ~ water`, b, heightChar);
-  printGrid('things: = thin ice, % root tangle, T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
+  printGrid('things: = thin ice, % root tangle, & kelp mat, T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
+  if (hasWater(b)) printGrid('water depth: digit = depth of the bed below the surface, rounded down (0-9), . dry', b, depthChar);
   if (reach) printGrid(`${reachTitle}; # reached, . not reached`, b, reachChar);
 }

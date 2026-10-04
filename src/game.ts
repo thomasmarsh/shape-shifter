@@ -7,21 +7,19 @@ import { Card, Hud } from './hud';
 import { Input } from './input';
 import { coldAt, Snowfall } from './frost';
 import { hash } from './layout';
-import { makeBoulder, makeCloud, makeGreatPine, makeGreatTree, makePine, makeTree } from './models';
+import { makeBoulder, makeCloud, makeGreatPalm, makeGreatPine, makeGreatTree, makePalm, makePine, makeTree } from './models';
 import { Particles } from './particles';
 import { Player } from './player';
 import { PuzzleUi } from './puzzleUi';
 import { clearSave, freshSave, loadSave, SaveData, writeSave } from './save';
-import { BreadPickup, Checkpoint, Puzzle } from './things';
+import { BreadPickup, Checkpoint, Puzzle, REACH, REACH_HEIGHT } from './things';
 import { Arrival, World, WORLD_WIDTH } from './world';
 
 const VIEW_HEIGHT = 15; // world units visible top to bottom
 // The camera sits to the south-west and looks north-east, so ground that
 // steps up toward the east or north shows its face to the player.
 const CAMERA_DIR = new THREE.Vector3(-1, 1.12, 1).normalize();
-const REACH = 2.1; // how close you must be to use something
 const HUNTED_RANGE = 12; // bad guys this close that are alert stop you using a speaker
-const REACH_HEIGHT = 1.5; // and how far above or below the thing's ground you may be
 const CANDLE_LIGHTS = 4; // point lights shared by the candles nearest the player
 // Background clouds drift east across the whole world, then wrap around.
 const CLOUD_MIN_X = -30;
@@ -198,7 +196,14 @@ export class Game {
       // The look depends on where the tree stands, so adding trees elsewhere
       // never changes the ones that are already there.
       const seed = Math.floor(hash(Math.floor(t.x), Math.floor(t.z), 4) * 1000);
-      const makers = { regular: makeTree, great: makeGreatTree, pine: makePine, greatPine: makeGreatPine };
+      const makers = {
+        regular: makeTree,
+        great: makeGreatTree,
+        pine: makePine,
+        greatPine: makeGreatPine,
+        palm: makePalm,
+        greatPalm: makeGreatPalm,
+      };
       const tree = makers[t.kind](seed);
       tree.position.set(t.x, this.world.groundAt(t.x, t.z), t.z);
       this.scenery.add(tree);
@@ -295,7 +300,8 @@ export class Game {
         <li><kbd>Click</kbd> or <kbd>J</kbd> swing sword</li>
         <li><kbd>E</kbd> use things</li>
         <li><kbd>F</kbd> eat bread</li>
-        <li><kbd>0</kbd>–<kbd>9</kbd> shape-shift</li>
+        <li><kbd>Shift</kbd> Dive, as a Human or a Mermaid (hold it; let go to float up)</li>
+        <li><kbd>0</kbd>–<kbd>6</kbd> shape-shift: <kbd>1</kbd> Fairy, <kbd>2</kbd> Orangutan, <kbd>3</kbd> Bunny, <kbd>4</kbd> Winter Wolf, <kbd>5</kbd> Ant, <kbd>6</kbd> Mermaid, <kbd>0</kbd> Human</li>
         <li><kbd>Q</kbd> fairy home</li>
         <li><kbd>Esc</kbd> pause</li>
       </ul>`;
@@ -574,6 +580,12 @@ export class Game {
         done: () => this.flags.has('used:ant'),
       },
       {
+        id: 'mermaid',
+        text: 'New shape! Press <kbd>6</kbd> to become a Mermaid. In water, hold <kbd>Shift</kbd> to dive.',
+        when: () => p.level >= 6 && p.form.id === 'human',
+        done: () => this.flags.has('used:mermaid'),
+      },
+      {
         id: 'ice',
         text: 'Thin ice only holds for a runner. Keep running and do not stop.',
         when: () => p.form.id === 'wolf',
@@ -732,10 +744,12 @@ export class Game {
             use = () => this.openPuzzle(z);
           }
         } else if (toCandle < REACH && atCandle) {
-          action = 'The light is caged. Solve the speaker’s puzzle to free it.';
+          action = z.pickle
+            ? 'The sea pickle’s light is caged. Solve the speaker’s puzzle to free it.'
+            : 'The light is caged. Solve the speaker’s puzzle to free it.';
         }
       } else if (!z.taken && toCandle < REACH && atCandle) {
-        action = '<kbd>E</kbd> Take the candle’s light';
+        action = z.pickle ? '<kbd>E</kbd> Take the sea pickle’s light' : '<kbd>E</kbd> Take the candle’s light';
         use = () => this.takeLight(z);
       }
     }
@@ -809,7 +823,7 @@ export class Game {
       this.raycaster.set(from, CAMERA_DIR.clone().negate());
       this.raycaster.far = 59.3;
       const hits = this.raycaster.intersectObjects([...this.world.solidMeshes, this.scenery], true);
-      this.finder.visible = (hits.length > 0 || p.form.height < 0.5) && !p.dead && this.playing;
+      this.finder.visible = (hits.length > 0 || p.form.height < 0.5 || p.submerged) && !p.dead && this.playing;
     }
     if (this.finder.visible) {
       const lift = p.form.arrowLift + Math.sin(this.time * 5) * 0.08;

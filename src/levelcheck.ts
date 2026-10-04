@@ -1,4 +1,4 @@
-import { FORMS, FormId, PHYSICS as MOVER } from './forms';
+import { fitsUnderKelp, FORMS, FormId, PHYSICS as MOVER } from './forms';
 import type { Spot, World } from './world';
 
 // An abstract reachability solver over tiles, so level designs can be checked
@@ -21,6 +21,18 @@ import type { Spot, World } from './world';
 // walks on and off a tangle and can land on one, but cannot hop from one. A ring
 // of tangle must be 4-connected (no diagonal-only joins), because the 'max'
 // profile lets a flight line pass through the corner where two tiles touch.
+//
+// A kelp mat (see `setKelp` in layout.ts) is a wall like a tangle for every form
+// that does not fit under it (dive - height < depth): no walking, hopping,
+// flying or hop-then-flying onto one, and no flight or hop line over one. A form
+// that fits walks or swims in from any side and can land on one, but cannot hop
+// from one. Out of a mat it swims on to any water tile of about the same level,
+// or onto land no higher than a step above its ceiling under the mat.
+//
+// The Mermaid walks like anyone, floats like the Human and hops (with her land
+// speed, since in the air she moves at that) only from a water tile. Diving
+// shows only in `canUse`: from a water tile a thing can be used from any depth
+// the forms there can dive to.
 //
 // Hop-then-fly is a move of its own: with a Bunny and a Fairy, a Bunny shifts at
 // the top of her hop and keeps that height. Because of it, every raised thing
@@ -85,7 +97,7 @@ const MARGINS = {
 const CENTRE_EXTRA = Math.SQRT2;
 
 /** Forms that move by jumping; their speed and jump come from FORMS. */
-const JUMPERS = ['human', 'orangutan', 'bunny', 'wolf', 'ant'] as const;
+const JUMPERS = ['human', 'orangutan', 'bunny', 'wolf', 'ant', 'mermaid'] as const;
 type Jumper = (typeof JUMPERS)[number];
 
 /** What the checker says about hop-then-fly for a launch from `a` to a target, for tests. */
@@ -124,7 +136,7 @@ export interface Reach {
 export function explore(world: World, from: Spot, forms: readonly FormId[], profile: Profile): Reach {
   const { width, depth } = world;
   for (const f of forms) {
-    if (f !== 'human' && f !== 'fairy' && f !== 'orangutan' && f !== 'bunny' && f !== 'wolf' && f !== 'ant') {
+    if (f !== 'fairy' && !(JUMPERS as readonly FormId[]).includes(f)) {
       throw new Error(`levelcheck does not know how to move as ${f}`);
     }
   }
@@ -143,11 +155,13 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
   const ice = new Uint8Array(width * depth);
   /** The tile is a root tangle. */
   const tangle = new Uint8Array(width * depth);
-  /** Solid height of the tile with every thin-ice sheet counted as whole, for a body too big for a tangle. */
-  const top = new Float64Array(width * depth);
-  /** The same for the Ant, who fits in a tangle: a tangle is plain ground. */
-  const topAnt = new Float64Array(width * depth);
-  /** Height of the surface a human, orangutan, bunny or wolf stands on (floating in water). */
+  /** The tile is a water tile (not frozen). */
+  const wet = new Uint8Array(width * depth);
+  /** How far below the surface the kelp mat on the tile hangs, 0 if none. */
+  const kelp = new Float64Array(width * depth);
+  /** The water level of a water tile. */
+  const level = new Float64Array(width * depth);
+  /** Height of the surface a human, orangutan, bunny, wolf or mermaid stands on (floating in water). */
   const surfaceHuman = new Float64Array(width * depth);
   /** The same for the fairy, who floats a little higher. */
   const surfaceFairy = new Float64Array(width * depth);
@@ -156,6 +170,7 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
   /** Bare ground under the tile (no trees or speakers). */
   const ground = new Float64Array(width * depth);
   const antHeight = FORMS.find((f) => f.id === 'ant')!.height;
+  const def = new Map(FORMS.map((f) => [f.id, f]));
 
   for (let j = 0; j < depth; j++) {
     for (let i = 0; i < width; i++) {
@@ -164,13 +179,15 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
       const z = j + 0.5;
       const isIce = world.isThinIce(x, z);
       const iceTop = world.iceTopAt(x, z);
-      const t = Math.max(world.solidAt(x, z), iceTop);
-      const tAnt = Math.max(world.solidAt(x, z, antHeight), iceTop);
+      // Surfaces ignore kelp (anyone who can be there stands at the float height);
+      // who may be on a mat is decided by `fitsMat` below.
+      const tAnt = Math.max(world.solidAt(x, z, antHeight, Infinity), iceTop);
       tangle[k] = world.isTangle(x, z) ? 1 : 0;
+      kelp[k] = world.kelpDepthAt(x, z);
+      wet[k] = world.isWater(x, z) ? 1 : 0;
+      level[k] = world.waterLevelAt(x, z);
       ice[k] = isIce ? 1 : 0;
       exists[k] = isIce || !world.isVoid(x, z) ? 1 : 0;
-      top[k] = t;
-      topAnt[k] = tAnt;
       tree[k] = world.treeAt(x, z);
       ground[k] = world.groundAt(x, z);
       if (isIce || !world.isWater(x, z)) {
@@ -183,6 +200,30 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
       }
     }
   }
+
+  /** Can this form be on the tile at all? Kelp only takes a body that fits under it. */
+  const fitsMat = (form: FormId, k: number): boolean => {
+    if (kelp[k] === 0) return true;
+    const d = def.get(form)!;
+    return fitsUnderKelp(d.height, d.dive, kelp[k]);
+  };
+
+  /** Solid height of every tile for a form, thin ice whole: what a flight or hop line must clear. */
+  const topsByForm = new Map<FormId, Float64Array>();
+  const topsOf = (form: FormId): Float64Array => {
+    let tops = topsByForm.get(form);
+    if (!tops) {
+      const { height, dive } = def.get(form)!;
+      tops = new Float64Array(width * depth);
+      for (let j = 0; j < depth; j++) {
+        for (let i = 0; i < width; i++) {
+          tops[tileIndex(i, j)] = Math.max(world.solidAt(i + 0.5, j + 0.5, height, dive), world.iceTopAt(i + 0.5, j + 0.5));
+        }
+      }
+      topsByForm.set(form, tops);
+    }
+    return tops;
+  };
 
   /** Height of the surface a form stands on in this tile. */
   const surface = (k: number, form: FormId): number => (form === 'fairy' ? surfaceFairy[k] : surfaceHuman[k]);
@@ -377,6 +418,7 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
     for (const form of can) {
       // Only the Ant fits in a tangle, so nobody else stands or moves from one.
       if (tangle[ak] && form !== 'ant') continue;
+      if (!fitsMat(form, ak)) continue;
       // Nobody can stand on thin ice, so leaving it takes a runner's moves; in
       // 'easy' that is the wolf, plus a fairy who has dropped through and
       // flaps away. 'max' lets every form leave, since a shift and a jump in
@@ -393,16 +435,26 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
         const bk = tileIndex(bi, bj);
         if (!exists[bk] || reached[bk]) continue;
         if (tangle[bk] && form !== 'ant') continue;
+        if (!fitsMat(form, bk)) continue;
         // Only a runner can step onto thin ice; a fairy on it cannot walk off.
         if (ice[bk] && form !== 'wolf') continue;
         if (onIce && profile === 'easy' && form === 'fairy') continue;
         const b = surfaces[bk];
-        if (b - a <= MOVER.step) reach(bk, b);
+        if (kelp[ak] > 0) {
+          // Out from under a mat: swim on to water of about the same level, or
+          // climb out onto land no more than a step above the mat's underside.
+          const out = wet[bk]
+            ? Math.abs(level[bk] - level[ak]) <= MOVER.step
+            : b <= level[ak] - kelp[ak] - def.get(form)!.height + MOVER.step;
+          if (out) reach(bk, b);
+        } else if (b - a <= MOVER.step) reach(bk, b);
       }
 
+      // Nobody hops from under a mat, and the Mermaid hops only from the water.
+      if (kelp[ak] > 0 || (form === 'mermaid' && !wet[ak])) continue;
       // The Ant walks out of a tangle but cannot hop from one.
       if (form === 'ant' && tangle[ak]) continue;
-      const tops = form === 'ant' ? topAnt : top;
+      const tops = topsOf(form);
 
       // Per-form numbers for this tile, worked out once for the whole window.
       const jump = form === 'fairy' ? null : jumps.get(form as Jumper)!;
@@ -425,6 +477,7 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
           if (reached[bk] || !exists[bk]) continue;
           if (ice[bk] && form !== 'wolf') continue;
           if (tangle[bk] && form !== 'ant') continue;
+          if (!fitsMat(form, bk)) continue;
           const b = surfaces[bk];
 
           if (form === 'fairy') {
@@ -474,6 +527,23 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
     }
   }
 
+  /**
+   * From a reached water tile the feet can be anywhere between the float height
+   * and the depth a form can dive to (or the bed): a thing is in reach if its
+   * ground is within `useHeight` of that span. Under a mat the top of the span
+   * is the mat's underside less the body.
+   */
+  const usableFromWater = (k: number, thingGround: number): boolean => {
+    for (const form of can) {
+      if (!fitsMat(form, k)) continue;
+      const d = def.get(form)!;
+      const high = kelp[k] > 0 ? Math.min(stood[k], level[k] - kelp[k] - d.height) : stood[k];
+      const low = Math.min(high, Math.max(ground[k], level[k] - d.dive));
+      if (thingGround > low - MARGINS.useHeight && thingGround < high + MARGINS.useHeight) return true;
+    }
+    return false;
+  };
+
   return {
     tiles: count,
     has: (i, j) => onGrid(i, j) && reached[tileIndex(i, j)] === 1,
@@ -490,10 +560,11 @@ export function explore(world: World, from: Spot, forms: readonly FormId[], prof
       for (let j = cj - r; j <= cj + r; j++) {
         for (let i = ci - r; i <= ci + r; i++) {
           if (!onGrid(i, j) || !reached[tileIndex(i, j)]) continue;
+          const k = tileIndex(i, j);
           // Nobody can stand still on thin ice, so nothing can be used from it.
-          if (ice[tileIndex(i, j)]) continue;
+          if (ice[k]) continue;
           if (Math.hypot(i + 0.5 - spot.x, j + 0.5 - spot.z) > MARGINS.useDistance) continue;
-          if (Math.abs(stood[tileIndex(i, j)] - spotGround) < MARGINS.useHeight) return true;
+          if (wet[k] ? usableFromWater(k, spotGround) : Math.abs(stood[k] - spotGround) < MARGINS.useHeight) return true;
         }
       }
       return false;

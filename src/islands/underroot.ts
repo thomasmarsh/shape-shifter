@@ -1,5 +1,5 @@
 import { EnemySpot, Island, Kind, PuzzleSpot, Terrain } from '../layout';
-import { buildEast } from './underroot-east';
+import { buildEast, nibbleRow } from './underroot-east';
 
 // Island 5: Underroot. This file is the west half (everything at x <= 384): the
 // landing, the long hub and three candles. The east half (x >= 385) is built by
@@ -34,18 +34,12 @@ export const underroot: Island = {
     // ---- Zone 0: the landing and the hub ----------------------------------
     t.ellipse(304.5, 51, 5.2, 5, (i, j) => t.set(i, j, HUB, Kind.Moss));
     slab(t, 306, 46, 384, 58, HUB, Kind.Moss);
-    // Nibble the outline where no zone needs the edge. The north edge stays
+    // Nibble the outline in runs where no zone needs the edge. The north edge stays
     // straight at x 331..339 (the lane) and 350..364 (the clearing); the south
-    // edge loses one row at most, so the band stays at least 10 deep; x = 384 and
+    // edge loses one row at most, so the band stays at least 11 deep; x = 384 and
     // the landing's side (x < 310) stay whole.
-    for (let i = 310; i <= 383; i++) {
-      const keepNorth = (i >= 331 && i <= 339) || (i >= 350 && i <= 364);
-      if (!keepNorth && t.hash(i, 46, 31) > 0.5) {
-        t.clear(i, 46);
-        if (t.hash(i, 47, 32) > 0.75) t.clear(i, 47);
-      }
-      if (t.hash(i, 58, 33) > 0.55) t.clear(i, 58);
-    }
+    nibbleRow(t, 46, 310, 383, (i) => (i >= 331 && i <= 339) || (i >= 350 && i <= 364), 31);
+    nibbleRow(t, 58, 310, 383, () => false, 33);
     // Flush patches of dirt and bark for colour.
     const patch = (cx: number, cz: number, rx: number, rz: number, kind: Kind): void => {
       t.rect(306, 47, 383, 57, (i, j) => {

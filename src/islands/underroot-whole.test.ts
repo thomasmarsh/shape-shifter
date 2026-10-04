@@ -8,7 +8,7 @@ const world = new World();
 const { layout } = world;
 const kinds = (world as unknown as { kind: Uint8Array }).kind;
 
-const onUnderroot = (s: { x: number }) => s.x >= 299;
+const onUnderroot = (s: { x: number }) => s.x >= 299 && s.x < 480;
 const mine = <T extends { x: number }>(items: T[]): T[] => items.filter(onUnderroot);
 
 /** Every non-void tile that Underroot or Saltmere own (Frostfang's last run reaches x 306 above z 46). */
@@ -56,8 +56,9 @@ describe('Underroot and Saltmere as a whole', () => {
     const readme = readFileSync(new URL('../../README.md', import.meta.url), 'utf8');
     const ids = mine(layout.checkpoints).map((c) => c.id);
     expect(ids).toContain('underroot');
-    expect(ids).toContain('saltmere');
-    for (const id of ids) expect(readme, `checkpoint ${id} in the README`).toContain(`\`${id}\``);
+    const saltmere = layout.checkpoints.find((c) => c.id === 'saltmere');
+    expect(saltmere).toBeDefined();
+    for (const id of [...ids, 'saltmere']) expect(readme, `checkpoint ${id} in the README`).toContain(`\`${id}\``);
   });
 
   it('has no snow or ice, and no frost look, on a tile of its own', () => {
@@ -75,6 +76,22 @@ describe('Underroot and Saltmere as a whole', () => {
     for (let j = 47; j <= 57; j++) {
       expect(world.groundAt(384.5, j + 0.5), `(384, ${j})`).toBe(32);
       expect(world.groundAt(385.5, j + 0.5), `(385, ${j})`).toBe(32);
+    }
+  });
+});
+
+describe('the hub edges', () => {
+  it('have no tooth or notch one tile wide on the north and south rows', () => {
+    for (const z of [46, 58]) {
+      let run = 1;
+      for (let i = 301; i <= 424; i++) {
+        const same = world.isVoid(i + 0.5, z + 0.5) === world.isVoid(i - 0.5 + 0.0, z + 0.5);
+        if (same) run++;
+        else {
+          expect(run, `row ${z} run ending at x=${i - 1}`).toBeGreaterThanOrEqual(2);
+          run = 1;
+        }
+      }
     }
   });
 });

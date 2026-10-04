@@ -1,6 +1,18 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { makeAnt, makeBunny, makeGreatPine, makePine, makeGreatTree, makeTree, makeWolf } from './models';
+import {
+  makeAnt,
+  makeBunny,
+  makeGreatPalm,
+  makeGreatPine,
+  makeGreatTree,
+  makeMermaid,
+  makePalm,
+  makePickle,
+  makePine,
+  makeTree,
+  makeWolf,
+} from './models';
 import { TREE_BLOCK } from './world';
 
 const top = (o: THREE.Object3D): number => new THREE.Box3().setFromObject(o).max.y;
@@ -67,5 +79,68 @@ describe('the ant model', () => {
     expect(b.max.z - b.min.z).toBeLessThan(0.5);
     expect(b.min.y).toBeGreaterThanOrEqual(-1e-6);
     expect(ant.legs).toHaveLength(6);
+  });
+});
+
+describe('palm models', () => {
+  it('draw a palm as tall as a regular tree and a great palm as tall as a great tree', () => {
+    for (let seed = 0; seed < 6; seed++) {
+      expect(top(makePalm(seed))).toBeGreaterThanOrEqual(TREE_BLOCK.palm - 0.2 - 1e-6);
+      expect(top(makePalm(seed))).toBeLessThanOrEqual(TREE_BLOCK.palm + 1e-6);
+      expect(top(makeGreatPalm(seed))).toBeCloseTo(TREE_BLOCK.greatPalm, 6);
+    }
+    expect(TREE_BLOCK.palm).toBe(TREE_BLOCK.regular);
+    expect(TREE_BLOCK.greatPalm).toBe(TREE_BLOCK.great);
+  });
+
+  it('droop the fronds outward and down, clear of a figure standing on top', () => {
+    const palm = makeGreatPalm(1);
+    const b = new THREE.Box3().setFromObject(palm);
+    expect(b.max.x - b.min.x).toBeGreaterThan(2.5);
+    // Nothing but the hub reaches the top, and it is slim.
+    const hub = new THREE.Box3();
+    palm.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const box = new THREE.Box3().setFromObject(mesh);
+      if (box.max.y > TREE_BLOCK.greatPalm - 0.1) hub.union(box);
+    });
+    expect(hub.max.x - hub.min.x).toBeLessThan(0.7);
+  });
+});
+
+describe('the sea pickle model', () => {
+  it('is a gherkin about 1.1 tall with its glow just above, like a candle', () => {
+    const pickle = makePickle();
+    pickle.group.remove(pickle.flame, pickle.cage);
+    const b = new THREE.Box3().setFromObject(pickle.group);
+    expect(b.max.y).toBeGreaterThan(1.0);
+    expect(b.max.y).toBeLessThan(1.25);
+    expect(pickle.flame.position.y).toBeGreaterThan(b.max.y);
+    expect(pickle.cage.position.y).toBeGreaterThan(0);
+  });
+});
+
+describe('the mermaid model', () => {
+  it('stands about as tall as the human, with a wide fin at the bottom of her tail', () => {
+    const mermaid = makeMermaid();
+    const b = new THREE.Box3().setFromObject(mermaid.group);
+    expect(b.max.y).toBeGreaterThan(1.4);
+    expect(b.max.y).toBeLessThan(1.8);
+    expect(b.min.y).toBeGreaterThanOrEqual(-1e-6);
+    expect(new THREE.Box3().setFromObject(mermaid.fin).getSize(new THREE.Vector3()).x).toBeGreaterThan(0.7);
+  });
+
+  it('lies nearly flat when tipped forward to swim', () => {
+    const mermaid = makeMermaid();
+    mermaid.swim.rotation.x = 1.35;
+    mermaid.group.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(mermaid.group);
+    expect(b.max.y).toBeLessThan(1.4);
+    expect(b.max.z - b.min.z).toBeGreaterThan(1.3);
+  });
+
+  it('has a sword blade that can take the tier colour', () => {
+    expect(makeMermaid().blade.material).toBeInstanceOf(THREE.MeshLambertMaterial);
   });
 });

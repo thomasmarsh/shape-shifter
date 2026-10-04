@@ -9,6 +9,8 @@ import {
   makeFairy,
   makeFairyHome,
   makeHuman,
+  makeMermaid,
+  MermaidModel,
   makeOrangutan,
   makeWolf,
   AntModel,
@@ -42,6 +44,13 @@ const DENIED_GAP = 0.8; // seconds between "too tired" sounds
 // Bunny
 const HOP_FULL_SPEED = 12; // still rising this fast after a moment: a full hop
 const LAND_TIME = 0.2; // squash after landing
+
+// Diving (vertical speeds in tiles per second)
+const SINK = 3.5;
+const RISE = 2.5;
+const RISE_FAST = 5; // Space held
+const MERMAID_VERTICAL = 6; // sinking and rising
+const KELP_PULL = 16; // an auto-duck under a mat
 
 // Winter Wolf on thin ice
 const FROST_RATE = 22; // frost puffs per second while running on ice
@@ -144,6 +153,7 @@ export class Player {
   dead = false;
 
   private human: HumanModel;
+  private mermaid: MermaidModel;
   private fairy: FairyModel;
   private orangutan: OrangutanModel;
   private bunny: BunnyModel;
@@ -157,6 +167,7 @@ export class Player {
     private events: PlayerEvents,
   ) {
     this.human = makeHuman();
+    this.mermaid = makeMermaid();
     this.fairy = makeFairy();
     this.orangutan = makeOrangutan();
     this.bunny = makeBunny();
@@ -164,7 +175,7 @@ export class Player {
     this.ant = makeAnt();
     this.home = makeFairyHome();
     this.home.visible = false;
-    this.group.add(this.human.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.ant.group);
+    this.group.add(this.human.group, this.mermaid.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.ant.group);
     this.applyForm();
   }
 
@@ -207,6 +218,8 @@ export class Player {
 
   place(x: number, z: number): void {
     this.pos.set(x, this.world.groundAt(x, z), z);
+    // Water holds you up: you start floating, not on the bed.
+    if (this.world.isWater(x, z)) this.pos.y = Math.max(this.pos.y, this.floatHeight());
     this.vy = 0;
     this.knock.set(0, 0, 0);
     this.onGround = true;
@@ -234,14 +247,52 @@ export class Player {
     );
   }
 
-  /** 'cramped' means a root tangle leaves no room to change shape. */
+  /** True while any part of the footprint is on a kelp mat (the same five points as `inTangle`). */
+  get inKelp(): boolean {
+    const { x, z } = this.pos;
+    const w = this.world;
+    return (
+      w.isKelp(x, z) ||
+      w.isKelp(x - RADIUS, z - RADIUS) ||
+      w.isKelp(x + RADIUS, z - RADIUS) ||
+      w.isKelp(x - RADIUS, z + RADIUS) ||
+      w.isKelp(x + RADIUS, z + RADIUS)
+    );
+  }
+
+  /** Height of the feet when floating at the surface of the water here. */
+  private floatHeight(): number {
+    return this.world.waterLevelAt(this.pos.x, this.pos.z) - (this.form.canFly ? 0.25 : 0.8);
+  }
+
+  /** In water with the feet more than 0.05 below the float height. */
+  get submerged(): boolean {
+    return this.world.isWater(this.pos.x, this.pos.z) && this.pos.y < this.floatHeight() - 0.05;
+  }
+
+  /**
+   * Highest the feet can be under the kelp mats of the footprint: the mat's
+   * underside minus the body. Infinity when there is no mat.
+   */
+  private kelpCeiling(): number {
+    const { x, z } = this.pos;
+    const w = this.world;
+    let ceiling = Infinity;
+    for (const [ox, oz] of [[0, 0], [-RADIUS, -RADIUS], [RADIUS, -RADIUS], [-RADIUS, RADIUS], [RADIUS, RADIUS]]) {
+      if (!w.isKelp(x + ox, z + oz)) continue;
+      ceiling = Math.min(ceiling, w.waterLevelAt(x + ox, z + oz) - w.kelpDepthAt(x + ox, z + oz) - this.form.height);
+    }
+    return ceiling;
+  }
+
+  /** 'cramped' means a root tangle or a kelp mat leaves no room to change shape. */
   canShiftTo(index: number): 'ok' | 'locked' | 'soon' | 'same' | 'cramped' {
     const form = FORMS[index];
     if (!form) return 'locked';
     if (index === this.formIndex) return 'same';
     if (this.level < form.level) return 'locked';
     if (!form.playable) return 'soon';
-    if (this.inTangle) return 'cramped';
+    if (this.inTangle || this.inKelp) return 'cramped';
     return 'ok';
   }
 
@@ -263,13 +314,14 @@ export class Player {
   private applyForm(): void {
     const id = this.form.id;
     this.human.group.visible = id === 'human';
+    this.mermaid.group.visible = id === 'mermaid';
     this.fairy.group.visible = id === 'fairy';
     this.orangutan.group.visible = id === 'orangutan';
     this.bunny.group.visible = id === 'bunny';
     this.wolf.group.visible = id === 'wolf';
     this.ant.group.visible = id === 'ant';
     const color = SWORD_COLOR[swordTier(this.level)];
-    for (const blade of [this.human.blade, this.orangutan.blade]) {
+    for (const blade of [this.human.blade, this.mermaid.blade, this.orangutan.blade]) {
       (blade.material as THREE.MeshLambertMaterial).color.setHex(color);
     }
   }
@@ -369,7 +421,7 @@ export class Player {
     } else {
       const fromX = this.pos.x;
       const fromZ = this.pos.z;
-      this.moveAround(dt, input, isFairy);
+      this.moveAround(dt, input);
       this.tryGrab(dt);
       if (!this.climb) this.moveUpDown(dt, input, isFairy);
       this.touchGround();
@@ -382,15 +434,14 @@ export class Player {
     this.sync(dt);
   }
 
-  private moveAround(dt: number, input: Controls, isFairy: boolean): void {
+  private moveAround(dt: number, input: Controls): void {
     const m = input.move();
     // The camera sits to the south-west looking north-east, so "up" on screen
     // is +x -z and "right" on screen is +x +z.
     let dx = (m.x + m.y) * Math.SQRT1_2;
     let dz = (m.x - m.y) * Math.SQRT1_2;
     const len = Math.hypot(dx, dz);
-    let speed = this.form.speed;
-    if (this.swimming) speed *= isFairy ? 0.5 : 0.55;
+    let speed = this.swimming ? this.form.swim : this.form.speed;
     if (this.attackTimer > 0) speed *= 0.5;
 
     if (len > 0) {
@@ -411,12 +462,13 @@ export class Player {
     // steering into a wall makes a note of any tree trunk it is pressed against.
     const climber = this.form.id === 'orangutan';
     this.pushed = null;
-    if (this.world.solidUnder(this.pos.x + stepX, this.pos.z, RADIUS, this.form.height) <= this.pos.y + STEP) {
+    const { height, dive } = this.form;
+    if (this.world.solidUnder(this.pos.x + stepX, this.pos.z, RADIUS, height, dive) <= this.pos.y + STEP) {
       this.pos.x += stepX;
     } else if (climber && dx !== 0) {
       this.pushed = this.trunkAt(this.pos.x + stepX, this.pos.z);
     }
-    if (this.world.solidUnder(this.pos.x, this.pos.z + stepZ, RADIUS, this.form.height) <= this.pos.y + STEP) {
+    if (this.world.solidUnder(this.pos.x, this.pos.z + stepZ, RADIUS, height, dive) <= this.pos.y + STEP) {
       this.pos.z += stepZ;
     } else if (climber && dz !== 0) {
       this.pushed = this.pushed ?? this.trunkAt(this.pos.x, this.pos.z + stepZ);
@@ -435,7 +487,7 @@ export class Player {
       const cx = i + 0.5;
       const cz = j + 0.5;
       if (this.world.treeAt(cx, cz) <= 0) continue;
-      if (this.world.solidAt(cx, cz, this.form.height) <= this.pos.y + STEP) continue;
+      if (this.world.solidAt(cx, cz, this.form.height, this.form.dive) <= this.pos.y + STEP) continue;
       if (this.pos.y < this.world.groundAt(cx, cz) - CLIMB_SLACK) continue;
       const d = Math.hypot(cx - x, cz - z);
       if (d < bestDist) {
@@ -478,7 +530,7 @@ export class Player {
       tile: t.tile,
       cx: t.cx,
       cz: t.cz,
-      top: this.world.solidAt(t.cx, t.cz, this.form.height),
+      top: this.world.solidAt(t.cx, t.cz, this.form.height, this.form.dive),
       over: -1,
       fromX: 0,
       fromZ: 0,
@@ -588,12 +640,62 @@ export class Player {
   private moveUpDown(dt: number, input: Controls, isFairy: boolean): void {
     const wasOnGround = this.onGround;
     const impact = this.vy;
-    let ground = this.world.solidUnder(this.pos.x, this.pos.z, RADIUS, this.form.height);
+    const { height, dive } = this.form;
+    const solid = this.world.solidUnder(this.pos.x, this.pos.z, RADIUS, height, dive);
+    let ground = solid;
     // Water holds you up: you float with your head out.
     const inWater = this.world.isWater(this.pos.x, this.pos.z);
-    const floatY = this.world.waterLevelAt(this.pos.x, this.pos.z) - (isFairy ? 0.25 : 0.8);
+    const floatY = this.floatHeight();
     if (inWater) ground = Math.max(ground, floatY);
 
+    // Down (Shift) works for a form that can dive. Under a kelp mat a body is
+    // held below it, and below the float height everyone rises when not sinking.
+    const down = dive > 0 && (input.held('ShiftLeft') || input.held('ShiftRight'));
+    const ceiling = this.kelpCeiling();
+    const diving =
+      inWater && this.pos.y <= floatY + 0.05 && (down || this.pos.y < floatY - 0.05 || this.pos.y > ceiling);
+
+    if (diving) {
+      const floor = Math.max(solid, this.world.waterLevelAt(this.pos.x, this.pos.z) - dive);
+      this.dive(dt, input, down, ground, floor, ceiling);
+      if (this.pos.y >= ground) this.lastGroundY = ground;
+    } else {
+      this.fall(dt, input, isFairy, ground, wasOnGround, impact, inWater);
+    }
+    this.swimming = inWater && this.pos.y <= floatY + 0.05;
+    if (this.onGround) this.recoverEnergy(dt);
+  }
+
+  /**
+   * Move the feet through the water column toward where they want to be: the
+   * floor while Shift is held, the float height otherwise, and never above the
+   * underside of a kelp mat. No gravity here; the water carries you.
+   */
+  private dive(dt: number, input: Controls, down: boolean, float: number, floor: number, ceiling: number): void {
+    const quick = this.form.id === 'mermaid';
+    const target = Math.min(down ? floor : float, ceiling);
+    let speed: number;
+    if (target < this.pos.y) {
+      speed = this.pos.y > ceiling ? KELP_PULL : quick ? MERMAID_VERTICAL : SINK;
+      this.pos.y = Math.max(target, this.pos.y - speed * dt);
+    } else {
+      speed = quick ? MERMAID_VERTICAL : input.held('Space') ? RISE_FAST : RISE;
+      this.pos.y = Math.min(target, this.pos.y + speed * dt);
+    }
+    this.vy = 0;
+    this.onGround = this.pos.y >= float;
+  }
+
+  /** Flap, jump or fall, then land on `ground`. */
+  private fall(
+    dt: number,
+    input: Controls,
+    isFairy: boolean,
+    ground: number,
+    wasOnGround: boolean,
+    impact: number,
+    inWater: boolean,
+  ): void {
     const flapping = isFairy && input.held('Space') && !this.exhausted && this.energy > 0;
     if (flapping) {
       if (this.onGround) sound.jump();
@@ -608,7 +710,7 @@ export class Player {
         this.exhausted = true;
         sound.denied();
       }
-    } else if (this.form.jump > 0 && this.onGround && input.hit('Space') && !this.inTangle) {
+    } else if (this.canJump(input, inWater)) {
       this.vy = this.form.jump;
       this.onGround = false;
       this.hopCounted = false;
@@ -639,8 +741,12 @@ export class Player {
     } else if (this.pos.y > ground + 0.02) {
       this.onGround = false;
     }
-    this.swimming = inWater && this.pos.y <= floatY + 0.05;
-    if (this.onGround) this.recoverEnergy(dt);
+  }
+
+  /** Space on the ground jumps, except inside a tangle or a mat. A form with `jumpsFrom: 'water'` jumps only from the surface. */
+  private canJump(input: Controls, inWater: boolean): boolean {
+    if (!(this.form.jump > 0 && this.onGround && input.hit('Space')) || this.inTangle || this.inKelp) return false;
+    return this.form.jumpsFrom === 'anywhere' || inWater;
   }
 
   private landed(impact: number): void {
@@ -657,7 +763,8 @@ export class Player {
   private swingSword(dt: number, input: Controls, enemies: readonly Attackable[]): void {
     const wants = input.hit('KeyJ') || input.hit('Mouse0');
     if (wants && this.attackTimer <= 0) {
-      if (this.form.sword === 'none') {
+      // The Mermaid's sword only works in water.
+      if (this.form.sword === 'none' || (this.form.sword === 'underwater' && !this.swimming)) {
         sound.denied();
       } else {
         this.attackTimer = ATTACK_TIME;
@@ -700,6 +807,9 @@ export class Player {
       case 'human':
         this.animateHuman(swing);
         break;
+      case 'mermaid':
+        this.animateMermaid(swing, dt);
+        break;
       case 'orangutan':
         this.animateOrangutan(swing);
         break;
@@ -733,6 +843,22 @@ export class Player {
       h.legL.rotation.x = 0.5;
       h.legR.rotation.x = -0.3;
     }
+  }
+
+  private animateMermaid(swing: number, dt: number): void {
+    const m = this.mermaid;
+    const now = performance.now() / 1000;
+    // Under water she tips forward to swim nearly flat; on land she sits upright on her tail.
+    const flat = this.submerged;
+    const k = dt > 0 ? Math.min(1, dt * 8) : 1;
+    m.swim.rotation.x += ((flat ? 1.35 : 0) - m.swim.rotation.x) * k;
+    // The tail sways while she swims, one part a little behind the one before.
+    const sway = this.swimming ? Math.sin(now * 7) * (flat ? 0.45 : 0.25) : this.onGround ? swing * 0.08 : 0;
+    m.tail.rotation.x = sway;
+    m.tailEnd.rotation.x = sway * 1.2;
+    m.fin.rotation.x = sway * 1.5;
+    m.armL.rotation.x = flat ? -2.9 : -swing * 0.8;
+    m.armR.rotation.x = this.attackTimer > 0 ? this.swordArm() : flat ? -2.9 : swing * 0.8 - 0.25;
   }
 
   private animateOrangutan(swing: number): void {

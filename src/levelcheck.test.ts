@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FormId } from './forms';
+import { FormId, KELP_DEEP, KELP_LOW } from './forms';
 import { Island, Kind, TREE_BLOCK, World } from './world';
 import { explore } from './levelcheck';
 
@@ -223,7 +223,7 @@ describe('thin ice', () => {
 
   it('knows the wolf, and still refuses forms it does not know', () => {
     expect(() => explore(ice, bank, ['wolf'], 'easy')).not.toThrow();
-    expect(() => explore(ice, bank, ['mermaid'], 'easy')).toThrow(/mermaid/);
+    expect(() => explore(ice, bank, ['cheetah'], 'easy')).toThrow(/cheetah/);
   });
 });
 
@@ -321,7 +321,7 @@ describe('water at its own height', () => {
     const real = new World();
     let wet = 0;
     for (let j = 0; j < real.depth; j++) {
-      for (let i = 0; i < real.width; i++) {
+      for (let i = 0; i < 486; i++) {
         if (!real.isWater(i + 0.5, j + 0.5)) continue;
         wet++;
         expect(real.waterLevelAt(i + 0.5, j + 0.5)).toBe(real.waterLevel);
@@ -432,5 +432,88 @@ describe('root tangles', () => {
     const land = { x: 14.5, z: 20.5 };
     expect(explore(gapWorld(false), start, ['ant'], 'max').canStand(land)).toBe(true);
     expect(explore(gapWorld(true), start, ['ant'], 'max').canStand(land)).toBe(false);
+  });
+});
+
+// ---- water: diving, kelp and the Mermaid ---------------------------------
+
+const SIX: FormId[] = [...OLD_FORMS, 'ant'];
+const SHORE = 3; // 0.3 above the default water level, 2.7
+const LEVEL = 2.7;
+
+/** Land at SHORE from tile 0 on, with water cut in by `lake`. */
+const waterWorld = (lake: (t: Terrain, pool: (i0: number, j0: number, i1: number, j1: number, depth: number) => void) => void): World =>
+  tinyWorld((t) => {
+    t.rect(0, 10, 60, 30, (i, j) => t.set(i, j, SHORE, Kind.Grass));
+    lake(t, (i0, j0, i1, j1, depth) =>
+      t.rect(i0, j0, i1, j1, (i, j) => {
+        t.set(i, j, LEVEL - depth, Kind.Sand);
+        t.setWater(i, j, true);
+      }),
+    );
+  });
+
+describe('diving and the Mermaid', () => {
+  // Two stretches of lake, 4 and 6 deep, with a thing on each bed.
+  const lake = waterWorld((_t, pool) => {
+    pool(10, 15, 19, 25, 4);
+    pool(20, 15, 39, 25, 6);
+  });
+  const shallow = { x: 13.5, z: 20.5 };
+  const deep = { x: 30.5, z: 20.5 };
+  const start = { x: 2.5, z: 20.5 };
+
+  it('lets only the Human use a thing on a bed 4 deep, and only the Mermaid one 6 deep', () => {
+    for (const profile of ['easy', 'max'] as const) {
+      for (const f of SIX) {
+        expect(explore(lake, start, [f], profile).canUse(shallow), `${f} ${profile} 4 deep`).toBe(f === 'human');
+        expect(explore(lake, start, [f], profile).canUse(deep), `${f} ${profile} 6 deep`).toBe(false);
+      }
+      expect(explore(lake, start, SIX, profile).canUse(deep), `six ${profile}`).toBe(false);
+      expect(explore(lake, start, [...SIX, 'mermaid'], profile).canUse(deep), `mermaid ${profile}`).toBe(true);
+    }
+  });
+
+  // A lake of depth 8 with a 3 by 3 pool inside a ring of kelp one tile thick, and a rock in the middle.
+  const ringWorld = (kelp: number): World =>
+    waterWorld((t, pool) => {
+      pool(10, 12, 50, 28, 8);
+      t.set(30, 20, SHORE, Kind.Stone);
+      t.setWater(30, 20, false);
+      t.rect(28, 18, 32, 22, (i, j) => {
+        if (i === 28 || i === 32 || j === 18 || j === 22) t.setKelp(i, j, kelp);
+      });
+    });
+  const inside: [number, number][] = [];
+  for (let j = 19; j <= 21; j++) for (let i = 29; i <= 31; i++) inside.push([i, j]);
+  const reachedInside = (r: ReturnType<typeof explore>): number => inside.filter(([i, j]) => r.has(i, j)).length;
+
+  it('keeps the six old forms out of a deep kelp ring, even at the limit, and lets the Mermaid in', () => {
+    const w = ringWorld(KELP_DEEP);
+    expect(reachedInside(explore(w, start, SIX, 'max'))).toBe(0);
+    const r = explore(w, start, [...SIX, 'mermaid'], 'easy');
+    expect(reachedInside(r)).toBe(inside.length);
+    expect(r.canStand({ x: 30.5, z: 20.5 })).toBe(true);
+  });
+
+  it('lets only the Human into a low kelp ring', () => {
+    const w = ringWorld(KELP_LOW);
+    expect(reachedInside(explore(w, start, ['human'], 'easy'))).toBe(inside.length);
+    expect(reachedInside(explore(w, start, SIX.filter((f) => f !== 'human'), 'max'))).toBe(0);
+  });
+
+  it('has the Mermaid hop only from the water, and climb out onto a low shore', () => {
+    // A one-tile gap of sky between two grassy banks: a Human crosses it, the Mermaid on land cannot.
+    const gap = tinyWorld((t) => {
+      t.rect(0, 15, 9, 25, (i, j) => t.set(i, j, SHORE, Kind.Grass));
+      t.rect(11, 15, 20, 25, (i, j) => t.set(i, j, SHORE, Kind.Grass));
+    });
+    expect(explore(gap, { x: 2.5, z: 20.5 }, ['human'], 'max').canStand({ x: 15.5, z: 20.5 })).toBe(true);
+    expect(explore(gap, { x: 2.5, z: 20.5 }, ['mermaid'], 'max').canStand({ x: 15.5, z: 20.5 })).toBe(false);
+
+    // A lake between two banks: she walks down into it and hops out onto the far shore.
+    const across = waterWorld((_t, pool) => pool(10, 10, 19, 30, 3));
+    const r = explore(across, start, ['mermaid'], 'easy');
+    expect(r.canStand({ x: 25.5, z: 20.5 })).toBe(true);
   });
 });

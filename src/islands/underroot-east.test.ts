@@ -5,13 +5,13 @@ import { Kind } from '../layout';
 import { World } from '../world';
 import { buildEast, rootTop } from './underroot-east';
 
-// The east half of Underroot (x >= 385): the Root Grove, the Spire, the Root
+// The east half of Underroot (x 385 to 479): the Root Grove, the Spire, the Root
 // Wall and Yard, the Long Root, the Crown and the way on to Saltmere.
 
 const world = new World();
 const { layout } = world;
 
-const east = (s: { x: number }) => s.x >= 385;
+const east = (s: { x: number }) => s.x >= 385 && s.x < 480;
 const respawn = (c: { x: number; z: number }) => ({ x: c.x - 1, z: c.z + 1 });
 const EAST_START = { x: 388.5, z: 52.5 };
 const BOUGH = { x: 409.5, z: 35.5 };
@@ -31,16 +31,17 @@ const eastBread = layout.bread.filter(east);
 const eastEnemies = layout.enemies.filter(east);
 const eastTrees = layout.trees.filter(east);
 
-/** Every tile at x >= 385 that is not void. */
+/** Every tile of Underroot's east half (x 385 to 479) that is not void. */
 const tiles: [number, number][] = [];
+/** Every tile of Saltmere and beyond (x >= 486) that is not void. */
+const saltmereTiles: [number, number][] = [];
 for (let j = 0; j < world.depth; j++) {
-  for (let i = 385; i < world.width; i++) if (!isVoid(i, j)) tiles.push([i, j]);
+  for (let i = 385; i < world.width; i++) if (!isVoid(i, j)) (i < 480 ? tiles : i >= 486 ? saltmereTiles : []).push([i, j]);
 }
 const inBox = (i: number, j: number, i0: number, j0: number, i1: number, j1: number) =>
   i >= i0 && i <= i1 && j >= j0 && j <= j1;
 const yardTiles = tiles.filter(([i, j]) => inBox(i, j, 429, 47, 437, 57));
 const crownTiles = tiles.filter(([i, j]) => inBox(i, j, 471, 49, 477, 55));
-const saltmereTiles = tiles.filter(([i]) => i >= 486);
 const tangleTiles = tiles.filter(([i, j]) => world.isTangle(i + 0.5, j + 0.5));
 
 const reachedAny = (r: ReturnType<typeof explore>, list: [number, number][]) => list.filter(([i, j]) => r.has(i, j));
@@ -63,8 +64,9 @@ describe('Underroot east with the shapes of level 5', () => {
   });
 
   it('lets six forms reach the Yard, the Crown, every respawn spot, all bread and Saltmere', () => {
-    expect(eastCheckpoints.map((c) => c.id)).toEqual(['ur-grove', 'ur-wall', 'ur-yard', 'ur-crown', 'saltmere']);
-    for (const c of eastCheckpoints) expect(six.canStand(respawn(c)), `checkpoint ${c.id}`).toBe(true);
+    expect(eastCheckpoints.map((c) => c.id)).toEqual(['ur-grove', 'ur-wall', 'ur-yard', 'ur-crown']);
+    const saltmere = layout.checkpoints.find((c) => c.id === 'saltmere')!;
+    for (const c of [...eastCheckpoints, saltmere]) expect(six.canStand(respawn(c)), `checkpoint ${c.id}`).toBe(true);
     expect(eastBread).toHaveLength(4);
     for (const b of eastBread) expect(six.canStand(b), `bread ${b.id}`).toBe(true);
     expect(reachedAny(six, yardTiles).length).toBeGreaterThan(80);
@@ -154,7 +156,7 @@ describe('Underroot east tangles', () => {
       ...layout.enemies,
       ...layout.trees,
     ].filter(east);
-    expect(things.length).toBeGreaterThan(25);
+    expect(things.length).toBeGreaterThan(20);
     for (const s of things) expect(world.isTangle(s.x, s.z), `(${s.x}, ${s.z})`).toBe(false);
   });
 });

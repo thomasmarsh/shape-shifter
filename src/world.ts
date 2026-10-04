@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ISLANDS } from './islands';
-import { ICE_REGROW } from './forms';
+import { fitsUnderKelp, ICE_REGROW, KELP_DEEP } from './forms';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildFrostDecor, SNOW_CAP } from './frost';
 import { hash, Island, Kind, Layout, Spot, TANGLE_GAP, Terrain, TREE_BLOCK } from './layout';
@@ -49,7 +49,19 @@ export const NO_STAND = 100;
 const BOULDER = 0.9;
 
 /** Tiles from west to east. Background clouds in game.ts follow it. */
-export const WORLD_WIDTH = 510;
+export const WORLD_WIDTH = 700;
+
+/** Saltmere's water: turquoise, darker and bluer the deeper the bed (2 bright, 4 mid, 7 dark). */
+const SEA_STOPS: [number, THREE.Color][] = [
+  [2, new THREE.Color(0x46e0d2)],
+  [4, new THREE.Color(0x1f9ab8)],
+  [7, new THREE.Color(0x0b3f7a)],
+];
+export function seaWater(depth: number): number {
+  const [a, b] = depth < 4 ? [SEA_STOPS[0], SEA_STOPS[1]] : [SEA_STOPS[1], SEA_STOPS[2]];
+  const t = Math.min(1, Math.max(0, (depth - a[0]) / (b[0] - a[0])));
+  return a[1].clone().lerp(b[1], t).getHex();
+}
 
 /** How thick the slab of thin ice is drawn. */
 const ICE_SLAB = 0.14;
@@ -84,20 +96,21 @@ export class World {
   private iceTiles: number[] = [];
   /** The gap of the root tangle on each tile, 0 where there is none. */
   private tangle: Float32Array;
-  /** 1 on the tiles that the 'frostfang' island built (the last island to touch a tile owns it). */
-  private frostTile: Uint8Array;
-  private iceMesh: THREE.InstancedMesh | null = null;
-  /** The white frame and cracks drawn on top of each thin-ice slab. */
-  private iceCracks: THREE.InstancedMesh | null = null;
+  /** How far below the water surface the kelp mat on each tile hangs, 0 where there is none. */
+  private kelp: Float32Array;
+  /** Which island last shaped each tile: an index into `ownerIds` plus one, 0 where none did. */
+  private owner: Uint8Array;
+  private ownerIds: string[] = [];
   private iceRot = new Map<number, number>();
-  /** Which instance of `iceMesh` draws a tile. */
-  private iceSlot = new Map<number, number>();
+  /** Which instance of which slab mesh (and its frame and cracks) draws a thin-sheet tile. */
+  private iceSlot = new Map<number, { slab: THREE.InstancedMesh; cracks: THREE.InstancedMesh; slot: number }>();
 
   readonly layout: Layout;
   /** Where each island put its ground, for tools like the map printer. */
   readonly bounds: IslandBounds[] = [];
   readonly group = new THREE.Group();
   private waterMesh: THREE.InstancedMesh | null = null;
+  private seaMesh: THREE.InstancedMesh | null = null;
   /** The ground meshes, for checking whether something hides the player. */
   readonly solidMeshes: THREE.Object3D[] = [];
 
@@ -113,7 +126,8 @@ export class World {
     this.iceOn = new Uint8Array(n);
     this.iceAge = new Float32Array(n);
     this.tangle = new Float32Array(n);
-    this.frostTile = new Uint8Array(n);
+    this.kelp = new Float32Array(n);
+    this.owner = new Uint8Array(n);
 
     this.layout = this.buildIslands(islands);
     this.placeBlocks();
@@ -131,13 +145,17 @@ export class World {
 
   /**
    * Height of solid ground at a point, including anything standing on it. A
-   * root tangle is a wall to a body taller than its gap; `body` is the height
-   * of whoever asks, and anyone who does not say is treated as too big.
+   * root tangle is a wall to a body taller than its gap, and a kelp mat is a
+   * wall to a body that cannot dive far enough to get under it. `body` is the
+   * height of whoever asks and `dive` is how deep they can go; anyone who does
+   * not say is treated as too big and unable to dive.
    */
-  solidAt(x: number, z: number, body = Infinity): number {
+  solidAt(x: number, z: number, body = Infinity, dive = 0): number {
     const k = this.index(x, z);
     if (k < 0) return -Infinity;
-    const ground = this.height[k] + this.block[k] + (body > this.tangle[k] && this.tangle[k] > 0 ? NO_STAND : 0);
+    const walled =
+      (body > this.tangle[k] && this.tangle[k] > 0) || (this.kelp[k] > 0 && !fitsUnderKelp(body, dive, this.kelp[k]));
+    const ground = this.height[k] + this.block[k] + (walled ? NO_STAND : 0);
     return this.iceOn[k] ? Math.max(ground, this.iceTop[k]) : ground;
   }
 
@@ -155,19 +173,26 @@ export class World {
   }
 
   /** Highest solid ground under a circle of radius r. */
-  solidUnder(x: number, z: number, r: number, body = Infinity): number {
+  solidUnder(x: number, z: number, r: number, body = Infinity, dive = 0): number {
     return Math.max(
-      this.solidAt(x, z, body),
-      this.solidAt(x - r, z - r, body),
-      this.solidAt(x + r, z - r, body),
-      this.solidAt(x - r, z + r, body),
-      this.solidAt(x + r, z + r, body),
+      this.solidAt(x, z, body, dive),
+      this.solidAt(x - r, z - r, body, dive),
+      this.solidAt(x + r, z - r, body, dive),
+      this.solidAt(x - r, z + r, body, dive),
+      this.solidAt(x + r, z + r, body, dive),
     );
   }
 
   /** True on a tile that Frostfang built: only those are drawn with the frost look. */
   isFrostTile(i: number, j: number): boolean {
-    return i >= 0 && j >= 0 && i < this.width && j < this.depth && this.frostTile[j * this.width + i] === 1;
+    return this.ownerAt(i, j) === 'frostfang';
+  }
+
+  /** The id of the island that last shaped a tile, '' for sky (or off the map). */
+  ownerAt(i: number, j: number): string {
+    if (i < 0 || j < 0 || i >= this.width || j >= this.depth) return '';
+    const o = this.owner[j * this.width + i];
+    return o === 0 ? '' : this.ownerIds[o - 1];
   }
 
   /** True on a root tangle tile. */
@@ -180,6 +205,18 @@ export class World {
   tangleGapAt(x: number, z: number): number {
     const k = this.index(x, z);
     return k < 0 ? 0 : this.tangle[k];
+  }
+
+  /** True on a kelp mat tile. */
+  isKelp(x: number, z: number): boolean {
+    const k = this.index(x, z);
+    return k >= 0 && this.kelp[k] > 0;
+  }
+
+  /** How far below the surface the kelp mat on a tile hangs, 0 if none. */
+  kelpDepthAt(x: number, z: number): number {
+    const k = this.index(x, z);
+    return k < 0 ? 0 : this.kelp[k];
   }
 
   isWater(x: number, z: number): boolean {
@@ -285,8 +322,8 @@ export class World {
 
   /** Show or hide the slab (and its cracks) drawn for a tile. */
   private showIce(k: number): void {
-    const slot = this.iceSlot.get(k);
-    if (!this.iceMesh || slot === undefined) return;
+    const draw = this.iceSlot.get(k);
+    if (!draw) return;
     const m = new THREE.Matrix4();
     const c = new THREE.Matrix4();
     if (this.iceOn[k]) {
@@ -297,12 +334,10 @@ export class World {
       m.makeScale(0, 0, 0);
       c.makeScale(0, 0, 0);
     }
-    this.iceMesh.setMatrixAt(slot, m);
-    this.iceMesh.instanceMatrix.needsUpdate = true;
-    if (this.iceCracks) {
-      this.iceCracks.setMatrixAt(slot, c);
-      this.iceCracks.instanceMatrix.needsUpdate = true;
-    }
+    draw.slab.setMatrixAt(draw.slot, m);
+    draw.slab.instanceMatrix.needsUpdate = true;
+    draw.cracks.setMatrixAt(draw.slot, c);
+    draw.cracks.instanceMatrix.needsUpdate = true;
   }
 
   /** Mark a tile as solid up to `extra` above the ground (a tree, a speaker). */
@@ -312,7 +347,9 @@ export class World {
   }
 
   update(time: number): void {
-    if (this.waterMesh) this.waterMesh.position.y = Math.sin(time * 1.3) * 0.03;
+    const bob = Math.sin(time * 1.3) * 0.03;
+    if (this.waterMesh) this.waterMesh.position.y = bob;
+    if (this.seaMesh) this.seaMesh.position.y = bob;
   }
 
   // ---- islands -----------------------------------------------------------
@@ -342,6 +379,7 @@ export class World {
         this.iceTop[at(i, j)] = -Infinity;
         this.iceOn[at(i, j)] = 0;
         this.tangle[at(i, j)] = 0;
+        this.kelp[at(i, j)] = 0;
       },
       setWater: (i, j, wet, level = this.waterLevel) => {
         if (!inside(i, j)) return;
@@ -356,6 +394,10 @@ export class World {
       setTangle: (i, j, gap = TANGLE_GAP) => {
         if (!inside(i, j)) return;
         this.tangle[at(i, j)] = gap;
+      },
+      setKelp: (i, j, depth) => {
+        if (!inside(i, j)) return;
+        this.kelp[at(i, j)] = depth;
       },
       rect: (i0, j0, i1, j1, fn) => {
         for (let j = j0; j <= j1; j++) {
@@ -413,6 +455,7 @@ export class World {
       layout.arrivals.push(...(part.arrivals ?? []));
     }
     if (!hasSpawn) throw new Error('No island has a spawn point');
+    this.checkKelp();
     for (let k = 0; k < this.iceTop.length; k++) {
       if (this.iceTop[k] > -Infinity) this.iceTiles.push(k);
     }
@@ -433,11 +476,25 @@ export class World {
     return layout;
   }
 
-  /** Remember which tiles this island changed are Frostfang's, for the frost look. */
+  /** A mat must hang over water at least `depth + 2` deep, so there is room for a body under it. */
+  private checkKelp(): void {
+    for (let k = 0; k < this.kelp.length; k++) {
+      if (this.kelp[k] <= 0) continue;
+      const at = `(${k % this.width}, ${Math.floor(k / this.width)})`;
+      if (this.water[k] !== 1) throw new Error(`Kelp at ${at} is not on a water tile`);
+      if (this.waterTop[k] - this.height[k] < this.kelp[k] + 2) {
+        throw new Error(`Kelp at ${at} hangs ${this.kelp[k]} below the surface, but the water is too shallow`);
+      }
+    }
+  }
+
+  /** Remember which island last shaped each tile, for the look of its ground, water and thin sheets. */
   private noteOwner(island: Island, before: Float32Array, beforeIce: Float32Array, beforeKind: Uint8Array): void {
+    let id = this.ownerIds.indexOf(island.id);
+    if (id < 0) id = this.ownerIds.push(island.id) - 1;
     for (let k = 0; k < before.length; k++) {
       if (this.height[k] === before[k] && this.iceTop[k] === beforeIce[k] && this.kind[k] === beforeKind[k]) continue;
-      this.frostTile[k] = island.id === 'frostfang' ? 1 : 0;
+      this.owner[k] = id + 1;
     }
   }
 
@@ -493,7 +550,7 @@ export class World {
 
     tiles.forEach((t, n) => {
       const v = hash(t.i, t.j, 1);
-      const frost = this.frostTile[t.j * this.width + t.i] === 1;
+      const frost = this.isFrostTile(t.i, t.j);
       // Frostfang's snow is a thick white blanket over dark rock.
       const CAP = frost && t.kind === Kind.Snow ? SNOW_CAP : CAP_THIN;
       // Top
@@ -505,6 +562,9 @@ export class World {
           break;
         case Kind.Sand:
           c.setHSL(0.12, 0.55, 0.74 + v * 0.05);
+          break;
+        case Kind.Salt:
+          c.setHSL(0.03, 0.3, 0.9 + v * 0.05);
           break;
         case Kind.Moss:
           c.setHSL(0.43 + v * 0.03, 0.55, 0.3 + v * 0.06);
@@ -543,6 +603,7 @@ export class World {
           if (frost) c.setHSL(0.62, 0.38, 0.19 + v * 0.05);
           else c.setHSL(0.6, 0.06, 0.46 + v * 0.05);
           break;
+        case Kind.Salt:
         case Kind.Sand:
           c.setHSL(0.11, 0.4, 0.6 + v * 0.04);
           break;
@@ -567,32 +628,40 @@ export class World {
     this.group.add(caps, bodies);
     this.solidMeshes.push(caps, bodies);
 
-    // Water
+    // Water. Saltmere's sea is its own, slightly clearer mesh, so the bed, a sea
+    // pickle and a diver show through.
     const wet = tiles.filter((t) => this.water[t.j * this.width + t.i] === 1);
-    if (wet.length) {
-      const waterMat = new THREE.MeshLambertMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.72,
-      });
-      const water = new THREE.InstancedMesh(unit, waterMat, wet.length);
-      wet.forEach((t, n) => {
-        const k = t.j * this.width + t.i;
-        const d = this.waterTop[k] - t.h;
+    const makeWater = (list: typeof wet, opacity: number, name: string, paint: (t: (typeof wet)[0], d: number) => number) => {
+      if (list.length === 0) return null;
+      const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity });
+      const water = new THREE.InstancedMesh(unit, mat, list.length);
+      water.name = name;
+      list.forEach((t, n) => {
+        const d = this.waterTop[t.j * this.width + t.i] - t.h;
         m.makeScale(1, d, 1).setPosition(t.i + 0.5, t.h + d / 2, t.j + 0.5);
         water.setMatrixAt(n, m);
-        // Pond water is bright; a frozen lake is deep, cold and dark under its ice.
-        if (this.iceTop[k] > -Infinity) c.setHex(0x2f7fb5);
-        else if (this.frostTile[k] === 1) c.setHex(0x3aa0d0);
-        else c.setHex(0x4cc3f0);
-        water.setColorAt(n, c);
+        water.setColorAt(n, c.setHex(paint(t, d)));
       });
-      this.waterMesh = water;
       this.group.add(water);
-    }
+      return water;
+    };
+    const isSea = (t: (typeof wet)[0]) => this.ownerAt(t.i, t.j) === 'saltmere';
+    // Pond water is bright; a frozen lake is deep, cold and dark under its ice.
+    this.waterMesh = makeWater(
+      wet.filter((t) => !isSea(t)),
+      0.72,
+      'water',
+      (t) => {
+        const k = t.j * this.width + t.i;
+        if (this.iceTop[k] > -Infinity) return 0x2f7fb5;
+        return this.isFrostTile(t.i, t.j) ? 0x3aa0d0 : 0x4cc3f0;
+      },
+    );
+    this.seaMesh = makeWater(wet.filter(isSea), 0.6, 'sea-water', (_t, d) => seaWater(d));
 
     this.buildThinIce();
     this.buildTangles();
+    this.buildKelp();
     this.buildCloudSkirt(tiles);
     this.group.add(
       buildFrostDecor({
@@ -601,68 +670,81 @@ export class World {
         height: (i, j) => this.get(i, j),
         kind: (i, j) => this.kind[j * this.width + i],
         wet: (i, j) => this.water[j * this.width + i] === 1,
-        frost: (i, j) => this.frostTile[j * this.width + i] === 1,
+        frost: (i, j) => this.isFrostTile(i, j),
         layout: this.layout,
       }),
     );
   }
 
   /**
-   * One thin, see-through pale slab per thin-ice tile, with no column under it,
-   * and a white frame and cracks on top so it reads as ice you could fall through.
-   * Off Frostfang the same slab is a leaf mat: green-amber, with a dark green frame.
+   * One thin pale slab per thin-sheet tile, with no column under it, and a frame
+   * and cracks on top so it reads as something you could fall through. What it
+   * is depends on who built the tile: Underroot's is a leaf mat (green-amber,
+   * dark green frame), Saltmere's is salt crust (white with a faint pink-grey
+   * tint, pale grey frame, no blue glow), anything else is see-through ice
+   * with a white frame.
    */
   private buildThinIce(): void {
     if (this.iceTiles.length === 0) return;
-    const mat = new THREE.MeshLambertMaterial({
-      color: 0xffffff,
-      emissive: 0x2c5f86,
-      transparent: true,
-      opacity: 0.6,
-    });
-    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, this.iceTiles.length);
-    this.iceMesh = mesh;
-    const cracks = new THREE.InstancedMesh(
-      crackGeometry(),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false }),
-      this.iceTiles.length,
+    const looks = {
+      ice: { tint: 0xa8dcff, frame: 0xffffff },
+      leaf: { tint: 0xc4c25a, frame: 0x2f5a28 },
+      salt: { tint: 0xf0e4e6, frame: 0xaaa5a9 },
+    };
+    const lookOf = (k: number): keyof typeof looks => {
+      const owner = this.ownerAt(k % this.width, Math.floor(k / this.width));
+      return owner === 'underroot' ? 'leaf' : owner === 'saltmere' ? 'salt' : 'ice';
+    };
+    const group = (salt: boolean) => this.iceTiles.filter((k) => (lookOf(k) === 'salt') === salt);
+    const slab = new THREE.BoxGeometry(1, 1, 1);
+    const build = (tiles: number[], mat: THREE.Material, name: string) => {
+      if (tiles.length === 0) return;
+      const mesh = new THREE.InstancedMesh(slab, mat, tiles.length);
+      mesh.name = name;
+      const cracks = new THREE.InstancedMesh(
+        crackGeometry(),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false }),
+        tiles.length,
+      );
+      cracks.name = `${name}-cracks`;
+      tiles.forEach((k, n) => {
+        this.iceSlot.set(k, { slab: mesh, cracks, slot: n });
+        this.iceRot.set(k, Math.floor(hash(k % this.width, Math.floor(k / this.width), 21) * 4) * (Math.PI / 2));
+        const look = looks[lookOf(k)];
+        mesh.setColorAt(n, new THREE.Color(look.tint));
+        cracks.setColorAt(n, new THREE.Color(look.frame));
+      });
+      this.group.add(mesh, cracks);
+    };
+    build(
+      group(false),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x2c5f86, transparent: true, opacity: 0.6 }),
+      'thin-ice',
     );
-    this.iceCracks = cracks;
-    this.iceTiles.forEach((k, n) => {
-      this.iceSlot.set(k, n);
-      this.iceRot.set(k, Math.floor(hash(k % this.width, Math.floor(k / this.width), 21) * 4) * (Math.PI / 2));
-    });
-    const ice = new THREE.Color(0xa8dcff);
-    const leaf = new THREE.Color(0xc4c25a);
-    const frame = new THREE.Color(0x2f5a28);
-    const white = new THREE.Color(0xffffff);
-    this.iceTiles.forEach((k, n) => {
-      const frosted = this.frostTile[k] === 1;
-      mesh.setColorAt(n, frosted ? ice : leaf);
-      cracks.setColorAt(n, frosted ? white : frame);
-    });
+    build(group(true), new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 }), 'salt-crust');
     for (const k of this.iceTiles) this.showIce(k);
-    this.group.add(mesh, cracks);
   }
 
   /**
-   * Each tangle tile is a low brown weave of thin boxes with a few dark strands
-   * rising high above it, so the wall nothing can fly over is visible. Look
-   * only: nothing here collides.
+   * Each tangle tile is a low brown weave of thin boxes with one pale, see-through
+   * strand rising 8 to 10 above it, so the wall nothing can fly over still reads
+   * as going up out of sight without hiding what is inside. The strands cast no
+   * shadow. Look only: nothing here collides.
    */
   private buildTangles(): void {
     const tiles: number[] = [];
     for (let k = 0; k < this.tangle.length; k++) if (this.tangle[k] > 0) tiles.push(k);
     if (tiles.length === 0) return;
     const WEAVE = 4;
-    const STRANDS = 4;
     const unit = new THREE.BoxGeometry(1, 1, 1);
     const weave = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial(), tiles.length * WEAVE);
     const strands = new THREE.InstancedMesh(
       unit,
-      new THREE.MeshLambertMaterial({ color: 0x2b1a10 }),
-      tiles.length * STRANDS,
+      new THREE.MeshLambertMaterial({ color: 0xd8c7a0, transparent: true, opacity: 0.22, depthWrite: false }),
+      tiles.length,
     );
+    weave.name = 'tangle-weave';
+    strands.name = 'tangle-strands';
     const m = new THREE.Matrix4();
     const rot = new THREE.Matrix4();
     const c = new THREE.Color();
@@ -679,15 +761,64 @@ export class World {
         c.setHSL(0.07 + r * 0.03, 0.45, 0.22 + hash(i, j, 70 + w) * 0.1);
         weave.setColorAt(n * WEAVE + w, c);
       }
-      for (let s = 0; s < STRANDS; s++) {
-        const len = 8 + hash(i, j, 80 + s) * 2;
-        m.makeScale(0.07, len, 0.07);
-        m.setPosition(i + 0.15 + hash(i, j, 90 + s) * 0.7, h + len / 2, j + 0.15 + hash(i, j, 100 + s) * 0.7);
-        strands.setMatrixAt(n * STRANDS + s, m);
-      }
+      const len = 8 + hash(i, j, 80) * 2;
+      m.makeScale(0.035, len, 0.035);
+      m.setPosition(i + 0.15 + hash(i, j, 90) * 0.7, h + len / 2, j + 0.15 + hash(i, j, 100) * 0.7);
+      strands.setMatrixAt(n, m);
     });
     weave.castShadow = true;
     this.group.add(weave, strands);
+  }
+
+  /**
+   * A kelp mat floats on the water and hangs `kelp` below it: a low, wet, dark
+   * green weave of crossed thin boxes at the surface, and a few thin fronds
+   * hanging down to the mat's depth. Deep mats are darker. Look only: nothing
+   * here collides, and nothing rises above the water.
+   */
+  private buildKelp(): void {
+    const tiles: number[] = [];
+    for (let k = 0; k < this.kelp.length; k++) if (this.kelp[k] > 0) tiles.push(k);
+    if (tiles.length === 0) return;
+    const WEAVE = 4;
+    const FRONDS = 4;
+    const unit = new THREE.BoxGeometry(1, 1, 1);
+    const mats = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial(), tiles.length * WEAVE);
+    const fronds = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial(), tiles.length * FRONDS);
+    mats.name = 'kelp-mats';
+    fronds.name = 'kelp-fronds';
+    const m = new THREE.Matrix4();
+    const rot = new THREE.Matrix4();
+    const c = new THREE.Color();
+    tiles.forEach((k, n) => {
+      const i = k % this.width;
+      const j = Math.floor(k / this.width);
+      const top = this.waterTop[k];
+      const deep = this.kelp[k] >= KELP_DEEP;
+      for (let w = 0; w < WEAVE; w++) {
+        const r = hash(i, j, 110 + w);
+        // Flat strips laid crosswise, just proud of the water.
+        m.makeRotationY((w / WEAVE) * Math.PI + r * 0.4).multiply(rot.makeScale(0.96, 0.07, 0.17));
+        m.setPosition(i + 0.5 + (hash(i, j, 120 + w) - 0.5) * 0.2, top + 0.04 + w * 0.025, j + 0.5 + (hash(i, j, 130 + w) - 0.5) * 0.2);
+        mats.setMatrixAt(n * WEAVE + w, m);
+        c.setHSL(0.36 + r * 0.04, 0.5, (deep ? 0.1 : 0.17) + hash(i, j, 140 + w) * 0.04);
+        mats.setColorAt(n * WEAVE + w, c);
+      }
+      for (let f = 0; f < FRONDS; f++) {
+        const len = this.kelp[k] * (0.8 + hash(i, j, 150 + f) * 0.2);
+        m.makeScale(0.07, len, 0.07);
+        m.setPosition(
+          i + 0.2 + (f % 2) * 0.6 + (hash(i, j, 160 + f) - 0.5) * 0.15,
+          top - len / 2,
+          j + 0.2 + Math.floor(f / 2) * 0.6 + (hash(i, j, 170 + f) - 0.5) * 0.15,
+        );
+        fronds.setMatrixAt(n * FRONDS + f, m);
+        c.setHSL(0.33 + hash(i, j, 180 + f) * 0.05, 0.55, (deep ? 0.14 : 0.24) + hash(i, j, 190 + f) * 0.04);
+        fronds.setColorAt(n * FRONDS + f, c);
+      }
+    });
+    mats.receiveShadow = true;
+    this.group.add(mats, fronds);
   }
 
   /** How far down the rock goes under a tile: deeper toward the middle. */

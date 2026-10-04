@@ -4,9 +4,9 @@ A web game. You are a shape shifter stuck on a cloud island. Solve music
 puzzles to free candle lights, collect enough lights to level up, and each
 level lets you shift into a new creature.
 
-The design lives in [`PLAN.md`](PLAN.md). This build has **five islands** to
-play, from level 0 (Human) to level 5 (Ant), and a small sandy stub of a sixth
-island at the end where it stops for now.
+The design lives in [`PLAN.md`](PLAN.md). This build has **six islands** to
+play, from level 0 (Human) to level 6 (Mermaid). It stops for now on Pearl
+Rock, at the far end of the sixth island.
 
 ## Play it
 
@@ -32,7 +32,8 @@ If the game runs slowly, add `?fast` to the address to turn off shadows.
 | Click or `J` | Swing your sword (Human and Orangutan) |
 | `E` | Use things: speakers, candles |
 | `F` | Eat a piece of bread (+1 heart) |
-| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, …) |
+| `Shift` | Dive, as a Human or a Mermaid. Hold it to sink, let go to float back up |
+| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, `6` Mermaid, …) |
 | `Q` | Fairy only: make a tiny home to hide in |
 | `Esc` | Pause |
 
@@ -54,6 +55,21 @@ else bumps into a tangle like a wall, and so do bad guys and arrows, so inside
 one the Ant is safe. Inside a tangle the Ant cannot jump and cannot change
 shape; walk out first. Changing out of the Ant leaves you on one heart, so eat
 before you go on.
+
+**Diving:** everything floats in water. A Human can also dive: hold `Shift` to
+sink, as far as 4 below the surface, and let go to float back up (`Space` rises
+faster). Sea pickles are candles under the water, and they sit 4 deep, so it
+takes a dived Human to take their light. No other old form can dive.
+
+**Kelp mats:** a mat of kelp floats on the water and hangs down under it.
+Nothing gets over a mat or through it. A shape that can dive below it swims
+under: just swim in, and you are pulled under it. A Human fits under a low mat.
+Under a mat you cannot come up, jump or change shape.
+
+**Mermaid:** 15 hearts. She swims faster than anything runs, dives as deep as
+the water goes, and fits under the deep kelp that nothing else can pass. Her
+sword only works while she is in the water. On land she is very slow and cannot
+jump, but she can leap out of the water onto a low shore.
 
 **Hop, then fly:** a Bunny can turn into a Fairy at the top of a hop and keep
 the height. Hold `Space` as a Bunny, press `1` when the hop is at its top, and
@@ -91,19 +107,30 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   candle gives the Ant, and the Ant is what the way off needs: past the gate
   guards, through the Root Wall into the Yard, up the Long Root over the open
   sky to the Crown, and one short flight to the next island.
-- **Saltmere** (the end, for now): a small sandy stub where the game stops. It
-  is the home of the Mermaid.
-- Six forms: Human (10 hearts, wooden sword), Fairy (3 hearts, short slow
-  flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone sword),
-  Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts, the fastest
-  so far, no sword, runs on thin ice) and Ant (1 heart, slow, no sword, fits
-  into root tangles). Hearts cap at the form's maximum when
+- **Saltmere** (level 5, then 6): an island of sand, salt and water, with a flat
+  beach along its south side and a lagoon, the Mere, at its east end. Its five
+  candles are sea pickles, each 4 deep, so each one ends with a Human dive: the
+  Tide Pool (a sword fight, then the first dive), the Driftwood Nest (an Ant
+  through a ring of woven driftwood, a Bunny up to the speaker), Salt Rock (a
+  Wolf up a stair of salt crust over the sky, then an Ant through another
+  ring), the Stack (a fight for the speaker, then hop, then fly, to a pool on
+  top of a rock) and Palm Key (a Human under a ring of kelp, an Orangutan along
+  a road of great palms, a fight, then a Fairy across). The fifth pickle gives
+  the Mermaid, and the Mermaid is what the way off needs: the Deep Road, a long
+  channel over the open sky roofed with deep kelp, to Pearl Rock, where the
+  game stops for now.
+- Seven forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
+  slow flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone
+  sword), Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts, the
+  fastest on land so far, no sword, runs on thin ice), Ant (1 heart, slow, no
+  sword, fits into root tangles) and Mermaid (15 hearts, swims fast, dives
+  without limit, sword only in water). Hearts cap at the form's maximum when
   you shift and only come back by eating.
 - 100 bread to start, more to find.
 - Two kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
   two slower "testers" on the training ground, and archers (8 hearts) who
   appear once you reach level 3.
-- Twenty-two music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
+- Twenty-seven music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
   after), each guarding a candle. You cannot use a speaker while a bad guy
   close by is after you: deal with them, lose them or hide first.
 - Checkpoints, falling off the island, fainting and respawning.
@@ -117,7 +144,7 @@ src/
   main.ts       starts the game
   game.ts       the loop, camera, saving, hints, and what happens when
   world.ts      builds the whole world from the islands: terrain, heights, water,
-                thin ice, root tangles, meshes
+                thin ice, root tangles, kelp mats, meshes
   layout.ts     the shared words of a level: tile kinds, spots, hints, arrivals
   islands/      one file per island, plus the tests for the island
     index.ts      the list of islands, in build order
@@ -128,14 +155,16 @@ src/
     underroot.ts      Underroot's landing, the west of its hub and three candles
     underroot-east.ts the east of the hub, two candles and the Ant's way off,
                       built by underroot.ts
-    saltmere.ts       the stub of island 6, the smallest island to copy
+    saltmere.ts       Saltmere's landing, its beach and four candles (west half)
+    saltmere-east.ts  the Mere, Palm Key and the Mermaid's way off (east half),
+                      built by saltmere.ts
     scatter.ts    sprinkles ordinary trees over an island's grass
   forms.ts      the ten forms and level rules, as a data table
   player.ts     movement, flying, climbing, hopping, running on ice, fitting into
-                tangles, sword, hearts, shape-shifting
+                tangles, swimming and diving, sword, hearts, shape-shifting
   enemy.ts      the regular bad guy and the archer
   arrows.ts     arrows in flight
-  things.ts     puzzle speakers, candles, checkpoints, bread
+  things.ts     puzzle speakers, candles and sea pickles, checkpoints, bread
   puzzleUi.ts   the music puzzle screen
   hud.ts        hearts, form bar, meters, hints, title and level-up cards
   models.ts     every character and object, built from coloured boxes
@@ -146,7 +175,7 @@ src/
   save.ts       saving to the browser
   levelcheck.ts the level checker: which places each set of forms can reach
                 (it knows the Winter Wolf, thin ice, hop-then-fly, the Ant and
-                root tangles)
+                root tangles, diving, kelp mats and the Mermaid)
   pilot.ts      a scripted player the tests use to walk and fly real routes
   *.test.ts     the tests (next to the code they check)
 scripts/
@@ -161,13 +190,15 @@ bread, trees, hints, arrival cards). To change a form's hearts or speed, edit
 ### Adding an island
 
 1. Make `src/islands/<name>.ts` that exports an `Island` (see
-   `src/islands/saltmere.ts` for the smallest one) and add it to the list in
+   `src/islands/highcrag.ts` for one in a single file) and add it to the list in
    `src/islands/index.ts`. Leave a gap of sky between islands. Besides
    `t.set(i, j, height, kind)`, `build(t)` can lay water at any height with
    `t.setWater(i, j, wet, level)`, and a sheet of thin ice at any height with
-   `t.setThinIce(i, j, height)`, and turn a ground tile into a root tangle with
-   `t.setTangle(i, j)`. An island can also be built in two files, as Frostfang
-   and Underroot are: its file calls a builder from the other and merges the
+   `t.setThinIce(i, j, height)`, turn a ground tile into a root tangle with
+   `t.setTangle(i, j)`, and float a kelp mat on a water tile with
+   `t.setKelp(i, j, depth)`. On a water tile the height you set is the bed. A
+   candle placed on a water tile is a sea pickle. An island can also be built
+   in two files, as Frostfang, Underroot and Saltmere are: its file calls a builder from the other and merges the
    result.
 2. Run `npm run map -- --island=<name>` to look at it, and
    `npm run map -- --island=<name> --reach=human,fairy --from=x,z` to see what
@@ -184,11 +215,11 @@ forms can reach (an easy setting for "a person can do this" and a generous
 one for "nobody can do this"). The route tests in `src/routes.test.ts` back it
 up by really flying and climbing the hard routes with the real physics, using
 the scripted player in `src/pilot.ts`. `npm run map` prints the islands as
-ASCII maps (heights, things, thin ice, root tangles, and reachable ground) so you can see a
-layout before you run the game, for example
+ASCII maps (heights, things, thin ice, root tangles, kelp mats, water depth and
+reachable ground) so you can see a layout before you run the game, for example
 `npm run map -- --island=frostfang --reach=human,fairy,orangutan,bunny --from=208.5,40.5`.
 
-The checker knows four things beyond walking, hopping, flying and climbing:
+The checker knows these things beyond walking, hopping, flying and climbing:
 
 - **The Winter Wolf:** it moves like a faster Human, and it is the only form
   that can step onto thin ice. Nobody can stand still on thin ice, so nothing there can
@@ -204,10 +235,23 @@ The checker knows four things beyond walking, hopping, flying and climbing:
   nobody else walks into one, lands on one or flies over one. For the Ant it is
   plain ground, except that it cannot hop from inside one. A ring of tangle
   must have no diagonal-only joins.
+- **Diving:** a water tile's surface is where a form floats. A form that can
+  dive can also be at any height from there down to its dive depth or the bed,
+  whichever comes first, and a thing can be used from any of those heights. So
+  floaters use things about 2 deep, the Human a sea pickle 4 deep, and only the
+  Mermaid anything deeper.
+- **Kelp mats:** a mat is a wall with no top for every form that cannot get its
+  whole body below it, in the air as well: nothing walks, swims, lands on or
+  flies over one. A form that fits swims in and out, and cannot hop from one. A
+  closed ring of mats seals a place the way a ring of tangle does.
+- **The Mermaid:** she walks on land, floats and dives like the Human with no
+  depth limit, and hops only out of water.
 
-The route tests for Underroot sit next to the island, in
-`src/islands/underroot.routes.test.ts` and
-`src/islands/underroot-east.routes.test.ts`.
+The route tests for Underroot and Saltmere sit next to the islands, in
+`src/islands/underroot.routes.test.ts`,
+`src/islands/underroot-east.routes.test.ts`,
+`src/islands/saltmere.routes.test.ts` and
+`src/islands/saltmere-east.routes.test.ts`.
 
 Because of hop-then-fly, every raised thing (a ledge, a wall top, a treetop) is
 a launch pad. Level designs keep raised ground to where it is needed, and
@@ -222,17 +266,19 @@ The game is in `window.game` in the browser console. Handy while building:
 ```js
 game.debug.warp('hc-prow')   // stand on a checkpoint
 game.debug.setLevel(4)       // become level 4 (then press 4 for the Winter Wolf)
-game.debug.takeLight(7)      // take a candle's light at once (0 to 21)
+game.debug.takeLight(7)      // take a candle's light at once (0 to 26)
 ```
 
 Candles are numbered in the order of the islands: 0 to 2 Meadow Island, 3 to 6
-Tanglewood, 7 to 11 Highcrag, 12 to 16 Frostfang, 17 to 21 Underroot.
+Tanglewood, 7 to 11 Highcrag, 12 to 16 Frostfang, 17 to 21 Underroot, 22 to 26
+Saltmere.
 
 Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `tw-south`, `tw-grove`, `hc-prow`, `hc-south`, `hc-north`, `hc-east`,
 `hc-stair`, `frostfang`, `ff-north`, `ff-south`, `ff-lake`, `ff-glacier`,
 `ff-brow`, `ff-last`, `underroot`, `ur-mat`, `ur-glade`, `ur-mid`, `ur-grove`,
-`ur-wall`, `ur-yard`, `ur-crown`, `saltmere`.
+`ur-wall`, `ur-yard`, `ur-crown`, `saltmere`, `sm-mid`, `sm-east`, `sm-nest`,
+`sm-salt`, `sm-key`, `sm-pearl`.
 
 ## Decisions the plan did not spell out
 
@@ -319,17 +365,50 @@ These were chosen to get a playable build. Change any of them freely.
   would be a trap.
 - **Thin leaves are thin ice:** on Underroot the thin sheets are leaf mats with
   the same rules.
+- **Underwater is the water of a water tile:** a tile still has one height. On
+  a water tile that height is the bed and the water level is the top, and a
+  diver can be anywhere between. There are no caves and no overhangs.
+- **Depth is the gate, not breath:** there is no breath timer. Each form has a
+  dive depth: the Human 4, the Mermaid no limit, everyone else none. The
+  checker and the real physics use the same numbers, so every pickle is proved.
+- **Sea pickles sit 4 deep,** because a floater can already use things about 2
+  deep (it floats 0.8 under the surface and reaches 1.5 up or down).
+- **A kelp mat gates by who can dive under it,** like a tangle gates by who
+  fits. A low mat hangs 2 deep (the Human fits), a deep one 5 (only the
+  Mermaid). The water next to a mat is kept deep, so a swimmer held under it is
+  never walled in.
+- **The Mermaid cannot help with Saltmere's own pickles,** because she unlocks
+  on the fifth. The way off needs only her.
+- **The Mermaid's water shot and bubble columns are not built yet.** Bad guys
+  stay out of the water, so there is nothing under water to fight, and the
+  checker ignores bad guys. They wait for the sword bad guys and the bosses.
+- **The Mermaid is slow on land (1.2) and cannot jump there.** She leaps only
+  from the water's surface, which is enough to get onto a low shore.
+- **Saltmere's beach is its lowest land and is flat.** Its rooms are sealed by
+  closed rings (driftwood tangle, kelp), so the raised things inside them are
+  not launch pads for the rest of the island. Only Salt Rock and the Stack
+  stand in the open, and they are far apart.
+- **No run-then-fly on Saltmere:** with a gap to fly at the top of the Salt
+  Stair, Salt Rock's only way off would be a fall, and it has a checkpoint.
+- **Saltmere has only three trees,** the great palms of Palm Key. An ordinary
+  palm is 4 high, which a hop-then-fly can land on.
+- **Salt crust is thin ice:** the Salt Stair's sheets have the same rules, and
+  their own look.
+- **Tangle strands are faint threads:** one thin, pale, see-through thread per
+  tile, so the wall still reads as going up but hides nothing behind it.
 - **Trees are solid:** a Human walks around them and arrows stop at them.
   Great trees are the tall ones (five steps against four), and the level
   designs rely on them: the Orangutan climbs them to cross the sky.
 
 ## Next
 
-1. Water areas you can dive into, sea pickles and the Mermaid (level 6), on
-   Saltmere, the next island (only a stub for now). Then the Axolotl.
-2. Cheetah, and the sword bad guys that come with it.
+1. The island after Pearl Rock, with the Cheetah (level 7) and the sword bad
+   guys that come with it.
+2. The Mermaid's water shot and bubble columns, with bad guys that can be
+   fought in the water.
 3. Snake, and small holes that are bigger than a tangle's gap.
-4. The two bosses (land, then underwater), level 11 and the end of the game.
-5. Wings (level 10) and character customising.
-6. More for the other forms to do on Underroot's way off, which today uses only
-   the Human, the Ant and the Fairy.
+4. Axolotl.
+5. The two bosses (land, then underwater), level 11 and the end of the game.
+6. Wings (level 10) and character customising.
+7. More for the other forms to do on the ways off Underroot (Human, Ant and
+   Fairy only) and Saltmere (Mermaid only).

@@ -20,6 +20,8 @@ export const enum Kind {
   Moss,
   /** Ordinary ground with a warm brown top, for the roots. Behaves like Grass. */
   Bark,
+  /** Ordinary ground with a white salt top. Behaves like Sand. */
+  Salt,
 }
 
 /**
@@ -33,8 +35,11 @@ export interface Spot {
   z: number;
 }
 
-/** 'pine' and 'greatPine' climb and block exactly like 'regular' and 'great'. */
-export type TreeKind = 'regular' | 'great' | 'pine' | 'greatPine';
+/**
+ * 'pine' and 'greatPine', 'palm' and 'greatPalm' climb and block exactly like
+ * 'regular' and 'great'.
+ */
+export type TreeKind = 'regular' | 'great' | 'pine' | 'greatPine' | 'palm' | 'greatPalm';
 
 /**
  * How high a tree's solid block stands above the ground. A fairy can rise at
@@ -46,6 +51,8 @@ export const TREE_BLOCK: Record<TreeKind, number> = {
   great: 5.0,
   pine: 4.0,
   greatPine: 5.0,
+  palm: 4.0,
+  greatPalm: 5.0,
 };
 
 export type TreeSpot = Spot & { kind: TreeKind };
@@ -126,6 +133,14 @@ export interface Terrain {
    * height. `clear` removes the tangle again.
    */
   setTangle(i: number, j: number, gap?: number): void;
+  /**
+   * Lay a kelp mat on a water tile, hanging `depth` below the surface. A body
+   * of height h that can dive d fits under it when d - h >= depth (see
+   * KELP_LOW and KELP_DEEP in forms.ts). For anyone else the tile is a "no
+   * standing" column, like a tangle. The tile must be water with at least
+   * depth + 2 of water above its bed. `clear` removes the mat again.
+   */
+  setKelp(i: number, j: number, depth: number): void;
   /** Call `fn` for every tile in the box, bounds inclusive. */
   rect(i0: number, j0: number, i1: number, j1: number, fn: (i: number, j: number) => void): void;
   /** Call `fn` for every tile whose centre lies inside an ellipse. */

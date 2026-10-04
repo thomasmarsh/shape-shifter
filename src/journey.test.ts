@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NOTES } from './audio';
-import { FormId, lightsNeeded } from './forms';
+import { FormId, KELP_DEEP, lightsNeeded } from './forms';
 import { exploreCached as explore } from './explorecache';
 import { World } from './world';
 
@@ -109,6 +109,41 @@ describe('the journey through Underroot', () => {
   });
 });
 
+describe('the journey through Saltmere', () => {
+  const L5: FormId[] = [...L4, 'ant'];
+  const L6: FormId[] = [...L5, 'mermaid'];
+  const from = arrival('saltmere');
+
+  it('level 5: the six forms on easy can use the speaker and the candle of all five Saltmere puzzles', () => {
+    const r = explore(world, from, L5, 'easy');
+    const ids = layout.puzzles.filter((p) => p.id.startsWith('sm-'));
+    expect(ids).toHaveLength(5);
+    for (const p of ids) {
+      expect(r.canUse(p.speaker), `${p.id} speaker`).toBe(true);
+      expect(r.canUse(p.candle), `${p.id} candle`).toBe(true);
+    }
+  });
+
+  it('level 5: the six forms on max reach neither Pearl Rock nor any deep kelp tile', () => {
+    const r = explore(world, from, L5, 'max');
+    expect(r.canStand(arrival('sm-pearl')), 'Pearl Rock').toBe(false);
+    let deep = 0;
+    for (let j = 0; j < world.depth; j++) {
+      for (let i = 0; i < world.width; i++) {
+        if (!world.isKelp(i + 0.5, j + 0.5) || world.kelpDepthAt(i + 0.5, j + 0.5) !== KELP_DEEP) continue;
+        deep++;
+        expect(r.has(i, j), `deep kelp ${i},${j}`).toBe(false);
+      }
+    }
+    expect(deep).toBeGreaterThan(0);
+  });
+
+  it('level 6: the seven forms on easy reach Pearl Rock, and on max without the mermaid nobody does', () => {
+    expect(explore(world, from, L6, 'easy').canStand(arrival('sm-pearl'))).toBe(true);
+    expect(explore(world, from, L5, 'max').canStand(arrival('sm-pearl'))).toBe(false);
+  });
+});
+
 describe('the candles', () => {
   /** Puzzles whose speaker stands on the given island. */
   const puzzlesOn = (island: string) => {
@@ -124,12 +159,14 @@ describe('the candles', () => {
     expect(puzzlesOn('highcrag')).toHaveLength(lightsNeeded(2));
     expect(puzzlesOn('frostfang')).toHaveLength(lightsNeeded(3));
     expect(puzzlesOn('underroot')).toHaveLength(lightsNeeded(4));
+    expect(puzzlesOn('saltmere')).toHaveLength(lightsNeeded(5));
     expect(
       puzzlesOn('meadow').length +
         puzzlesOn('tanglewood').length +
         puzzlesOn('highcrag').length +
         puzzlesOn('frostfang').length +
-        puzzlesOn('underroot').length,
+        puzzlesOn('underroot').length +
+        puzzlesOn('saltmere').length,
     ).toBe(layout.puzzles.length);
   });
 

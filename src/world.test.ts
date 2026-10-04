@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import { NOTES } from './audio';
 import { ICE_REGROW } from './forms';
-import { Island, Kind, NO_STAND, TANGLE_GAP, TREE_BLOCK, World } from './world';
+import { Island, Kind, NO_STAND, seaWater, TANGLE_GAP, TREE_BLOCK, World } from './world';
 
 const tiny = (extra: Partial<ReturnType<Island['build']>> = {}, id = 'tiny'): Island => ({
   id,
@@ -16,8 +17,8 @@ describe('the default world', () => {
   const world = new World();
   const { layout } = world;
 
-  it('is 510 by 64 tiles with the meadow where it always was', () => {
-    expect(world.width).toBe(510);
+  it('is 700 by 64 tiles with the meadow where it always was', () => {
+    expect(world.width).toBe(700);
     expect(world.depth).toBe(64);
     expect(layout.spawn).toEqual({ x: 10.5, z: 27.5 });
     expect(world.groundAt(10.5, 27.5)).toBe(2);
@@ -197,9 +198,161 @@ describe('root tangles', () => {
     expect(world.solidAt(6.5, 4.5, 0.6)).toBeGreaterThanOrEqual(NO_STAND);
   });
 
+  it('draws one faint, see-through strand per tangle tile', () => {
+    const strands = world.group.getObjectByName('tangle-strands') as THREE.InstancedMesh;
+    expect(strands.count).toBe(2);
+    const mat = strands.material as THREE.MeshLambertMaterial;
+    expect(mat.transparent).toBe(true);
+    expect(mat.opacity).toBeLessThanOrEqual(0.3);
+    expect(mat.depthWrite).toBe(false);
+    expect(strands.castShadow).toBe(false);
+  });
+
   it('is removed by clear, and Moss and Bark are ordinary ground', () => {
     expect(world.isTangle(7.5, 4.5)).toBe(false);
     expect(world.solidAt(7.5, 4.5)).toBe(3);
     expect(world.solidAt(3.5, 3.5)).toBe(3);
+  });
+});
+
+describe('kelp mats', () => {
+  const pond = (depth: number, bed: number, wet = true): Island => ({
+    id: 'pond',
+    name: 'Pond',
+    build(t) {
+      t.rect(2, 2, 6, 6, (i, j) => t.set(i, j, bed, Kind.Sand));
+      t.rect(2, 2, 6, 6, (i, j) => t.setWater(i, j, wet));
+      t.setKelp(4, 4, depth);
+      return { spawn: { x: 3.5, z: 3.5 } };
+    },
+  });
+
+  it('wall off a body that cannot get under, and let one that can through', () => {
+    const world = new World([pond(5, -5)]);
+    expect(world.isKelp(4.5, 4.5)).toBe(true);
+    expect(world.kelpDepthAt(4.5, 4.5)).toBe(5);
+    expect(world.kelpDepthAt(3.5, 3.5)).toBe(0);
+    expect(world.solidAt(4.5, 4.5)).toBe(-5 + NO_STAND);
+    expect(world.solidAt(4.5, 4.5, 1.6, 4)).toBe(-5 + NO_STAND);
+    expect(world.solidAt(4.5, 4.5, 1.4, Infinity)).toBe(-5);
+    expect(world.solidAt(4.5, 4.5, 1.6, 6.6)).toBe(-5);
+  });
+
+  it('hang fronds down to the mat depth, darker when deep, with nothing tall above the water', () => {
+    const lum = (mesh: THREE.InstancedMesh): number => {
+      const c = new THREE.Color();
+      mesh.getColorAt(0, c);
+      return c.getHSL({ h: 0, s: 0, l: 0 }).l;
+    };
+    const low = new World([pond(2, -5)]);
+    const deep = new World([pond(5, -5)]);
+    const fronds = (w: World) => w.group.getObjectByName('kelp-fronds') as THREE.InstancedMesh;
+    const mats = (w: World) => w.group.getObjectByName('kelp-mats') as THREE.InstancedMesh;
+    expect(lum(fronds(deep))).toBeLessThan(lum(fronds(low)));
+    expect(lum(mats(deep))).toBeLessThan(lum(mats(low)));
+    for (const [w, d] of [[low, 2], [deep, 5]] as const) {
+      const b = new THREE.Box3().setFromObject(fronds(w));
+      expect(b.min.y).toBeLessThan(w.waterLevel - d * 0.7);
+      expect(b.max.y).toBeLessThanOrEqual(w.waterLevel + 1e-4);
+      expect(new THREE.Box3().setFromObject(mats(w)).max.y).toBeLessThan(w.waterLevel + 0.25);
+    }
+  });
+
+  it('must be on water with room for a body under the mat', () => {
+    expect(() => new World([pond(5, -5, false)])).toThrow(/not on a water tile/);
+    expect(() => new World([pond(5, -4)])).toThrow(/too shallow/);
+    expect(() => new World([pond(5, -4.3)])).not.toThrow();
+  });
+});
+
+describe('who owns the look of a tile', () => {
+  const world = new World();
+  const tiles = (keep: (i: number, j: number) => boolean): { i: number; j: number }[] => {
+    const out: { i: number; j: number }[] = [];
+    for (let j = 0; j < world.depth; j++) for (let i = 0; i < world.width; i++) if (keep(i, j)) out.push({ i, j });
+    return out;
+  };
+  /** Water in the grid, whether or not a thin sheet lies over it. */
+  const hasWater = (i: number, j: number): boolean => (world as any).water[j * world.width + i] === 1;
+  const hexOf = (mesh: THREE.InstancedMesh, n: number): number => {
+    const c = new THREE.Color();
+    mesh.getColorAt(n, c);
+    return c.getHex();
+  };
+  const hex = (h: number): number => new THREE.Color(h).getHex();
+  /** The slab and frame colours drawn for a thin-sheet tile. */
+  const sheetColors = (i: number, j: number): { slab: number; frame: number } => {
+    const draw = (world as any).iceSlot.get(j * world.width + i);
+    return { slab: hexOf(draw.slab, draw.slot), frame: hexOf(draw.cracks, draw.slot) };
+  };
+  const sheets = (owner: string) => tiles((i, j) => world.isThinIce(i + 0.5, j + 0.5) && world.ownerAt(i, j) === owner);
+
+  it('says which island shaped a tile, and nothing for sky', () => {
+    expect(world.ownerAt(10, 27)).toBe('meadow');
+    expect(world.ownerAt(-1, 0)).toBe('');
+    expect(world.ownerAt(0, 0)).toBe('');
+  });
+
+  it('keeps Saltmere out of the frost look', () => {
+    const salt = tiles((i, j) => world.ownerAt(i, j) === 'saltmere');
+    expect(salt.length).toBeGreaterThan(0);
+    for (const t of salt) expect(world.isFrostTile(t.i, t.j)).toBe(false);
+    expect(tiles((i, j) => world.isFrostTile(i, j)).every((t) => world.ownerAt(t.i, t.j) === 'frostfang')).toBe(true);
+  });
+
+  it('draws every thin sheet of Saltmere as salt crust: pale, pink-grey, no frost or leaf colour', () => {
+    const list = sheets('saltmere');
+    expect(list.length).toBeGreaterThan(0);
+    for (const t of list) {
+      const { slab, frame } = sheetColors(t.i, t.j);
+      expect(slab, `${t.i},${t.j}`).toBe(hex(0xf0e4e6));
+      expect(frame).toBe(hex(0xaaa5a9));
+      expect(slab).not.toBe(hex(0xa8dcff));
+      expect(slab).not.toBe(hex(0xc4c25a));
+    }
+    const crust = world.group.getObjectByName('salt-crust') as THREE.InstancedMesh;
+    expect(crust.count).toBe(list.length);
+    // No blue glow on the crust.
+    expect((crust.material as THREE.MeshLambertMaterial).emissive.getHex()).toBe(0);
+  });
+
+  it('draws Frostfang sheets as ice and Underroot sheets as leaf mats, as before', () => {
+    const ice = sheets('frostfang');
+    const leaf = sheets('underroot');
+    expect(ice.length).toBeGreaterThan(0);
+    expect(leaf.length).toBeGreaterThan(0);
+    for (const t of ice) expect(sheetColors(t.i, t.j)).toEqual({ slab: hex(0xa8dcff), frame: hex(0xffffff) });
+    for (const t of leaf) expect(sheetColors(t.i, t.j)).toEqual({ slab: hex(0xc4c25a), frame: hex(0x2f5a28) });
+  });
+
+  it('keeps the water of the older islands exactly as it was', () => {
+    const mesh = world.group.getObjectByName('water') as THREE.InstancedMesh;
+    const wet = tiles((i, j) => hasWater(i, j) && world.ownerAt(i, j) !== 'saltmere');
+    expect(mesh.count).toBe(wet.length);
+    expect((mesh.material as THREE.MeshLambertMaterial).opacity).toBe(0.72);
+    wet.forEach((t, n) => {
+      const want = world.isThinIce(t.i + 0.5, t.j + 0.5) ? 0x2f7fb5 : world.isFrostTile(t.i, t.j) ? 0x3aa0d0 : 0x4cc3f0;
+      expect(hexOf(mesh, n), `${t.i},${t.j}`).toBe(hex(want));
+    });
+  });
+
+  it('paints Saltmere water turquoise, darker and bluer the deeper the bed, and a little clearer', () => {
+    const mesh = world.group.getObjectByName('sea-water') as THREE.InstancedMesh;
+    const wet = tiles((i, j) => hasWater(i, j) && world.ownerAt(i, j) === 'saltmere');
+    expect(mesh.count).toBe(wet.length);
+    expect((mesh.material as THREE.MeshLambertMaterial).opacity).toBeLessThan(0.72);
+    const seen = new Map<number, number>();
+    wet.forEach((t, n) => {
+      const depth = world.waterLevelAt(t.i + 0.5, t.j + 0.5) - world.groundAt(t.i + 0.5, t.j + 0.5);
+      const got = hexOf(mesh, n);
+      expect(got).toBe(hex(seaWater(depth)));
+      seen.set(Math.round(depth * 100) / 100, got);
+    });
+    expect(hex(seaWater(2))).toBe(hex(0x46e0d2));
+    expect(hex(seaWater(4))).toBe(hex(0x1f9ab8));
+    expect(hex(seaWater(7))).toBe(hex(0x0b3f7a));
+    const lum = (h: number): number => new THREE.Color(h).getHSL({ h: 0, s: 0, l: 0 }).l;
+    expect(lum(seaWater(2))).toBeGreaterThan(lum(seaWater(4)));
+    expect(lum(seaWater(4))).toBeGreaterThan(lum(seaWater(7)));
   });
 });

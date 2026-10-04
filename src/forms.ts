@@ -1,9 +1,9 @@
 // Every form from PLAN.md, as data. The number key that selects a form is its
 // index in this list, and it unlocks when the player reaches `level`.
 //
-// Human, Fairy, Orangutan, Bunny, Winter Wolf and Ant are playable; the rest are
-// listed so the form bar can show them as locked and so later islands can fill
-// them in without changing the shape of this table.
+// Human, Fairy, Orangutan, Bunny, Winter Wolf, Ant and Mermaid are playable; the
+// rest are listed so the form bar can show them as locked and so later islands
+// can fill them in without changing the shape of this table.
 
 /**
  * The physics every mover shares. player.ts runs on these, and the level
@@ -27,6 +27,22 @@ export const ICE_STUMBLE = 0.15;
 /** Seconds after breaking before a thin-ice tile grows back. */
 export const ICE_REGROW = 4;
 
+/**
+ * How far below the water surface a kelp mat hangs, for a mat the Human fits
+ * under. A body of height h that can dive d fits when d - h >= depth.
+ */
+export const KELP_LOW = 2;
+/** The depth of a mat only the Mermaid fits under. */
+export const KELP_DEEP = 5;
+
+/**
+ * Does a body of height `body` that can dive `dive` fit under a kelp mat that
+ * hangs `depth` below the surface? Its whole body must get below the mat.
+ */
+export function fitsUnderKelp(body: number, dive: number, depth: number): boolean {
+  return dive - body >= depth;
+}
+
 export type FormId =
   | 'human'
   | 'fairy'
@@ -49,6 +65,15 @@ export interface FormDef {
   maxHearts: number;
   /** Ground speed in tiles per second. */
   speed: number;
+  /** Speed in water, in tiles per second. */
+  swim: number;
+  /**
+   * How far below the water surface the feet can go. 0 floats and cannot dive;
+   * Infinity is the bed, however deep.
+   */
+  dive: number;
+  /** 'water': jumps only while swimming at the surface, never from land. */
+  jumpsFrom: 'anywhere' | 'water';
   /**
    * Upward speed of a jump, 0 for forms that fly or cannot jump. With
    * `jumpCut` set, letting go of Space early trims the jump.
@@ -77,6 +102,9 @@ export const FORMS: readonly FormDef[] = [
     level: 0,
     maxHearts: 10,
     speed: 4.6,
+    swim: 2.53,
+    dive: 4,
+    jumpsFrom: 'anywhere',
     jump: 7.6,
     jumpCut: 0,
     chest: 0.9,
@@ -93,6 +121,9 @@ export const FORMS: readonly FormDef[] = [
     level: 1,
     maxHearts: 3,
     speed: 2.9,
+    swim: 1.45,
+    dive: 0,
+    jumpsFrom: 'anywhere',
     jump: 0,
     jumpCut: 0,
     chest: 0.45,
@@ -109,6 +140,9 @@ export const FORMS: readonly FormDef[] = [
     level: 2,
     maxHearts: 7,
     speed: 4.0,
+    swim: 2.2,
+    dive: 0,
+    jumpsFrom: 'anywhere',
     jump: 7.6,
     jumpCut: 0,
     chest: 0.85,
@@ -125,6 +159,9 @@ export const FORMS: readonly FormDef[] = [
     level: 3,
     maxHearts: 4,
     speed: 5.0,
+    swim: 2.75,
+    dive: 0,
+    jumpsFrom: 'anywhere',
     jump: 14.5,
     jumpCut: 4,
     chest: 0.3,
@@ -141,6 +178,9 @@ export const FORMS: readonly FormDef[] = [
     level: 4,
     maxHearts: 12,
     speed: 7.0,
+    swim: 3.85,
+    dive: 0,
+    jumpsFrom: 'anywhere',
     jump: 7.6,
     jumpCut: 0,
     chest: 0.9,
@@ -157,6 +197,9 @@ export const FORMS: readonly FormDef[] = [
     level: 5,
     maxHearts: 1,
     speed: 2.5,
+    swim: 1.375,
+    dive: 0,
+    jumpsFrom: 'anywhere',
     jump: 7.6,
     jumpCut: 0,
     chest: 0.1,
@@ -173,6 +216,9 @@ export const FORMS: readonly FormDef[] = [
     level: 6,
     maxHearts: 15,
     speed: 1.2,
+    swim: 8,
+    dive: Infinity,
+    jumpsFrom: 'water',
     jump: 7.6,
     jumpCut: 0,
     chest: 0.9,
@@ -180,8 +226,8 @@ export const FORMS: readonly FormDef[] = [
     arrowLift: 1.5,
     sword: 'underwater',
     canFly: false,
-    blurb: 'Swim fast and command water and bubbles.',
-    playable: false,
+    blurb: 'Swim fast, dive as deep as you like, and swing your sword in the water.',
+    playable: true,
   },
   {
     id: 'cheetah',
@@ -189,6 +235,9 @@ export const FORMS: readonly FormDef[] = [
     level: 7,
     maxHearts: 11,
     speed: 10.0,
+    swim: 5.5,
+    dive: 0,
+    jumpsFrom: 'anywhere',
     jump: 7.6,
     jumpCut: 0,
     chest: 0.9,
@@ -205,6 +254,9 @@ export const FORMS: readonly FormDef[] = [
     level: 8,
     maxHearts: 6,
     speed: 3.5,
+    swim: 1.925,
+    dive: 0,
+    jumpsFrom: 'anywhere',
     jump: 7.6,
     jumpCut: 0,
     chest: 0.9,
@@ -221,6 +273,9 @@ export const FORMS: readonly FormDef[] = [
     level: 9,
     maxHearts: 5,
     speed: 1.5,
+    swim: 6,
+    dive: 0,
+    jumpsFrom: 'anywhere',
     jump: 7.6,
     jumpCut: 0,
     chest: 0.9,

@@ -2,13 +2,14 @@ import { FORMS, FormId, PHYSICS } from './forms';
 import type { Controls } from './input';
 import { Particles } from './particles';
 import { Player } from './player';
+import { REACH, REACH_HEIGHT } from './things';
 import type { Spot, World } from './world';
 
 // A scripted driver for route tests: a real Player in a real World, steered by
 // a fake keyboard. It is only used by tests. Every move returns whether it
 // worked, and gives up after a time limit, so a route that cannot be done
 // fails instead of hanging. It keeps no secrets from the physics: it can only
-// steer, tap Space and hold Space, like a person.
+// steer, tap Space, hold Space and hold Shift, like a person.
 
 const DT = 1 / 60;
 /** How far a fairy glides along per unit of height she still has to lose. */
@@ -85,9 +86,9 @@ export class Pilot {
     });
     // Tests share one World, so a pilot starts with all the thin ice whole.
     world.resetIce();
-    this.player.level = 5;
+    this.player.level = 6;
     this.shift(form);
-    if (world.solidAt(start.x, start.z, this.player.form.height) !== world.groundAt(start.x, start.z)) {
+    if (world.solidAt(start.x, start.z, this.player.form.height, this.player.form.dive) !== world.groundAt(start.x, start.z)) {
       throw new Error(`cannot start at (${start.x}, ${start.z}): something solid stands there`);
     }
     this.player.hearts = this.player.form.maxHearts;
@@ -146,6 +147,7 @@ export class Pilot {
   private stopSteering(): void {
     this.pad.dir = { x: 0, z: 0 };
     this.pad.down.delete('Space');
+    this.pad.down.delete('ShiftLeft');
     this.jumping = false;
   }
 
@@ -159,7 +161,7 @@ export class Pilot {
 
   // ---- moves -------------------------------------------------------------
 
-  /** Change shape, which needs the level to be high enough (the pilot is level 5). */
+  /** Change shape, which needs the level to be high enough (the pilot is level 6). */
   shift(form: FormId): void {
     const index = FORMS.findIndex((f) => f.id === form);
     if (index !== this.player.formIndex) {
@@ -203,9 +205,10 @@ export class Pilot {
       const qx = this.x + ux * t;
       const qz = this.z + uz * t;
       // A wall: the body (a circle) would be stopped by a taller block ahead.
-      if (this.world.solidUnder(qx + ux * stride, qz + uz * stride, RADIUS, this.player.form.height) > y + PHYSICS.step) return t;
+      const { height, dive } = this.player.form;
+      if (this.world.solidUnder(qx + ux * stride, qz + uz * stride, RADIUS, height, dive) > y + PHYSICS.step) return t;
       // The ground ends under the centre of the body.
-      if (this.world.solidAt(qx, qz, this.player.form.height) < y - PHYSICS.step) return t;
+      if (this.world.solidAt(qx, qz, height, dive) < y - PHYSICS.step) return t;
     }
     return Infinity;
   }
@@ -285,6 +288,71 @@ export class Pilot {
     const ok = this.run(() => this.standingOn(target), seconds - (this.time - start), flying);
     this.stopSteering();
     return ok;
+  }
+
+  // ---- water -------------------------------------------------------------
+
+  /**
+   * Swim toward `target` holding Shift until the feet are at the diver's floor
+   * (the bed, or as deep as the form can go) on the target's tile or next to
+   * it. Fails at once if not in water or the form cannot dive.
+   */
+  dive(target: Spot, { seconds = 15 }: MoveOptions = {}): boolean {
+    const { height, dive } = this.player.form;
+    if (dive <= 0 || !this.world.isWater(this.x, this.z)) return false;
+    const atFloor = (): boolean => {
+      const floor = Math.max(
+        this.world.solidUnder(this.x, this.z, RADIUS, height, dive),
+        this.world.waterLevelAt(this.x, this.z) - dive,
+      );
+      return (
+        this.y <= floor + 1e-6 &&
+        Math.abs(this.tile.i - Math.floor(target.x)) <= 1 &&
+        Math.abs(this.tile.j - Math.floor(target.z)) <= 1
+      );
+    };
+    const ok = this.run(atFloor, seconds, () => {
+      this.steerTo(target);
+      this.pad.down.add('ShiftLeft');
+    });
+    this.stopSteering();
+    return ok;
+  }
+
+  /**
+   * Steer to `target` through the water, with Shift held the whole way if
+   * `under`. Done when the body is within 0.3 of it, on the ground or not.
+   */
+  swim(target: Spot, opts: MoveOptions & { under?: boolean } = {}): boolean {
+    const { seconds = 15, under = false } = opts;
+    const ok = this.run(
+      () => Math.hypot(target.x - this.x, target.z - this.z) < 0.3,
+      seconds,
+      () => {
+        this.steerTo(target);
+        if (under) this.pad.down.add('ShiftLeft');
+        else this.pad.down.delete('ShiftLeft');
+      },
+    );
+    this.stopSteering();
+    return ok;
+  }
+
+  /** Let go of Shift and hold Space until floating at the surface. */
+  surface({ seconds = 10 }: MoveOptions = {}): boolean {
+    this.pad.down.delete('ShiftLeft');
+    this.pad.down.add('Space');
+    const ok = this.run(() => this.player.swimming && !this.player.submerged && this.onGround, seconds);
+    this.stopSteering();
+    return ok;
+  }
+
+  /** Can a speaker or candle at `spot` be used from here? The game's own rule. */
+  canUse(spot: Spot): boolean {
+    return (
+      Math.hypot(spot.x - this.x, spot.z - this.z) < REACH &&
+      Math.abs(this.world.groundAt(spot.x, spot.z) - this.y) < REACH_HEIGHT
+    );
   }
 
   /** Stay on the ground until the fairy's flying energy is full. */

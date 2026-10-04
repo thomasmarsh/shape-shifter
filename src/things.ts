@@ -3,6 +3,7 @@ import {
   makeBread,
   makeCandle,
   makeCheckpoint,
+  makePickle,
   makeSpeaker,
   CandleModel,
   CheckpointModel,
@@ -13,6 +14,11 @@ import type { PuzzleSpot, World } from './world';
 // The things on an island you walk up to: puzzle speakers, the candles they
 // guard, checkpoints and loaves of bread.
 
+/** How close you must be to use a speaker or a candle, in tiles. */
+export const REACH = 2.1;
+/** And how far above or below the thing's ground your feet may be. */
+export const REACH_HEIGHT = 1.5;
+
 export class Puzzle {
   readonly melody: number[];
   /** How bright the flame is right now, around 1. Game feeds it to the light pool. */
@@ -21,6 +27,8 @@ export class Puzzle {
   taken = false;
   readonly speakerPos: THREE.Vector3;
   readonly candlePos: THREE.Vector3;
+  /** True when the candle stands in water: then it is a sea pickle. */
+  readonly pickle: boolean;
   private speaker: SpeakerModel;
   private candle: CandleModel;
   /** Seconds until the speaker next plays its tune out loud. */
@@ -33,7 +41,8 @@ export class Puzzle {
   ) {
     this.melody = spot.melody;
     this.speaker = makeSpeaker();
-    this.candle = makeCandle();
+    this.pickle = world.isWater(spot.candle.x, spot.candle.z);
+    this.candle = this.pickle ? makePickle() : makeCandle();
     this.speakerPos = new THREE.Vector3(spot.speaker.x, world.groundAt(spot.speaker.x, spot.speaker.z), spot.speaker.z);
     this.candlePos = new THREE.Vector3(spot.candle.x, world.groundAt(spot.candle.x, spot.candle.z), spot.candle.z);
     this.speaker.group.position.copy(this.speakerPos);
@@ -43,7 +52,7 @@ export class Puzzle {
 
   /** Where the candle's flame is, for the light flying to the player. */
   get flamePos(): THREE.Vector3 {
-    return new THREE.Vector3(this.candlePos.x, this.candlePos.y + 1.36, this.candlePos.z);
+    return new THREE.Vector3(this.candlePos.x, this.candlePos.y + this.candle.flame.position.y, this.candlePos.z);
   }
 
   refresh(): void {

@@ -100,7 +100,7 @@ describe('Tanglewood geometry', () => {
 
 describe('Tanglewood placement', () => {
   const things = [
-    ...layout.puzzles.flatMap((p) => [
+    ...layout.puzzles.filter((p) => p.speaker.x > 60 && p.speaker.x < 125).flatMap((p) => [
       { n: `${p.id} speaker`, ...p.speaker },
       { n: `${p.id} candle`, ...p.candle },
     ]),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { FORMS, FormId, ICE_REGROW, ICE_SPEED, ICE_STUMBLE } from './forms';
+import * as THREE from 'three';
+import { FORMS, FormId, ICE_REGROW, ICE_SPEED, ICE_STUMBLE, KELP_DEEP, KELP_LOW } from './forms';
 import type { Controls } from './input';
 import { Particles } from './particles';
 import { Pilot } from './pilot';
@@ -684,5 +685,264 @@ describe('Root tangles', () => {
     expect(player.canShiftTo(idx)).toBe('locked');
     player.level = 5;
     expect(player.canShiftTo(idx)).toBe('ok');
+  });
+});
+
+// ---- water: diving, the Mermaid and kelp ---------------------------------
+
+const WATER = 2.7; // the default water level
+const BANK = 3; // a bank 0.3 above it
+const WEST = { x: -1, z: 0 };
+const EAST = { x: 1, z: 0 };
+
+/**
+ * Banks at BANK with a lake cut into them (tiles 10 to 49 by rows 5 to 25),
+ * `depth` deep, `shape` adding to it.
+ */
+function lake(depth: number, shape: (t: Parameters<Island['build']>[0]) => void = () => {}): Island {
+  return {
+    id: 'lake',
+    name: 'Lake',
+    build(t) {
+      t.rect(0, 0, 70, 30, (i, j) => t.set(i, j, BANK, Kind.Grass));
+      t.rect(10, 5, 49, 25, (i, j) => {
+        t.set(i, j, WATER - depth, Kind.Sand);
+        t.setWater(i, j, true);
+      });
+      shape(t);
+      return { spawn: { x: 2.5, z: 15.5 } };
+    },
+  };
+}
+
+const IN_LAKE = { x: 14.5, z: 15.5 };
+const formIndex = (id: FormId): number => FORMS.findIndex((f) => f.id === id);
+const floatOf = (form: FormId): number => WATER - (form === 'fairy' ? 0.25 : 0.8);
+
+describe('Diving', () => {
+  it('takes a Human down exactly 4 below the surface in a pool 6 deep, and back up on letting go', () => {
+    const rig = new Rig('human', lake(6), IN_LAKE);
+    expect(rig.player.pos.y).toBeCloseTo(floatOf('human'), 9);
+    rig.pad.down.add('ShiftRight');
+    expect(rig.until(() => rig.player.submerged)).toBe(true);
+    expect(rig.player.swimming).toBe(true);
+    expect(rig.player.onGround).toBe(false);
+    rig.frames(120);
+    expect(rig.player.pos.y).toBeCloseTo(WATER - 4, 5);
+    rig.pad.down.delete('ShiftRight');
+    rig.frames(120);
+    expect(rig.player.pos.y).toBeCloseTo(floatOf('human'), 9);
+    expect(rig.player.submerged).toBe(false);
+    expect(rig.player.onGround).toBe(true);
+  });
+
+  it('stops a Human on a bed 3 deep at the bed', () => {
+    const rig = new Rig('human', lake(3), IN_LAKE);
+    rig.pad.down.add('ShiftLeft');
+    rig.frames(120);
+    expect(rig.player.pos.y).toBeCloseTo(WATER - 3, 5);
+  });
+
+  it('lets the Human use a thing on a bed 4 deep only when dived', () => {
+    // Pool 6 deep with a stretch of bed 4 deep on the east side.
+    const world = new World([lake(6, (t) => t.rect(20, 5, 49, 25, (i, j) => t.set(i, j, WATER - 4, Kind.Sand)))]);
+    const thing = { x: 25.5, z: 15.5 };
+    const pilot = new Pilot(world, 'human', IN_LAKE);
+    expect(pilot.swim({ x: 23.5, z: 15.5 })).toBe(true);
+    expect(pilot.canUse(thing)).toBe(false);
+    expect(pilot.dive({ x: 23.5, z: 15.5 })).toBe(true);
+    expect(pilot.y).toBeCloseTo(WATER - 4, 5);
+    expect(pilot.canUse(thing)).toBe(true);
+    expect(pilot.surface()).toBe(true);
+    expect(pilot.canUse(thing)).toBe(false);
+  });
+
+  it('leaves every other old form at its float height with Shift held', () => {
+    for (const form of ['fairy', 'orangutan', 'bunny', 'wolf', 'ant'] as const) {
+      const rig = new Rig(form, lake(6), IN_LAKE);
+      rig.pad.down.add('ShiftLeft');
+      rig.frames(60);
+      expect(rig.player.pos.y, form).toBeCloseTo(floatOf(form), 9);
+      expect(rig.player.submerged, form).toBe(false);
+    }
+  });
+
+  it('keeps the old swimming speeds', () => {
+    for (const form of FORMS.filter((f) => ['human', 'fairy', 'orangutan', 'bunny', 'wolf', 'ant'].includes(f.id))) {
+      expect(form.swim, form.id).toBeCloseTo(form.speed * (form.id === 'fairy' ? 0.5 : 0.55), 9);
+      const rig = new Rig(form.id, lake(6), IN_LAKE);
+      rig.frame();
+      rig.pad.dir = EAST;
+      const x = rig.player.pos.x;
+      rig.frames(30);
+      expect(rig.player.pos.x - x, form.id).toBeCloseTo(form.swim * 0.5, 6);
+    }
+  });
+});
+
+describe('Mermaid', () => {
+  const swordHits = (rig: Rig): number[] => {
+    const hits: number[] = [];
+    const dummy = {
+      pos: new THREE.Vector3(rig.player.pos.x + 1, rig.player.pos.y, rig.player.pos.z),
+      alive: true,
+      takeHit: (damage: number) => hits.push(damage),
+    };
+    rig.pad.tapped.add('KeyJ');
+    for (let n = 0; n < 30; n++) {
+      rig.player.update(DT, rig.pad, [dummy]);
+      rig.pad.tapped.clear();
+    }
+    return hits;
+  };
+
+  it('is playable, dives without limit and reaches a bed 8 deep', () => {
+    expect(FORMS[formIndex('mermaid')].playable).toBe(true);
+    const rig = new Rig('mermaid', lake(8), IN_LAKE);
+    rig.pad.down.add('ShiftLeft');
+    rig.frames(120);
+    expect(rig.player.pos.y).toBeCloseTo(WATER - 8, 5);
+    rig.pad.down.delete('ShiftLeft');
+    rig.frames(120);
+    expect(rig.player.pos.y).toBeCloseTo(floatOf('mermaid'), 9);
+  });
+
+  it('swims 8 tiles a second and walks 1.2', () => {
+    const rig = new Rig('mermaid', lake(6), IN_LAKE);
+    rig.frame();
+    rig.pad.dir = EAST;
+    const x = rig.player.pos.x;
+    rig.frames(30);
+    expect(rig.player.pos.x - x).toBeCloseTo(4, 6);
+    const land = new Rig('mermaid', lake(6), { x: 3.5, z: 15.5 });
+    land.pad.dir = EAST;
+    land.frames(60);
+    expect(land.player.pos.x - 3.5).toBeCloseTo(1.2, 6);
+  });
+
+  it('cannot jump on land, but can jump out of the water onto a bank 0.3 above it', () => {
+    const rig = new Rig('mermaid', lake(6), { x: 3.5, z: 15.5 });
+    rig.pad.tapped.add('Space');
+    rig.frames(30);
+    expect(rig.player.pos.y).toBe(BANK);
+
+    // At the west edge of the lake, facing the bank.
+    const out = new Rig('mermaid', lake(6), { x: 10.5, z: 15.5 });
+    out.frame();
+    out.pad.dir = WEST;
+    out.pad.tapped.add('Space');
+    out.frames(120);
+    expect(out.player.pos.x).toBeLessThan(10);
+    expect(out.player.pos.y).toBeCloseTo(BANK, 9);
+    expect(out.player.onGround).toBe(true);
+  });
+
+  it('swings the sword only while swimming, for the full damage of the tier', () => {
+    expect(swordHits(new Rig('mermaid', lake(6), { x: 3.5, z: 15.5 }))).toEqual([]);
+    const wet = new Rig('mermaid', lake(6), IN_LAKE);
+    wet.frame();
+    expect(swordHits(wet)).toEqual([4]);
+  });
+});
+
+describe('Kelp', () => {
+  // A band of kelp 5 tiles wide across the whole lake.
+  const mat = (depth: number) => lake(8, (t) => t.rect(20, 5, 24, 25, (i, j) => t.setKelp(i, j, depth)));
+  const BAND_WEST = 20 - 0.3; // the body stops this far from the mat's west edge
+
+  const pushEast = (rig: Rig, frames = 400): number => {
+    rig.pad.dir = EAST;
+    rig.frames(frames);
+    return rig.player.pos.x;
+  };
+
+  it('is a wall to a floating and a dived Human and to a flying Fairy', () => {
+    for (const dived of [false, true]) {
+      const rig = new Rig('human', mat(KELP_DEEP), IN_LAKE);
+      if (dived) rig.pad.down.add('ShiftLeft');
+      expect(pushEast(rig, 600), `human dived ${dived}`).toBeLessThanOrEqual(BAND_WEST + 1e-6);
+    }
+    const fairy = new Rig('fairy', mat(KELP_DEEP), IN_LAKE);
+    fairy.pad.down.add('Space');
+    expect(pushEast(fairy, 600)).toBeLessThanOrEqual(BAND_WEST + 1e-6);
+  });
+
+  it('is a wall to a hop-then-fly', () => {
+    const open = lake(8, (t) => t.rect(20, 5, 24, 25, (i, j) => t.setKelp(i, j, 0)));
+    const target = { x: 28.5, z: 15.5 };
+    const free = new Pilot(new World([open]), 'bunny', { x: 5.5, z: 15.5 });
+    expect(free.hopThenFly(target, { seconds: 30 })).toBe(true);
+    const pilot = new Pilot(new World([mat(KELP_DEEP)]), 'bunny', { x: 5.5, z: 15.5 });
+    expect(pilot.hopThenFly(target, { seconds: 30 })).toBe(false);
+    expect(pilot.x).toBeLessThan(20);
+  });
+
+  it('lets the Mermaid swim under it, held there with no surfacing and no shifting', () => {
+    const rig = new Rig('mermaid', mat(KELP_DEEP), IN_LAKE);
+    const ceiling = WATER - KELP_DEEP - FORMS[formIndex('mermaid')].height;
+    rig.pad.dir = EAST;
+    expect(rig.until(() => rig.player.inKelp && rig.player.pos.y <= ceiling + 1e-9)).toBe(true);
+    expect(rig.player.pos.y).toBeCloseTo(ceiling, 9);
+    // Space does nothing: no jumping, and nothing lifts her above the mat.
+    rig.pad.down.add('Space');
+    rig.pad.tapped.add('Space');
+    rig.frames(10);
+    expect(rig.player.inKelp).toBe(true);
+    expect(rig.player.pos.y).toBeCloseTo(ceiling, 9);
+    expect(rig.player.canShiftTo(0)).toBe('cramped');
+    expect(rig.player.shiftTo(0)).toBe(false);
+    rig.pad.down.clear();
+    expect(rig.until(() => rig.player.pos.x > 28, 300)).toBe(true);
+    rig.pad.dir = { x: 0, z: 0 };
+    rig.frames(120);
+    expect(rig.player.pos.y).toBeCloseTo(floatOf('mermaid'), 9);
+  });
+
+  it('lets a Human through a low mat by ducking, and walls out everyone else', () => {
+    const human = new Rig('human', mat(KELP_LOW), IN_LAKE);
+    const ceiling = WATER - KELP_LOW - FORMS[0].height;
+    human.pad.dir = EAST;
+    expect(human.until(() => human.player.inKelp && human.player.pos.y <= ceiling + 1e-9)).toBe(true);
+    expect(human.until(() => human.player.pos.x > 28, 600)).toBe(true);
+    for (const form of ['wolf', 'bunny', 'fairy', 'ant', 'orangutan'] as const) {
+      const rig = new Rig(form, mat(KELP_LOW), IN_LAKE);
+      if (form === 'fairy') rig.pad.down.add('Space');
+      expect(pushEast(rig, 600), form).toBeLessThanOrEqual(BAND_WEST + 1e-6);
+    }
+  });
+});
+
+describe('Pilot in water', () => {
+  // A strait 3 wide and 40 long between banks, with 12 tiles of deep kelp in it.
+  const strait = (): World =>
+    new World([
+      {
+        id: 'strait',
+        name: 'Strait',
+        build(t) {
+          t.rect(0, 0, 70, 30, (i, j) => t.set(i, j, BANK, Kind.Grass));
+          t.rect(10, 14, 49, 16, (i, j) => {
+            t.set(i, j, WATER - 8, Kind.Sand);
+            t.setWater(i, j, true);
+          });
+          t.rect(20, 14, 31, 16, (i, j) => t.setKelp(i, j, KELP_DEEP));
+          return { spawn: { x: 2.5, z: 15.5 } };
+        },
+      },
+    ]);
+  const far = { x: 40.5, z: 15.5 };
+
+  it('has the Mermaid swim under the channel and come out the far side', () => {
+    const pilot = new Pilot(strait(), 'mermaid', { x: 12.5, z: 15.5 });
+    expect(pilot.swim(far, { under: true })).toBe(true);
+    expect(pilot.surface()).toBe(true);
+    expect(pilot.x).toBeGreaterThan(32);
+  });
+
+  it('keeps a Human out of it', () => {
+    const pilot = new Pilot(strait(), 'human', { x: 12.5, z: 15.5 });
+    expect(pilot.swim(far, { seconds: 20 })).toBe(false);
+    expect(pilot.swim(far, { seconds: 20, under: true })).toBe(false);
+    expect(pilot.x).toBeLessThan(20);
   });
 });

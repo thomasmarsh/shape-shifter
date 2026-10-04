@@ -18,4 +18,8 @@ describe('the cold that follows the camera', () => {
     for (let z = 0; z <= 64; z += 4) expect(coldAt(320, z), `z=${z}`).toBe(0);
     expect(coldAt(400, 10)).toBe(0);
   });
+
+  it('is 0 on every column of Underroot hub north edge', () => {
+    for (const z of [46, 47, 52]) for (let x = 299; x <= 330; x++) expect(coldAt(x, z), `x=${x} z=${z}`).toBe(0);
+  });
 });

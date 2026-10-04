@@ -30,16 +30,34 @@ function slab(t: Terrain, i0: number, j0: number, i1: number, j1: number, h: num
   t.rect(i0, j0, i1, j1, (i, j) => t.set(i, j, h, kind));
 }
 
+/**
+ * Clear runs of 2 to 4 tiles along one edge row, from column i0 to i1, with a kept
+ * run of at least 2 between them, so no tooth or notch is a single tile wide. A
+ * run never covers a tile that `keep` names or goes past i1.
+ */
+export function nibbleRow(t: Terrain, z: number, i0: number, i1: number, keep: (i: number) => boolean, seed: number): void {
+  let i = i0;
+  while (i <= i1) {
+    const len = 2 + Math.floor(t.hash(i, z, seed) * 3);
+    let clear = t.hash(i, z, seed + 100) < 0.45 && i + len - 1 <= i1;
+    for (let k = i; clear && k < i + len; k++) if (keep(k)) clear = false;
+    if (clear) {
+      for (let k = i; k < i + len; k++) t.clear(k, z);
+      i += len;
+    }
+    // A kept run follows, at least 2 long.
+    i += clear ? 2 + Math.floor(t.hash(i, z, seed + 200) * 2) : 1;
+  }
+}
+
 /** Shape the east half of Underroot and return what stands on it. */
 export function buildEast(t: Terrain): IslandLayout {
   // ---- E0: the hub's east end ----------------------------------------------
   slab(t, 385, 46, 425, 58, HUB, Kind.Moss);
-  // Nibble the north and south edges (the north edge stays straight at x 390..396
-  // for the first great tree), keeping the band at least 11 deep.
-  for (let i = 386; i <= 424; i++) {
-    if (i < 390 || i > 396) if (t.hash(i, 46, 31) > 0.55) t.clear(i, 46);
-    if (t.hash(i, 58, 32) > 0.55) t.clear(i, 58);
-  }
+  // Nibble the north and south edges in runs (the north edge stays straight at x
+  // 390..396 for the first great tree), keeping the band at least 11 deep.
+  nibbleRow(t, 46, 386, 424, (i) => i >= 390 && i <= 396, 31);
+  nibbleRow(t, 58, 386, 424, () => false, 32);
 
   // ---- E1: the Root Grove --------------------------------------------------
   slab(t, 393, 43, 393, 43, HUB + 1, Kind.Stone); // T2's pillar

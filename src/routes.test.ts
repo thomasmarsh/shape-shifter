@@ -346,9 +346,18 @@ function gapIsland(gap: number, rise: number): Island {
 const launch = { x: 19.5, z: 15.5 };
 const landing = (gap: number) => ({ x: 20 + gap + 0.5, z: 15.5 });
 
+/** Building a World costs milliseconds and a plain stone island never changes, so each (gap, rise) is built once. */
+const gapWorlds = new Map<string, World>();
+function gapWorld(gap: number, rise: number): World {
+  const key = `${gap},${rise}`;
+  let w = gapWorlds.get(key);
+  if (!w) gapWorlds.set(key, (w = new World([gapIsland(gap, rise)])));
+  return w;
+}
+
 /** Does a bunny make it across with a hop-then-fly, taking off `edge` tiles from the rim? */
 function hopFlies(gap: number, rise: number, edge: number): boolean {
-  const p = new Pilot(new World([gapIsland(gap, rise)]), 'bunny', launch);
+  const p = new Pilot(gapWorld(gap, rise), 'bunny', launch);
   return p.hopThenFly(landing(gap), { edge });
 }
 

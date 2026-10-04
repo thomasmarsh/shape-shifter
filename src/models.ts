@@ -109,6 +109,83 @@ export function makeHuman(look: Look = DEFAULT_LOOK): HumanModel {
   return { group, armL, armR, legL, legR, blade };
 }
 
+export interface MermaidModel {
+  group: THREE.Group;
+  /** Pivots at her waist: tipping it forward lays her out to swim. */
+  swim: THREE.Group;
+  armL: THREE.Group;
+  armR: THREE.Group;
+  /** The three bending parts of the tail, each pivoting where it joins the one before. */
+  tail: THREE.Group;
+  tailEnd: THREE.Group;
+  fin: THREE.Group;
+  blade: THREE.Mesh;
+}
+
+/** How high her waist is above her feet when she sits upright on her tail. */
+export const MERMAID_WAIST = 0.72;
+
+/**
+ * A human top half with long hair, and from the waist down a scaled tail in sea
+ * greens ending in a wide fin. Her sword rides in the right hand like the Human's.
+ */
+export function makeMermaid(): MermaidModel {
+  const group = new THREE.Group();
+  const swim = new THREE.Group();
+  swim.position.y = MERMAID_WAIST;
+  group.add(swim);
+  const skin = mat(0xf2c79b);
+  const top = mat(0x2fa59a);
+  const hair = mat(0x1f7f77);
+  const scale = mat(0x2f9e7a);
+  const scaleDark = mat(0x1f7a63);
+  const finColor = mat(0x58c9a0);
+
+  // Everything here is measured from the waist.
+  const armL = limb(0.16, 0.5, 0.18, skin, -0.34, 0.42);
+  const armR = limb(0.16, 0.5, 0.18, skin, 0.34, 0.42);
+  swim.add(
+    armL,
+    armR,
+    box(0.5, 0.52, 0.3, top, 0, 0.26, 0),
+    box(0.46, 0.44, 0.44, skin, 0, 0.72, 0),
+    box(0.5, 0.2, 0.48, hair, 0, 0.92, -0.01),
+    // Hair falls long down her back.
+    box(0.5, 0.9, 0.14, hair, 0, 0.5, -0.2),
+    box(0.4, 0.3, 0.12, hair, 0, -0.1, -0.2),
+    box(0.07, 0.09, 0.03, mat(0x2a2a35), -0.11, 0.72, 0.225),
+    box(0.07, 0.09, 0.03, mat(0x2a2a35), 0.11, 0.72, 0.225),
+  );
+
+  // The tail: hips, then a narrower middle, then the fin, each bending on its own.
+  const tail = new THREE.Group();
+  tail.add(box(0.46, 0.3, 0.3, scale, 0, -0.15, 0), box(0.4, 0.05, 0.26, scaleDark, 0, -0.08, 0), box(0.4, 0.05, 0.26, scaleDark, 0, -0.2, 0));
+  const tailEnd = new THREE.Group();
+  tailEnd.position.y = -0.3;
+  tailEnd.add(box(0.3, 0.26, 0.24, scale, 0, -0.13, 0), box(0.3, 0.05, 0.2, scaleDark, 0, -0.1, 0));
+  const fin = new THREE.Group();
+  fin.position.y = -0.26;
+  fin.add(
+    box(0.18, 0.14, 0.16, scale, 0, -0.05, 0),
+    box(0.8, 0.05, 0.22, finColor, 0, -0.12, 0.03),
+    box(0.55, 0.05, 0.2, finColor, 0, -0.12, 0.2),
+    box(0.16, 0.05, 0.1, scaleDark, 0, -0.12, 0.06),
+  );
+  tailEnd.add(fin);
+  tail.add(tailEnd);
+  swim.add(tail);
+
+  // The sword rides in the right hand, pointing forward and up.
+  const sword = new THREE.Group();
+  sword.position.set(0, -0.52, 0.06);
+  sword.rotation.x = Math.PI / 2 - 0.5;
+  const blade = box(0.09, 0.62, 0.05, new THREE.MeshLambertMaterial({ color: 0xb07a3f }), 0, 0.42, 0);
+  sword.add(blade, box(0.26, 0.06, 0.09, mat(0x6b4423), 0, 0.1, 0), box(0.07, 0.16, 0.07, mat(0x4a2f17), 0, 0, 0));
+  armR.add(sword);
+
+  return { group, swim, armL, armR, tail, tailEnd, fin, blade };
+}
+
 export interface FairyModel {
   group: THREE.Group;
   wingL: THREE.Group;
@@ -571,6 +648,60 @@ export function makeGreatTree(seed: number): THREE.Group {
   return group;
 }
 
+/**
+ * A palm: a slim ringed trunk, a little paler than a tree's, and a crown of
+ * drooping fronds. Frond roots sit just under the top of the crown and they fall
+ * outward and down, so nothing stands hidden on top. `top` is the height of the
+ * solid block.
+ */
+function makePalmOf(seed: number, top: number, trunk: number, size: number): THREE.Group {
+  const group = new THREE.Group();
+  const bark = mat(0x9a7248);
+  const ring = mat(0x7d5a38);
+  const hubTop = top;
+  group.add(box(trunk * 0.8, top - 0.2, trunk * 0.8, bark, 0, (top - 0.2) / 2, 0));
+  for (let y = 0.2; y < top - 0.3; y += 0.3) group.add(box(trunk, 0.09, trunk, ring, 0, y, 0));
+  // Hub with a few coconuts hanging below it.
+  group.add(box(trunk * 1.5, 0.2, trunk * 1.5, mat(0x6b4a2c), 0, hubTop - 0.1, 0));
+  for (const [x, z] of [[-1, -1], [1, 1], [1, -1]] as const) {
+    group.add(box(0.16, 0.16, 0.16, mat(0x4a331e), x * trunk * 0.5, hubTop - 0.3, z * trunk * 0.5));
+  }
+  const leaves = [mat(0x3c9a48), mat(0x4aa856), mat(0x2f8a45)];
+  const fronds = size > 1 ? 8 : 7;
+  for (let n = 0; n < fronds; n++) {
+    const root = new THREE.Group();
+    root.position.y = hubTop - 0.14;
+    root.rotation.y = (n / fronds) * Math.PI * 2 + seed * 0.3;
+    const leaf = leaves[(n + seed) % 3];
+    // Three segments, each drooping further than the last, so the tip hangs.
+    let parent: THREE.Group = root;
+    parent.rotation.z = -0.12;
+    const lens = [0.7 * size, 0.6 * size, 0.45 * size];
+    const droop = [0, -0.5, -0.6];
+    lens.forEach((len, k) => {
+      const seg = new THREE.Group();
+      seg.position.x = k === 0 ? 0.1 : lens[k - 1];
+      seg.rotation.z = droop[k];
+      seg.add(box(len, 0.05, 0.3 * size * (1 - k * 0.2), leaf, len / 2, 0, 0));
+      parent.add(seg);
+      parent = seg;
+    });
+    group.add(root);
+  }
+  group.rotation.y = (seed % 4) * 0.2;
+  return group;
+}
+
+/** A palm, 3.8 to 4.0 up like a regular tree, matching its solid block. */
+export function makePalm(seed: number): THREE.Group {
+  return makePalmOf(seed, 3.8 + (seed % 3) * 0.1, 0.26, 1);
+}
+
+/** A great palm, exactly 5.0 tall like a great tree, with a thicker trunk and bigger fronds. */
+export function makeGreatPalm(seed: number): THREE.Group {
+  return makePalmOf(seed, 5.0, 0.36, 1.3);
+}
+
 /** A pine: a short trunk and stacked tiers with snow on top. Its top is 3.8 to 4.0 up, matching its solid block. */
 export function makePine(seed: number): THREE.Group {
   const group = new THREE.Group();
@@ -680,6 +811,54 @@ export function makeCandle(): CandleModel {
     new THREE.MeshBasicMaterial({ color: 0xb48cff, transparent: true, opacity: 0.28, depthWrite: false }),
   );
   cage.position.y = 0.95;
+  group.add(flame, cage);
+  return { group, flame, cage };
+}
+
+/**
+ * A sea pickle, for a puzzle whose candle stands in the water: a fat upright
+ * yellow-green gherkin about 1.1 tall with darker bumps, and a soft glow above
+ * it where the flame would be. It hands back the same parts as a candle.
+ */
+export function makePickle(): CandleModel {
+  const group = new THREE.Group();
+  const body = mat(0xa8c93c);
+  const bump = mat(0x6f8f26);
+  group.add(
+    box(0.4, 0.14, 0.4, body, 0, 0.07, 0),
+    box(0.54, 0.8, 0.54, body, 0, 0.54, 0),
+    box(0.36, 0.16, 0.36, body, 0, 1.02, 0),
+    box(0.1, 0.1, 0.1, bump, 0, 1.12, 0),
+  );
+  // Darker bumps on every side.
+  const bumps: [number, number, number][] = [
+    [0.28, 0.35, 0.1],
+    [0.28, 0.7, -0.12],
+    [-0.28, 0.5, 0.12],
+    [-0.28, 0.85, -0.1],
+  ];
+  for (const [x, y, z] of bumps) {
+    group.add(box(0.1, 0.12, 0.12, bump, x, y, z), box(0.12, 0.12, 0.1, bump, z, y, x));
+  }
+  const flame = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.13),
+    new THREE.MeshBasicMaterial({ color: 0xf2ff8a }),
+  );
+  flame.scale.set(1, 1.7, 1);
+  flame.position.y = 1.32;
+  flame.add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xd8ff5a, transparent: true, opacity: 0.25, depthWrite: false }),
+    ),
+  );
+
+  // The same shimmering cage holds the light until the puzzle is solved.
+  const cage = new THREE.Mesh(
+    new THREE.BoxGeometry(0.95, 1.7, 0.95),
+    new THREE.MeshBasicMaterial({ color: 0xb48cff, transparent: true, opacity: 0.28, depthWrite: false }),
+  );
+  cage.position.y = 0.85;
   group.add(flame, cage);
   return { group, flame, cage };
 }

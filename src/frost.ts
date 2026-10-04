@@ -39,8 +39,8 @@ const SIDES = [
 /**
  * 0 where the camera is well away from Frostfang, 1 once it is properly there.
  * Underroot's landing touches the end of Frostfang's last run (x 303..305, z 45),
- * so from x = 294 east the cold also fades out to the south: it is 1 at z <= 30 and
- * 0 from z = 52. East of x = 320 it is 0 whatever z is.
+ * so from x = 290 east the cold also fades out to the south: it is 1 at z <= 30 and
+ * 0 from z = 46, so none of Underroot's hub (z >= 46 for x >= 299) is cold. East of x = 320 it is 0 whatever z is.
  */
 export function coldAt(x: number, z = 0): number {
   const smooth = (t: number): number => {
@@ -49,7 +49,7 @@ export function coldAt(x: number, z = 0): number {
   };
   const west = smooth((x - 190) / 14);
   const east = 1 - smooth((x - 306) / 14);
-  const south = smooth((x - 294) / 6) * smooth((z - 30) / 22);
+  const south = smooth((x - 290) / 6) * smooth((z - 30) / 16);
   return west * east * (1 - south);
 }
 
