@@ -1,6 +1,7 @@
 import { KELP_DEEP } from '../forms';
 import { EnemySpot, HintZone, Island, IslandLayout, Kind, PuzzleSpot, Terrain, TreeSpot } from '../layout';
 import { buildCoilstoneEast, HUB, LANDING, slab } from './coilstone-east';
+import { fillCoilstone } from './coilstone-fill';
 
 // Coilstone: a ruined stone city on a cloud, split by the Rift. This file builds
 // the west half (x 960..1030): the Landing, the Ramp, the North Court, the hub
@@ -134,13 +135,14 @@ export const coilstone: Island = {
 
     // ---- The east half --------------------------------------------------------
     const east = buildCoilstoneEast(t);
+    const fill = fillCoilstone(t);
     return {
       checkpoints: [...checkpoints, ...(east.checkpoints ?? [])],
       puzzles: [...puzzles, ...(east.puzzles ?? [])],
-      enemies: [...enemies, ...(east.enemies ?? [])],
-      bread: [...bread, ...(east.bread ?? [])],
+      enemies: [...enemies, ...(east.enemies ?? []), ...(fill.enemies ?? [])],
+      bread: [...bread, ...(east.bread ?? []), ...(fill.bread ?? [])],
       trees: [...trees, ...(east.trees ?? [])],
-      hints: [...hints, ...(east.hints ?? [])],
+      hints: [...hints, ...(east.hints ?? []), ...(fill.hints ?? [])],
       arrivals: [...arrivals, ...(east.arrivals ?? [])],
       plates: [...(east.plates ?? [])],
     };

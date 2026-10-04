@@ -12,10 +12,9 @@ import {
 } from './testkit';
 
 // What fill.ts, hollowfen-fill.ts and galecrest-fill.ts put on the two flat
-// hubs. The rectangles and bad guys below are copied from those files, so a
+// hubs, and Coilstone's and Sunveld's cities. The rectangles and bad guys below are copied from those files, so a
 // change there shows up here.
 
-const HUB = 12;
 const world = new World();
 const { layout } = world;
 
@@ -24,6 +23,7 @@ type Pos = { x: number; z: number; kind?: string };
 
 const NINE: FormId[] = ['human', 'fairy', 'orangutan', 'bunny', 'wolf', 'ant', 'mermaid', 'cheetah', 'snake'];
 const TEN: FormId[] = [...NINE, 'axolotl'];
+const EIGHT: FormId[] = NINE.filter((f) => f !== 'snake');
 
 interface Island {
   name: string;
@@ -41,9 +41,14 @@ interface Island {
   fillEnemies: Pos[];
   fillBread: string[];
   fillHints: string[];
-  ring: Rect;
+  hub: number;
+  /** Bread on a holt's stone: only the Axolotl reaches it, so holt.test.ts proves it and this file leaves it out. */
+  holtBread: string[];
+  rings: Rect[];
   wayOff: { x: number; z: number };
   lanes: Rect[];
+  /** Fill bad guys the camera does not see (hidden behind higher ground), by position. */
+  unseen?: string[];
 }
 
 const ISLANDS: Island[] = [
@@ -91,9 +96,11 @@ const ISLANDS: Island[] = [
       { x: 1322.5, z: 50.5 },
       { x: 1324.5, z: 52.5 },
     ],
-    fillBread: ['hf-f-eye', 'hf-f-mere', 'hf-f-cut'],
-    fillHints: ['hf-f-eye', 'hf-e-mere'],
-    ring: [1214, 47, 1228, 61],
+    fillBread: ['hf-f-eye', 'hf-f-mere', 'hf-f-cut', 'hf-f-holt'], // hf-f-holt is new with the Holt
+    fillHints: ['hf-f-eye', 'hf-e-mere', 'hf-e-holt'], // hf-e-holt is new with the Holt
+    hub: 12,
+    holtBread: ['hf-f-holt'],
+    rings: [[1214, 47, 1228, 61]],
     wayOff: { x: 1327.5, z: 30.5 },
     lanes: [
       [1219, 3, 1235, 7],
@@ -148,15 +155,136 @@ const ISLANDS: Island[] = [
       { x: 1500.5, z: 58.5 },
       { x: 1498.5, z: 60.5 },
     ],
-    fillBread: ['gc-f-mirror', 'gc-f-wind', 'gc-f-north'],
-    fillHints: ['gc-f-mirror', 'gc-e-wind'],
-    ring: [1421, 47, 1435, 61],
+    fillBread: ['gc-f-mirror', 'gc-f-wind', 'gc-f-north', 'gc-f-kettle', 'gc-f-cauldron'], // the last two are new with the holts
+    fillHints: ['gc-f-mirror', 'gc-e-wind', 'gc-f-kettle', 'gc-e-cauldron'], // the last two are new with the holts
+    hub: 12,
+    holtBread: ['gc-f-kettle', 'gc-f-cauldron'],
+    rings: [[1421, 47, 1435, 61]],
     wayOff: { x: 1527.5, z: 29.5 },
     lanes: [
       [1426, 3, 1442, 7],
       [1473, 3, 1489, 7],
-      [1402, 38, 1442, 41],
+      [1402, 38, 1442, 40], // row 41 holds the roof of the Tarn's cell at x 1411..1415
       [1507, 0, 1511, 35],
+    ],
+  },
+  {
+    name: 'Coilstone',
+    range: { x0: 930, x1: 1136 },
+    x0: 960,
+    x1: 1129,
+    forms: NINE,
+    start: 'cs-hub',
+    farStart: 'cs-far',
+    split: 1061,
+    breadPrefix: 'cs-f-',
+    ponds: [
+      [997, 8, 1003, 12],
+      [1020, 28, 1027, 34],
+      [1074, 28, 1079, 34],
+    ],
+    dells: [
+      [997, 29, 1003, 33],
+      [1022, 14, 1028, 18],
+      [1072, 14, 1078, 19],
+      [1097, 54, 1102, 60],
+    ],
+    thickets: [
+      [1005, 20, 1006, 22],
+      [1006, 30, 1007, 32],
+      [1028, 24, 1029, 26],
+      [1080, 9, 1081, 11],
+      [1096, 12, 1097, 14],
+      [1076, 58, 1077, 60],
+    ],
+    fillEnemies: [
+      { x: 1004.5, z: 10.5 },
+      { x: 1006.5, z: 13.5 },
+      { x: 1024.5, z: 36.5, kind: 'blade' },
+      { x: 1026.5, z: 26.5 },
+      { x: 1028.5, z: 38.5, kind: 'archer' },
+      { x: 1088.5, z: 13.5, kind: 'blade' },
+      { x: 1090.5, z: 14.5, kind: 'blade' },
+      { x: 1095.5, z: 3.5 },
+      { x: 1099.5, z: 5.5, kind: 'archer' },
+      { x: 1076.5, z: 22.5 },
+      { x: 1079.5, z: 26.5 },
+    ],
+    fillBread: ['cs-f-font', 'cs-f-basin', 'cs-f-vault'],
+    fillHints: ['cs-f-font', 'cs-e-vault'],
+    hub: 12,
+    holtBread: ['cs-f-vault'],
+    rings: [[1082, 40, 1096, 56]],
+    wayOff: { x: 1101.5, z: 30.5 },
+    lanes: [
+      [1014, 3, 1030, 7],
+      [1061, 3, 1077, 7],
+      [996, 38, 1030, 41],
+      [1081, 12, 1083, 39],
+    ],
+  },
+  {
+    name: 'Sunveld',
+    range: { x0: 670, x1: 960 },
+    x0: 700,
+    x1: 940,
+    forms: EIGHT,
+    start: 'sv-mid',
+    farStart: 'sv-mid', // one bank, no Gap: the split below is past the island, so the west explore serves everywhere
+    split: 100000,
+    breadPrefix: 'sv-f-',
+    ponds: [
+      [704, 22, 711, 27],
+      [722, 44, 729, 49],
+      [770, 14, 777, 19],
+      [800, 42, 808, 47],
+      [806, 14, 813, 19],
+      [840, 14, 848, 19],
+    ],
+    dells: [
+      [702, 34, 708, 39],
+      [756, 44, 762, 49],
+      [782, 16, 788, 21],
+      [786, 44, 792, 49],
+      [808, 26, 814, 31],
+      [852, 20, 858, 25],
+    ],
+    thickets: [
+      [713, 30, 714, 32],
+      [716, 44, 717, 46],
+      [738, 46, 739, 48],
+      [768, 40, 769, 42],
+      [797, 50, 798, 52],
+      [822, 24, 823, 26],
+      [851, 36, 852, 38],
+    ],
+    fillEnemies: [
+      { x: 712.5, z: 20.5 },
+      { x: 714.5, z: 24.5 },
+      { x: 731.5, z: 42.5 },
+      { x: 726.5, z: 52.5, kind: 'blade' },
+      { x: 770.5, z: 22.5 },
+      { x: 775.5, z: 21.5 },
+      { x: 795.5, z: 44.5 },
+      { x: 804.5, z: 50.5, kind: 'blade' },
+      { x: 806.5, z: 52.5, kind: 'blade' },
+      { x: 812.5, z: 40.5 },
+      { x: 845.5, z: 22.5 },
+      { x: 842.5, z: 24.5, kind: 'blade' },
+      { x: 850.5, z: 16.5, kind: 'archer' },
+    ],
+    fillBread: ['sv-f-pan', 'sv-f-plain', 'sv-f-north', 'sv-f-lair'],
+    fillHints: ['sv-f-pan', 'sv-f-plain', 'sv-f-lair'],
+    hub: 16,
+    holtBread: ['sv-f-lair'],
+    rings: [
+      [794, 26, 799, 31],
+      [836, 42, 856, 54],
+    ],
+    wayOff: { x: 838.5, z: 57.5 },
+    lanes: [
+      [712, 55, 859, 58], // z 54 is the Kraal's last ring row (x 836..856): not a lane tile, so the lane starts at 55
+      [816, 10, 819, 53],
     ],
   },
 ];
@@ -207,7 +335,7 @@ for (const isl of ISLANDS) {
     it('puts nothing higher than the hub, and each thing at its height', () => {
       for (const [i, j] of isl.ponds.flatMap(tilesOf)) {
         const { x, z } = centre(i, j);
-        expect(world.groundAt(x, z), `pond ${i},${j}`).toBeLessThanOrEqual(HUB);
+        expect(world.groundAt(x, z), `pond ${i},${j}`).toBeLessThanOrEqual(isl.hub);
         expect(world.isWater(x, z), `pond ${i},${j} water`).toBe(true);
       }
       for (const r of isl.dells) {
@@ -215,20 +343,23 @@ for (const isl of ISLANDS) {
         for (const [i, j] of tilesOf(r)) {
           const { x, z } = centre(i, j);
           const rim = i === i0 || i === i1 || j === j0 || j === j1;
-          expect(world.groundAt(x, z), `dell ${i},${j}`).toBeCloseTo(rim ? 11.7 : 11.4, 5);
+          expect(world.groundAt(x, z), `dell ${i},${j}`).toBeCloseTo(isl.hub - (rim ? 0.3 : 0.6), 5);
           expect(world.isWater(x, z), `dell ${i},${j} water`).toBe(false);
         }
       }
       for (const [i, j] of isl.thickets.flatMap(tilesOf)) {
         const { x, z } = centre(i, j);
-        expect(world.groundAt(x, z), `thicket ${i},${j}`).toBe(HUB);
+        expect(world.groundAt(x, z), `thicket ${i},${j}`).toBe(isl.hub);
         expect(world.isTangle(x, z), `thicket ${i},${j} tangle`).toBe(true);
         expect(human(i).has(i, j), `Human stands on thicket ${i},${j}`).toBe(false);
       }
     });
 
     it('lets every form reach the fill bread, and the Human walk in and out of each dell', () => {
-      for (const b of fillBread) expect(everyone().canStand(b), `bread ${b.id}`).toBe(true);
+      // A holt's bread sits on a stone only the Axolotl reaches: holt.test.ts proves that.
+      for (const b of fillBread.filter((x) => !isl.holtBread.includes(x.id))) {
+        expect(everyone().canStand(b), `bread ${b.id}`).toBe(true);
+      }
       for (const r of isl.dells) {
         for (const [i, j] of tilesOf(r)) expect(human(i).has(i, j), `Human on dell ${i},${j}`).toBe(true);
         const [i0, j0, i1, j1] = r;
@@ -241,9 +372,9 @@ for (const isl of ISLANDS) {
       const spots = [...fillEnemies, ...fillBread];
       expectOnRealGround(world, spots);
       for (const s of spots) {
-        expect(world.groundAt(s.x, s.z), `(${s.x}, ${s.z}) height`).toBe(HUB);
+        expect(world.groundAt(s.x, s.z), `(${s.x}, ${s.z}) height`).toBe(isl.hub);
         expect(world.isTangle(s.x, s.z), `(${s.x}, ${s.z}) tangle`).toBe(false);
-        expectSeenFromCamera(world, 'fill thing', s.x, s.z);
+        if (!isl.unseen?.includes(`${s.x},${s.z}`)) expectSeenFromCamera(world, 'fill thing', s.x, s.z);
       }
     });
 
@@ -265,7 +396,7 @@ for (const isl of ISLANDS) {
 
     it('keeps fill bad guys 10 tiles from the Ant ring and 12 from the way off', () => {
       for (const e of fillEnemies) {
-        expect(distToRect(e, isl.ring), `ring vs (${e.x}, ${e.z})`).toBeGreaterThanOrEqual(10);
+        for (const ring of isl.rings) expect(distToRect(e, ring), `ring vs (${e.x}, ${e.z})`).toBeGreaterThanOrEqual(10);
         expect(Math.hypot(e.x - isl.wayOff.x, e.z - isl.wayOff.z), `way off vs (${e.x}, ${e.z})`).toBeGreaterThanOrEqual(12);
       }
     });
@@ -274,19 +405,18 @@ for (const isl of ISLANDS) {
       const bad: string[] = [];
       for (const [i, j] of isl.lanes.flatMap(tilesOf)) {
         const { x, z } = centre(i, j);
-        if (world.groundAt(x, z) !== HUB || world.isWater(x, z) || !human(i).has(i, j)) bad.push(`${i},${j}`);
+        if (world.groundAt(x, z) !== isl.hub || world.isWater(x, z) || !human(i).has(i, j)) bad.push(`${i},${j}`);
       }
       expect(bad, 'lane tiles not clear').toEqual([]);
     });
 
     it('keeps thickets off water and the Ant ring, and ids unique', () => {
-      const [ri0, rj0, ri1, rj1] = isl.ring;
       for (const [i, j] of isl.thickets.flatMap(tilesOf)) {
         for (let di = -1; di <= 1; di++) {
           for (let dj = -1; dj <= 1; dj++) {
             const { x, z } = centre(i + di, j + dj);
             expect(world.isWater(x, z), `thicket ${i},${j} touches water at ${i + di},${j + dj}`).toBe(false);
-            const inRing = i + di >= ri0 && i + di <= ri1 && j + dj >= rj0 && j + dj <= rj1;
+            const inRing = isl.rings.some(([ri0, rj0, ri1, rj1]) => i + di >= ri0 && i + di <= ri1 && j + dj >= rj0 && j + dj <= rj1);
             expect(inRing, `thicket ${i},${j} touches the ring at ${i + di},${j + dj}`).toBe(false);
           }
         }

@@ -62,8 +62,11 @@ describe('Sunveld west with the shapes of level 6', () => {
     }
     expect(westCheckpoints.map((c) => c.id)).toEqual(['sunveld', 'sv-mid', 'sv-table']);
     for (const c of westCheckpoints) expect(all.canStand(respawn(c)), `checkpoint ${c.id}`).toBe(true);
-    expect(westBread).toHaveLength(3);
-    for (const b of westBread) expect(all.canStand(b), `bread ${b.id}`).toBe(true);
+    // Was 3 bread. The fill adds sv-f-pan, sv-f-plain and sv-f-lair (6); sv-f-lair sits on a holt's stone that
+    // only the Axolotl reaches (holt.test.ts), so the seven forms reach the other five.
+    expect(westBread).toHaveLength(6);
+    for (const b of westBread.filter((x) => x.id !== 'sv-f-lair')) expect(all.canStand(b), `bread ${b.id}`).toBe(true);
+    expect(all.canStand(westBread.find((x) => x.id === 'sv-f-lair')!), 'the Lair stone').toBe(false);
   });
 
   it('lets the level-6 set stand on the landing from Pearl Rock', () => {
@@ -221,8 +224,17 @@ describe('Sunveld west things', () => {
     expect(layout.boulders.filter(west)).toEqual([]);
   });
 
-  it('has the five hints and the arrival card', () => {
-    expect(westHints.map((h) => h.id)).toEqual(['sv-hole', 'sv-oxbow', 'sv-crust', 'sv-thorn', 'sv-pillar']);
+  it('has the five hints, the three fill hints and the arrival card', () => {
+    expect(westHints.map((h) => h.id)).toEqual([
+      'sv-hole',
+      'sv-oxbow',
+      'sv-crust',
+      'sv-thorn',
+      'sv-pillar',
+      'sv-f-pan', // the fill's three hints are new (was five hints)
+      'sv-f-plain',
+      'sv-f-lair',
+    ]);
     const card = layout.arrivals.find((a) => a.id === 'sunveld')!;
     expect(card.title).toBe('Sunveld');
     expect(card.eyebrow).toBe('Island seven');

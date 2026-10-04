@@ -35,3 +35,25 @@ export function thicket(t: Terrain, i0: number, j0: number, i1: number, j1: numb
     t.setTangle(i, j);
   });
 }
+
+/** A holt is this many tiles on a side. */
+export const HOLT_SIZE = 9;
+
+/**
+ * A holt: a pond 9 by 9 with a ring of hollows 2 thick inside its outer row of water, and inside the ring
+ * a moat one tile wide round a single stone at hub height. The ring has no top, so only the Axolotl gets
+ * to the stone: it swims under the roof, comes up in the moat and jumps out. Returns the stone's tile.
+ */
+export function holt(t: Terrain, i0: number, j0: number, hub: number, bed: Kind, stone: Kind): { i: number; j: number } {
+  const i1 = i0 + HOLT_SIZE - 1;
+  const j1 = j0 + HOLT_SIZE - 1;
+  pond(t, i0, j0, i1, j1, hub, bed);
+  t.rect(i0 + 1, j0 + 1, i1 - 1, j1 - 1, (i, j) => {
+    if (i < i0 + 3 || i > i1 - 3 || j < j0 + 3 || j > j1 - 3) t.setHollow(i, j);
+  });
+  const i = i0 + 4;
+  const j = j0 + 4;
+  t.setWater(i, j, false);
+  t.set(i, j, hub, stone);
+  return { i, j };
+}

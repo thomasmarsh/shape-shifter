@@ -163,7 +163,7 @@ describe('Sunveld east: the Red Wall', () => {
 
 describe('Sunveld east fairness', () => {
   it('keeps every east checkpoint 7 tiles from a guard post at about its height', () => {
-    expect(eastEnemies).toHaveLength(7);
+    expect(eastEnemies).toHaveLength(10); // was 7: the fill adds the blade (842.5, 24.5), a guard (845.5, 22.5) and an archer (850.5, 16.5)
     expectCheckpointsAwayFromGuards(world, eastCheckpoints, eastEnemies);
   });
 
@@ -259,7 +259,8 @@ describe('Sunveld east geometry the design leans on', () => {
   it('lays flat ground at 16, the wall and the escarpment at 31', () => {
     for (let j = 10; j <= 60; j += 5) {
       for (let i = 820; i <= 866; i += 6) {
-        if (!inBox(i, j, 826, 28, 834, 36) && !inBox(i, j, 836, 42, 856, 54) && !inBox(i, j, 859, 46, 864, 53)) expect(ground(i, j), `(${i}, ${j})`).toBe(16);
+        // The last two boxes are the fill's Grove Pan and dell (sunk below 16).
+        if (!inBox(i, j, 826, 28, 834, 36) && !inBox(i, j, 836, 42, 856, 54) && !inBox(i, j, 859, 46, 864, 53) && !inBox(i, j, 840, 14, 848, 19) && !inBox(i, j, 852, 20, 858, 25)) expect(ground(i, j), `(${i}, ${j})`).toBe(16);
       }
     }
     for (let j = 0; j < 64; j += 7) for (const i of [867, 868, 869]) expect(ground(i, j), `(${i}, ${j})`).toBe(31);

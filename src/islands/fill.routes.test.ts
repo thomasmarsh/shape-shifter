@@ -127,7 +127,7 @@ const startAt = (d: number): P => {
   return at(HOME.x + ((FAR.x - HOME.x) / L) * d, HOME.z + ((FAR.z - HOME.z) / L) * d);
 };
 
-// A blade chases at 8.5, keeps running through its 0.4 s wind-up and follows 60 tiles from its
+// A blade chases at 8 (8.5 before play showed the Cheetah had trouble), keeps running through its 0.4 s wind-up and follows 60 tiles from its
 // post, so running away does not dodge the blow: only the Cheetah (10) gets away. It still gives
 // up on a runner 11 tiles off. (First measured with a stand-still wind-up and a 14 tile leash: a
 // Wolf or a Human who kept running was never hit.)
@@ -149,7 +149,7 @@ describe('Galecrest: the camp blades against a runner on open heath', () => {
     expect(r.player.hearts).toBe(r.maxHearts - 2);
   });
 
-  it('do not catch a fresh Cheetah noticed at 5 tiles: it gains about 1.5 tiles a second, and after 3 s it is past the notice distance with no heart lost', () => {
+  it('do not catch a fresh Cheetah noticed at 5 tiles: it gains about 2 tiles a second, and after 3 s it is past the notice distance with no heart lost', () => {
     const r = runAway('cheetah', 9, 3, START);
     expect(r.player.hearts).toBe(r.maxHearts);
     expect(r.closest).toBeGreaterThan(4);
@@ -213,6 +213,44 @@ describe('Galecrest: the Wind Tarn, a dell and a thicket against the blades', ()
     expect(onTangle).toBe(0);
     expect(r.firstClose).toBeNull();
     expect(r.player.hearts).toBe(r.maxHearts);
+  });
+});
+
+// ---- Coilstone: the Vault's south bank and the Font ------------------------------
+
+describe('Coilstone: the Vault blades and the Font', () => {
+  const VAULT_BLADES = [at(1088.5, 13.5), at(1090.5, 14.5)];
+
+  it('do not catch a level 8 Cheetah noticed at 5 tiles who runs west from the Vault along the clear row z 12.5: no heart lost', () => {
+    const start = at(1083.5, 12.5);
+    const r = new Rig('cheetah', 8, start, VAULT_BLADES);
+    expect(r.blades).toHaveLength(2);
+    expect(dist(start, VAULT_BLADES[0])).toBeGreaterThan(5);
+    expect(dist(start, VAULT_BLADES[0])).toBeLessThan(5.5);
+    let chasing = 0;
+    // The row ends at the lip of the heath at x 1061: 2.4 s is all the road there is (the Cheetah's 10 against the blade's 8).
+    r.run(2.4, () => at(1060.5, 12.5), () => r.firstHit !== null, () => {
+      if (r.blades.every((b) => b.alert)) chasing++;
+    });
+    expect(chasing, `both blades chased (hit at ${r.firstHit}, closest ${r.closest}, ${JSON.stringify(r.p)})`).toBeGreaterThan(0);
+    expect(r.player.hearts, `hit at ${r.firstHit}, closest ${r.closest}, at ${JSON.stringify(r.p)}, blades ${r.blades.map((b) => JSON.stringify(b.pos))}`).toBe(r.maxHearts);
+    expect(r.closest).toBeGreaterThan(3);
+    expect(r.nearestBlade()).toBeGreaterThan(7);
+  });
+
+  it('leave a level 9 Human floating in the Font alone for 10 s: no bad guy on a water tile', () => {
+    const near = world.layout.enemies.filter((e) => Math.hypot(e.x - 1023.5, e.z - 31.5) < 25);
+    expect(near.length).toBeGreaterThan(3);
+    const r = new Rig('human', 9, at(1023.5, 31.5), near);
+    expect(world.isWater(r.p.x, r.p.z)).toBe(true);
+    let wet = 0;
+    r.run(10, null, () => false, () => {
+      r.player.hearts = r.maxHearts;
+      for (const e of r.all) if (world.isWater(e.pos.x, e.pos.z)) wet++;
+    });
+    expect(r.all.some((e) => e.alert), 'a bad guy noticed the swimmer').toBe(true);
+    expect(r.player.swimming).toBe(true);
+    expect(wet).toBe(0);
   });
 });
 

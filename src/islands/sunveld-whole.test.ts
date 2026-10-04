@@ -130,13 +130,16 @@ describe('Sunveld as a whole: ids, melodies and footing', () => {
     );
   });
 
-  it('gives every sword and blade minLevel 7, and none west of x 850', () => {
+  it('gives every sword and blade minLevel 7, and west of x 850 only the four fill blades', () => {
     const fighters = svEnemies.filter((e) => e.kind === 'sword' || e.kind === 'blade');
     expect(fighters.length).toBeGreaterThan(0);
     for (const e of fighters) {
       expect(e.minLevel, `(${e.x}, ${e.z})`).toBe(7);
-      expect(e.x, `(${e.x}, ${e.z}) west`).toBeGreaterThanOrEqual(850);
     }
+    // Was: none west of x 850. The fill now stands four blades in the open (minLevel 7, so they appear only
+    // after Sunveld's last candle); nothing else, and no sword, is west of 850.
+    const west = fighters.filter((e) => e.x < 850).map((e) => `${e.kind}@${e.x},${e.z}`);
+    expect(west.sort()).toEqual(['blade@726.5,52.5', 'blade@804.5,50.5', 'blade@806.5,52.5', 'blade@842.5,24.5']);
   });
 
   it('shows every checkpoint, speaker, candle, bread and plate to the camera', () => {
@@ -156,7 +159,7 @@ describe('Sunveld as a whole: ids, melodies and footing', () => {
 });
 
 describe('Sunveld as a whole: the Mermaid at the gate', () => {
-  const POSTS = svEnemies.filter((e) => e.kind === 'sword' || e.kind === 'blade').filter((e) => e.x < 870);
+  const POSTS = svEnemies.filter((e) => e.kind === 'sword' || e.kind === 'blade').filter((e) => e.x >= 850 && e.x < 870); // the gate's posts: the fill's open-ground blades are west of 850
   const POND = { x: 862.5, z: 53.5 };
 
   class Pad implements Controls {

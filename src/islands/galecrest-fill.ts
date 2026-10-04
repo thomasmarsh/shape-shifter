@@ -1,12 +1,12 @@
 import { IslandLayout, Kind, Terrain } from '../layout';
-import { dell, pond, thicket } from './fill';
+import { dell, holt, pond, thicket } from './fill';
 import { HUB } from './galecrest-east';
 
 // What stands between Galecrest's rooms: small tarns, scree hollows, gorse
 // and more guards than anywhere before. Nothing here is higher than the heath,
 // so no candle's reach changes. Kept clear: the Bridge's run-up and run-off
 // (z 3..7), ten tiles round the Gorse Ring, the heath's east edge by `gc-edge`,
-// and two long lanes for a runner: z 38..41 across the west heath and
+// and two long lanes for a runner: z 38..40 across the west heath and
 // x 1507..1511 down the east one.
 
 export function fillGalecrest(t: Terrain): IslandLayout {
@@ -18,6 +18,7 @@ export function fillGalecrest(t: Terrain): IslandLayout {
   thicket(t, 1403, 9, 1405, 10, HUB);
   thicket(t, 1425, 16, 1427, 17, HUB);
   thicket(t, 1438, 42, 1439, 44, HUB);
+  const west = holt(t, 1408, 15, HUB, Kind.Scree, Kind.Quartz); // the Kettle: a stone only the Axolotl reaches
 
   // ---- The east heath -------------------------------------------------------------
   pond(t, 1490, 20, 1499, 26, HUB, Kind.Scree); // the Wind Tarn
@@ -28,6 +29,7 @@ export function fillGalecrest(t: Terrain): IslandLayout {
   thicket(t, 1502, 12, 1503, 15, HUB);
   thicket(t, 1524, 8, 1525, 10, HUB);
   thicket(t, 1526, 56, 1527, 58, HUB);
+  const east = holt(t, 1485, 43, HUB, Kind.Scree, Kind.Quartz); // and the Cauldron, east of the Gap
 
   return {
     enemies: [
@@ -49,10 +51,14 @@ export function fillGalecrest(t: Terrain): IslandLayout {
       { id: 'gc-f-mirror', x: 1429.5, z: 29.5, amount: 3 },
       { id: 'gc-f-wind', x: 1494.5, z: 28.5, amount: 3 },
       { id: 'gc-f-north', x: 1516.5, z: 4.5, amount: 2 },
+      { id: 'gc-f-kettle', x: west.i + 0.5, z: west.j + 0.5, amount: 10 },
+      { id: 'gc-f-cauldron', x: east.i + 0.5, z: east.j + 0.5, amount: 10 },
     ],
     hints: [
       { id: 'gc-f-mirror', x: 1426.5, z: 30.5, r: 4, text: 'Tarns, gorse and hollows in the scree. The guards with thin blades outrun everything but the fastest runner, and none of them wades.' },
       { id: 'gc-e-wind', x: 1487.5, z: 18.5, r: 4, text: 'A camp on the open heath. Run it only as the fastest, or go by the water.' },
+      { id: 'gc-f-kettle', x: 1406.5, z: 19.5, r: 3, text: 'A tarn with a stone roof all round its middle, and bread on the stone inside. Something small that dives slips under.' },
+      { id: 'gc-e-cauldron', x: 1483.5, z: 47.5, r: 3, text: 'Another roofed tarn. Under the roof nothing can follow, and nothing can see.' },
     ],
   };
 }

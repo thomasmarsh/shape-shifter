@@ -86,7 +86,7 @@ describe('Coilstone west: the candles', () => {
     }
     expect(westCheckpoints.map((c) => c.id)).toEqual(['coilstone', 'cs-hub', 'cs-court', 'cs-rim']);
     for (const c of westCheckpoints) expect(all.canStand(respawn(c)), `checkpoint ${c.id}`).toBe(true);
-    expect(westBread).toHaveLength(3);
+    expect(westBread).toHaveLength(4); // was 3: the fill adds cs-f-font (the Vault's bread is in the east, and only the Axolotl reaches it)
     for (const b of westBread) expect(all.canStand(b), `bread ${b.id}`).toBe(true);
   });
 

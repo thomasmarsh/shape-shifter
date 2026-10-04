@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FormId } from '../forms';
 import { World } from '../world';
-import { rampTop, SLUICE_BED, SLUICE_LEVEL, WINDBREAK } from './galecrest';
+import { TARN_CELL, rampTop, SLUICE_BED, SLUICE_LEVEL, WINDBREAK } from './galecrest';
 import { LANDING } from './galecrest-east';
 import {
   expectArchersAwayFromRespawns,
@@ -105,12 +105,19 @@ describe('Galecrest west: the candles', () => {
       expect(all.canUse(p.candle), `${p.id} candle`).toBe(true);
     }
     for (const c of westCheckpoints) expect(all.canStand(respawn(c)), `checkpoint ${c.id}`).toBe(true);
-    expect(westBread).toHaveLength(5);
+    expect(westBread).toHaveLength(6); // was 5: the fill adds gc-f-kettle on the Kettle holt's stone, which the ten reach with the Axolotl
     for (const b of westBread) expect(all.canStand(b), `bread ${b.id}`).toBe(true);
   });
 
-  it('keeps the Tarn candle from every set without the Mermaid', () => {
-    expect(max(without(NINE, 'mermaid')).canUse(puzzle('gc-tarn').candle)).toBe(false);
+  // Was: the Tarn candle is kept from every set without the Mermaid. The pickle now sits in a roofed cell
+  // (TARN_CELL), which the Mermaid does not fit under, so it is the Axolotl's alone.
+  it('closes the Tarn cell, keeps its candle from every set without the Axolotl on max, and gives it to the Axolotl on easy', () => {
+    const { i0, j0, i1, j1 } = TARN_CELL;
+    expectClosedRing((i, j) => world.isHollow(i + 0.5, j + 0.5), [i0 + 2, j0 + 2], [i0 + 1, j0 + 1, i1 - 1, j1 - 1], 9);
+    const candle = puzzle('gc-tarn').candle;
+    expect(max(without(TEN, 'axolotl')).canUse(candle), 'nine without the Axolotl (the Mermaid among them)').toBe(false);
+    expect(max(without(NINE, 'mermaid')).canUse(candle), 'no Mermaid, no Axolotl').toBe(false);
+    expect(explore(COURT, TEN, 'easy').canUse(candle), 'the ten on easy').toBe(true);
   });
 
   it('closes the Gorse Ring, and keeps its candle from every set without the Ant or the Bunny', () => {

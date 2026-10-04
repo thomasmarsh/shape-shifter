@@ -1,6 +1,7 @@
 import { KELP_DEEP, SNAPPER_LEVEL } from '../forms';
 import { EnemySpot, HintZone, Island, Kind, PuzzleSpot, Terrain } from '../layout';
 import { buildSunveldEast } from './sunveld-east';
+import { fillSunveld } from './sunveld-fill';
 import { nibbleRow } from './underroot-east';
 
 // Island 7: Sunveld. This file is the west half (everything at x < 820). The
@@ -132,14 +133,15 @@ export const sunveld: Island = {
 
     // ---- The east half --------------------------------------------------------
     const east = buildSunveldEast(t);
+    const fill = fillSunveld(t);
     return {
       checkpoints: [...checkpoints, ...(east.checkpoints ?? [])],
       puzzles: [...puzzles, ...(east.puzzles ?? [])],
-      enemies: [...enemies, ...(east.enemies ?? [])],
-      bread: [...bread, ...(east.bread ?? [])],
+      enemies: [...enemies, ...(east.enemies ?? []), ...(fill.enemies ?? [])],
+      bread: [...bread, ...(east.bread ?? []), ...(fill.bread ?? [])],
       trees: [...(east.trees ?? [])],
       boulders: east.boulders ?? [],
-      hints: [...hints, ...(east.hints ?? [])],
+      hints: [...hints, ...(east.hints ?? []), ...(fill.hints ?? [])],
       arrivals: [...arrivals, ...(east.arrivals ?? [])],
       plates: [...(east.plates ?? [])],
     };

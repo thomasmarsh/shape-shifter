@@ -1,5 +1,5 @@
 import { IslandLayout, Kind, Terrain } from '../layout';
-import { dell, pond, thicket } from './fill';
+import { dell, holt, pond, thicket } from './fill';
 import { HUB } from './hollowfen-east';
 
 // What stands between Hollowfen's rooms: fen pools, peat cuts, reed beds and
@@ -26,6 +26,7 @@ export function fillHollowfen(t: Terrain): IslandLayout {
   thicket(t, 1280, 20, 1281, 23, HUB);
   thicket(t, 1296, 26, 1297, 28, HUB);
   thicket(t, 1320, 54, 1322, 55, HUB);
+  const otter = holt(t, 1276, 41, HUB, Kind.Peat, Kind.Chalk); // the Holt: a stone only the Axolotl reaches
 
   return {
     enemies: [
@@ -46,10 +47,12 @@ export function fillHollowfen(t: Terrain): IslandLayout {
       { id: 'hf-f-eye', x: 1225.5, z: 27.5, amount: 3 },
       { id: 'hf-f-mere', x: 1289.5, z: 8.5, amount: 3 },
       { id: 'hf-f-cut', x: 1322.5, z: 48.5, amount: 2 },
+      { id: 'hf-f-holt', x: otter.i + 0.5, z: otter.j + 0.5, amount: 10 },
     ],
     hints: [
       { id: 'hf-f-eye', x: 1220.5, z: 28.5, r: 4, text: 'Fen pools and reed beds. The quick herons with thin blades outrun everything but the fastest runner, and no heron wades.' },
       { id: 'hf-e-mere', x: 1280.5, z: 14.5, r: 4, text: 'Two quick herons keep the far bank of the Long Mere. The water is a safe place; the open sedge is not.' },
+      { id: 'hf-e-holt', x: 1274.5, z: 45.5, r: 3, text: 'A pool with a stone roof all round its middle, and bread on the stone inside. Something small that dives slips under.' },
     ],
   };
 }

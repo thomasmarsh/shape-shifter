@@ -67,6 +67,12 @@ describe('Galecrest: every form has work', () => {
     });
   }
 
+  // The pickle sits in a roofed cell now (TARN_CELL in galecrest.ts): the Mermaid does not fit under a hollow.
+  it('keeps the Tarn candle from the nine without the Axolotl, the Mermaid and all, on max, and gives it to the ten on easy', () => {
+    expect(run(COURT, NINE, 'max').canUse(candle('gc-tarn')), 'nine, max').toBe(false);
+    expect(run(COURT, TEN, 'easy').canUse(candle('gc-tarn')), 'ten, easy').toBe(true);
+  });
+
   it('keeps the Stair candle from everyone without both runners', () => {
     const r = run(COURT, without(without(TEN, 'wolf'), 'cheetah'), 'max');
     expect(r.canUse(candle('gc-stair'))).toBe(false);

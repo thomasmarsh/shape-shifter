@@ -19,15 +19,16 @@ type Pool = { name: string; i0: number; j0: number; i1: number; j1: number; pick
 const POOLS: Pool[] = [
   { name: 'the Watering Hole', i0: 720, j0: 30, i1: 726, j1: 34, pickle: at(723.5, 32.5), snappers: [at(721.5, 33.5)] },
   { name: 'the Reed Pool', i0: 1199, j0: 42, i1: 1207, j1: 50, pickle: at(1206.5, 43.5), snappers: [at(1201.5, 48.5), at(1205.5, 46.5)] },
-  { name: 'the Tarn', i0: 1406, j0: 42, i1: 1414, j1: 50, pickle: at(1413.5, 43.5), snappers: [at(1408.5, 48.5), at(1412.5, 46.5)] },
+  { name: 'the Tarn', i0: 1406, j0: 42, i1: 1414, j1: 50, pickle: at(1413.5, 43.5), snappers: [at(1408.5, 48.5), at(1412.5, 48.5)] },
 ];
 const inPool = (pool: Pool, x: number, z: number): boolean => x >= pool.i0 && x < pool.i1 + 1 && z >= pool.j0 && z < pool.j1 + 1;
 
 class Pad implements Controls {
   tapped = new Set<string>();
+  down = new Set<string>();
   dir = { x: 0, z: 0 };
   held(code: string): boolean {
-    return this.tapped.has(code);
+    return this.tapped.has(code) || this.down.has(code);
   }
   hit(code: string): boolean {
     return this.tapped.has(code);
@@ -161,7 +162,62 @@ describe('the Tarn fights', () => {
       }
     });
     expect(won, `snappers left ${r.snappers.map((s) => s.hearts).join(',')}, hearts ${r.player.hearts}`).toBe(true);
+    // Measured: 13 of 15 hearts left, won in 1.4 s.
     expect(r.player.hearts).toBeGreaterThanOrEqual(max / 2);
+  });
+});
+
+describe('the Snappers and the Tarn roof', () => {
+  const tarn = POOLS[2];
+  const hollowAt = (x: number, z: number): boolean => world.isHollow(x, z);
+
+  it('keep off the hollows for 30 s while a Mermaid pushes at the roof from the open water', () => {
+    const r = new Rig('mermaid', 9, at(1412.5, 49.5), tarn);
+    expect(r.snappers).toHaveLength(2);
+    let alert = 0;
+    r.run(30, () => at(1412.5, 44.5), () => false, () => {
+      r.player.hearts = r.player.form.maxHearts;
+      for (const s of r.snappers) expect(hollowAt(s.pos.x, s.pos.z), `on a hollow at ${s.pos.x.toFixed(2)}, ${s.pos.z.toFixed(2)}`).toBe(false);
+      if (r.snappers.some((s) => s.alert)) alert++;
+    });
+    expect(alert).toBeGreaterThan(0);
+  });
+
+  const homes = [at(1408.5, 48.5), at(1412.5, 48.5)];
+  // The Axolotl from the south shore, both Snappers awake, straight at the roof; it dives only 2 tiles short of it.
+  const swimIn = (diveZ: number, seconds: number, each: (r: Rig) => void = () => {}) => {
+    const r = new Rig('axolotl', 9, at(1412.5, 51.5), tarn);
+    expect(r.player.level).toBe(9);
+    expect(r.snappers).toHaveLength(2);
+    let lowest = r.player.hearts;
+    r.run(seconds, () => at(1412.5, 45.5), () => false, () => {
+      if (r.p.z < diveZ) r.pad.down.add('ShiftLeft');
+      lowest = Math.min(lowest, r.player.hearts);
+      each(r);
+    });
+    return { r, lost: r.player.form.maxHearts - lowest };
+  };
+
+  it('lose a level 9 Axolotl that swims straight from the south shore to the roof with both awake: measured 0 hearts lost, pinned at 2 (one snap)', () => {
+    for (const diveZ of [51, 47.8]) {
+      const { r, lost } = swimIn(diveZ, 3);
+      expect(r.player.dead).toBe(false);
+      expect(lost).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('give up on an Axolotl hidden under the roof: they stop being alert and swim home', () => {
+    let calm = -1;
+    let home = -1;
+    let sawAlert = false;
+    swimIn(51, 40, (rr) => {
+      if (rr.snappers.some((s) => s.alert)) sawAlert = true;
+      if (sawAlert && calm < 0 && rr.player.hidden && rr.snappers.every((s) => !s.alert)) calm = rr.time;
+      if (calm >= 0 && home < 0 && rr.snappers.every((s, k) => dist(s.pos, homes[k]) < 1)) home = rr.time;
+    });
+    expect(sawAlert).toBe(true);
+    expect(calm).toBeGreaterThan(0);
+    expect(home).toBeGreaterThan(calm);
   });
 });
 

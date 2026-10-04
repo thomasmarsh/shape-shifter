@@ -54,11 +54,30 @@ function ramp(t: Terrain): void {
   t.rect(1377, 27, 1401, 33, (i, j) => t.set(i, j, rampTop(i), Kind.Scree));
 }
 
-/** C1: the Tarn, x 1406..1414, z 42..50, a deep square of cold water. */
+/**
+ * The Tarn's cell: a closed ring of hollows one tile thick on the border of this box, round three by three
+ * tiles of open water with the pickle in the middle. The box sticks one tile out of the pool's north-east
+ * corner, so the pickle stands where the rim does not hide it, and no hollow touches the pickle's tile.
+ */
+export const TARN_CELL = { i0: 1411, j0: 41, i1: 1415, j1: 45 };
+
+/**
+ * C1: the Tarn, x 1406..1414, z 42..50, a deep square of cold water, and its roofed corner. The ring has
+ * no top and no body but the Axolotl's fits under it, so the pickle is the Axolotl's alone. The Snappers
+ * keep the open water in front of it, and they do not go under a roof.
+ */
 function tarn(t: Terrain): void {
-  t.rect(1406, 42, 1414, 50, (i, j) => {
+  const wet = (i: number, j: number): void => {
     t.set(i, j, TARN_BED, Kind.Scree);
     t.setWater(i, j, true, TARN_LEVEL);
+  };
+  t.rect(1406, 42, 1414, 50, wet);
+  const { i0, j0, i1, j1 } = TARN_CELL;
+  t.rect(i0, j0, i1, j1, (i, j) => {
+    if (i === i0 || i === i1 || j === j0 || j === j1) {
+      wet(i, j);
+      t.setHollow(i, j);
+    }
   });
 }
 
@@ -107,7 +126,7 @@ export const galecrest: Island = {
       { x: 1406.5, z: 53.5, tester: false }, // the Tarn's guards, by the speaker
       { x: 1407.5, z: 54.5, tester: false },
       { x: 1408.5, z: 48.5, tester: false, kind: 'snapper', minLevel: SNAPPER_LEVEL }, // two Snappers in the Tarn
-      { x: 1412.5, z: 46.5, tester: false, kind: 'snapper', minLevel: SNAPPER_LEVEL },
+      { x: 1412.5, z: 48.5, tester: false, kind: 'snapper', minLevel: SNAPPER_LEVEL },
       { x: 1415.5, z: 36.5, tester: false }, // the Pine Road's, at the foot of T1
       { x: 1422.5, z: 36.5, tester: false },
     ];
@@ -125,7 +144,7 @@ export const galecrest: Island = {
       { id: 'gc-court', x: 1353.5, z: 30.5, r: 3, text: 'A wall against the wind, too tall for anything that hops or flies. Water runs under it, beneath a low stone roof. Two guards watch the bank.' },
       { id: 'gc-sluice', x: 1357.5, z: 33.5, r: 2.5, text: 'Something small that dives slips under the roof, and nothing can follow it or see it there.' },
       { id: 'gc-ramp', x: 1389, z: 30, r: 4, text: 'Loose scree, climbing. The heath lies above the yard.' },
-      { id: 'gc-tarn', x: 1410.5, z: 46, r: 4, text: 'The tarn goes down a long way, deeper than a Human dives. Guards keep the speaker.' },
+      { id: 'gc-tarn', x: 1410.5, z: 46, r: 4, text: 'The tarn goes down a long way, and a low stone roof shuts off its far corner. Something small that dives slips under it. Snappers keep the open water, and guards the speaker.' },
       { id: 'gc-ring', x: 1417.5, z: 54, r: 3, text: 'A ring of gorse, closed. Something small could slip through.' },
       { id: 'gc-road', x: 1419, z: 38, r: 3, text: 'Two great pines stand in a line, past the guards. Climb the first and leap.' },
     ];

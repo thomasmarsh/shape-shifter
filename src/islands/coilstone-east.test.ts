@@ -135,7 +135,7 @@ describe('Coilstone east: the Serpent\'s Head', () => {
 
 describe('Coilstone east fairness', () => {
   it('keeps every east checkpoint 7 tiles from a guard at about its height', () => {
-    expect(eastEnemies).toHaveLength(6);
+    expect(eastEnemies).toHaveLength(12); // was 6: the fill adds six guards, blades and an archer in the east city
     expectCheckpointsAwayFromGuards(world, eastCheckpoints, eastEnemies);
   });
 
