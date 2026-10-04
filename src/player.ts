@@ -26,6 +26,7 @@ import {
   makeHuman,
   makeMermaid,
   MermaidModel,
+  AxolotlModel,
   makeOrangutan,
   makeWolf,
   AntModel,
@@ -196,7 +197,7 @@ export class Player {
   private cheetah: WolfModel;
   private ant: AntModel;
   private snake: SnakeModel;
-  private axolotl: THREE.Group;
+  private axolotl: AxolotlModel;
   private home: THREE.Group;
 
   constructor(
@@ -216,7 +217,7 @@ export class Player {
     this.axolotl = makeAxolotl();
     this.home = makeFairyHome();
     this.home.visible = false;
-    this.group.add(this.human.group, this.mermaid.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.cheetah.group, this.ant.group, this.snake.group, this.axolotl);
+    this.group.add(this.human.group, this.mermaid.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.cheetah.group, this.ant.group, this.snake.group, this.axolotl.group);
     this.applyForm();
   }
 
@@ -380,7 +381,7 @@ export class Player {
     this.cheetah.group.visible = id === 'cheetah';
     this.ant.group.visible = id === 'ant';
     this.snake.group.visible = id === 'snake';
-    this.axolotl.visible = id === 'axolotl';
+    this.axolotl.group.visible = id === 'axolotl';
     const color = SWORD_COLOR[swordTier(this.level)];
     for (const blade of [this.human.blade, this.mermaid.blade, this.orangutan.blade]) {
       (blade.material as THREE.MeshLambertMaterial).color.setHex(color);
@@ -944,6 +945,7 @@ export class Player {
         this.animateSnake();
         break;
       case 'axolotl':
+        this.animateAxolotl();
         break;
       default:
         this.animateFairy(dt);
@@ -1053,6 +1055,24 @@ export class Player {
       seg.rotation.y = Math.cos(this.walkPhase * 1.5 - n * 0.9) * sway;
     });
     this.snake.segments[0].position.z = 0.35 + (this.attackTimer > 0 ? 0.2 : 0);
+  }
+
+  private animateAxolotl(): void {
+    // A slow tail and body sway while moving; the gills always wave gently, faster in the water.
+    const a = this.axolotl;
+    const now = performance.now() / 1000;
+    const moving = this.walkPhase > 0;
+    a.tail.rotation.y = Math.sin(this.walkPhase * 0.8) * (moving ? 0.35 : 0) + Math.sin(now * 1.2) * 0.06;
+    a.body.rotation.y = Math.sin(this.walkPhase * 0.8 + 0.8) * (moving ? 0.06 : 0);
+    a.legs.forEach((leg, n) => {
+      leg.rotation.x = moving ? Math.sin(this.walkPhase + (n % 3 ? Math.PI : 0)) * 0.5 : 0;
+    });
+    const rate = this.swimming ? 7 : 2.5;
+    a.gills.forEach((g, n) => {
+      const side = n < 3 ? -1 : 1;
+      g.rotation.x = -0.5 + Math.sin(now * rate + n * 0.9) * 0.18;
+      g.rotation.z = -side * (0.5 + (n % 3) * 0.35) + Math.sin(now * rate * 0.8 + n) * 0.08 * side;
+    });
   }
 
   private animateWolf(): void {

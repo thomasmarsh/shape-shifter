@@ -819,13 +819,13 @@ export class World {
           c.setHSL(0.19, 0.36, 0.6 + v * 0.07);
           break;
         case Kind.Sedge:
-          c.setHSL(0.24 + v * 0.03, 0.42, 0.42 + v * 0.06);
+          c.setHSL(0.2 + v * 0.025, 0.58, 0.46 + v * 0.06);
           break;
         case Kind.Peat:
-          c.setHSL(0.08, 0.3, 0.24 + v * 0.05);
+          c.setHSL(0.075, 0.38, 0.13 + v * 0.04);
           break;
         case Kind.Chalk:
-          c.setHSL(0.12, 0.14, 0.74 + v * 0.05);
+          c.setHSL(0.13, 0.1, 0.82 + v * 0.05);
           break;
         case Kind.Moss:
           c.setHSL(0.43 + v * 0.03, 0.55, 0.3 + v * 0.06);
@@ -882,11 +882,13 @@ export class World {
           c.setHSL(0.65, 0.1, 0.11 + v * 0.03);
           break;
         case Kind.Sedge:
+          c.setHSL(0.14, 0.34, 0.2 + v * 0.04);
+          break;
         case Kind.Peat:
-          c.setHSL(0.07, 0.32, 0.18 + v * 0.04);
+          c.setHSL(0.07, 0.3, 0.1 + v * 0.03);
           break;
         case Kind.Chalk:
-          c.setHSL(0.12, 0.1, 0.55 + v * 0.05);
+          c.setHSL(0.12, 0.08, 0.6 + v * 0.05);
           break;
         case Kind.Cloud:
           c.setHSL(0.58, 0.35, 0.93);
@@ -946,6 +948,7 @@ export class World {
     this.buildGates();
     this.buildTangles();
     this.buildKelp();
+    this.buildHollows();
     this.buildCloudSkirt(tiles);
     this.group.add(
       buildFrostDecor({
@@ -1021,11 +1024,13 @@ export class World {
       salt: { tint: 0xf0e4e6, frame: 0xaaa5a9 },
       sun: { tint: 0xd9b27a, frame: 0x7a4a22 },
       slate: { tint: 0x7f93ad, frame: 0x252d3a },
+      reed: { tint: 0xc9d68a, frame: 0x3a4a1c },
     };
     const lookOf = (k: number): keyof typeof looks => {
       const owner = this.ownerAt(k % this.width, Math.floor(k / this.width));
       if (owner.startsWith('sunveld')) return 'sun';
       if (owner.startsWith('coilstone')) return 'slate';
+      if (owner.startsWith('hollowfen')) return 'reed';
       return owner === 'underroot' ? 'leaf' : owner === 'saltmere' ? 'salt' : 'ice';
     };
     const brittle = (k: number) => this.sheet[k] === BRITTLE_SPEED;
@@ -1046,7 +1051,9 @@ export class World {
         const look = brittle(k)
           ? lookOf(k) === 'slate'
             ? { tint: 0xe4ddca, frame: 0x3b362d }
-            : { tint: 0xf6dfae, frame: 0x2e1a08 }
+            : lookOf(k) === 'reed'
+              ? { tint: 0xe6e3b4, frame: 0x6b6a3a }
+              : { tint: 0xf6dfae, frame: 0x2e1a08 }
           : looks[lookOf(k)];
         mesh.setColorAt(n, new THREE.Color(look.tint));
         cracks.setColorAt(n, new THREE.Color(look.frame));
@@ -1054,7 +1061,7 @@ export class World {
       this.group.add(mesh, cracks);
     };
     build(
-      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) !== 'salt' && lookOf(k) !== 'sun' && lookOf(k) !== 'slate'),
+      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) !== 'salt' && lookOf(k) !== 'sun' && lookOf(k) !== 'slate' && lookOf(k) !== 'reed'),
       new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x2c5f86, transparent: true, opacity: 0.6 }),
       'thin-ice',
     );
@@ -1075,6 +1082,18 @@ export class World {
       new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.96 }),
       'slate-slab',
     );
+    // Woven reed mats: a straw-green sheet in a dark olive frame, no glow.
+    build(
+      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) === 'reed'),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }),
+      'reed-mat',
+    );
+    // Dry cracked reed crust, paler and drier than the mat: no amber glow.
+    build(
+      this.iceTiles.filter((k) => brittle(k) && lookOf(k) === 'reed'),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x2a2916, transparent: true, opacity: 0.92 }),
+      'dry-reed',
+    );
     // Cracked pale stone, for Coilstone's Bridge: no amber glow.
     build(
       this.iceTiles.filter((k) => brittle(k) && lookOf(k) === 'slate'),
@@ -1082,7 +1101,7 @@ export class World {
       'cracked-stone',
     );
     build(
-      this.iceTiles.filter((k) => brittle(k) && lookOf(k) !== 'slate'),
+      this.iceTiles.filter((k) => brittle(k) && lookOf(k) !== 'slate' && lookOf(k) !== 'reed'),
       new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x6b3f10, transparent: true, opacity: 0.85 }),
       'brittle',
     );
@@ -1154,7 +1173,7 @@ export class World {
    */
   private buildKelp(): void {
     const tiles: number[] = [];
-    for (let k = 0; k < this.kelp.length; k++) if (this.kelp[k] > 0) tiles.push(k);
+    for (let k = 0; k < this.kelp.length; k++) if (this.kelp[k] > 0 && this.hollow[k] !== 1) tiles.push(k);
     if (tiles.length === 0) return;
     const WEAVE = 4;
     const FRONDS = 4;
@@ -1195,6 +1214,37 @@ export class World {
     });
     mats.receiveShadow = true;
     this.group.add(mats, fronds);
+  }
+
+  /**
+   * A hollow's roof is a pale chalk slab lying on the water, a little proud of
+   * it, with a darker rim below: a ring of them reads as a stone lid on the
+   * lake with dark water beneath. Look only: the roof's rules live in `hollow`.
+   */
+  private buildHollows(): void {
+    const tiles: number[] = [];
+    for (let k = 0; k < this.hollow.length; k++) if (this.hollow[k] === 1) tiles.push(k);
+    if (tiles.length === 0) return;
+    const lids = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), tiles.length * 2);
+    lids.name = 'hollow-lids';
+    const m = new THREE.Matrix4();
+    const c = new THREE.Color();
+    tiles.forEach((k, n) => {
+      const i = k % this.width;
+      const j = Math.floor(k / this.width);
+      const top = this.waterTop[k] + 0.1;
+      const v = hash(i, j, 210);
+      // The rim fills the tile and runs 0.25 thick; the lid sits inset on top of it.
+      m.makeScale(1, 0.25, 1).setPosition(i + 0.5, top - 0.125, j + 0.5);
+      lids.setMatrixAt(n * 2, m);
+      lids.setColorAt(n * 2, c.setHSL(0.12, 0.08, 0.6 + v * 0.05));
+      m.makeScale(0.86, 0.04, 0.86).setPosition(i + 0.5, top + 0.02, j + 0.5);
+      lids.setMatrixAt(n * 2 + 1, m);
+      lids.setColorAt(n * 2 + 1, c.setHSL(0.13, 0.1, 0.82 + v * 0.05));
+    });
+    lids.castShadow = true;
+    lids.receiveShadow = true;
+    this.group.add(lids);
   }
 
   /** How far down the rock goes under a tile: deeper toward the middle. */

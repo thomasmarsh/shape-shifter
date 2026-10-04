@@ -589,16 +589,73 @@ export interface BadGuyModel {
   bodyMat: THREE.MeshLambertMaterial;
 }
 
-/** A placeholder Axolotl: a low pink body with a flat head and three gill stalks a side. Faces +z. */
-export function makeAxolotl(): THREE.Group {
+export interface AxolotlModel {
+  group: THREE.Group;
+  /** The trunk and head, which sway a little as it walks. */
+  body: THREE.Group;
+  /** The tail and its fin, pivoting at the hips. */
+  tail: THREE.Group;
+  /** Six gill stalks, pivoting at the head, in rainbow order: red to yellow on the left, green to violet on the right. */
+  gills: THREE.Group[];
+  /** The four stubby legs, left front, right front, left back, right back. */
+  legs: THREE.Group[];
+}
+
+/**
+ * The Axolotl: a soft pink body about 0.3 high and 1.2 long, a wide flat head with a pale underside
+ * and a faint smile, a tall thin tail fin and six rainbow gill stalks fanned up and back. Faces +z.
+ */
+export function makeAxolotl(): AxolotlModel {
   const group = new THREE.Group();
-  const skin = mat(0xf2a6b8);
-  const gill = mat(0xd9577a);
-  group.add(box(0.3, 0.14, 0.5, skin, 0, 0.1, 0), box(0.26, 0.12, 0.2, skin, 0, 0.1, 0.3), box(0.08, 0.1, 0.4, skin, 0, 0.08, -0.4));
-  for (const side of [-1, 1]) {
-    for (let n = 0; n < 3; n++) group.add(box(0.03, 0.03, 0.12, gill, side * 0.17, 0.12 + n * 0.04, 0.3));
+  const skin = mat(0xf4a9c0);
+  const pale = mat(0xfbd9e3);
+  const dark = mat(0x2a1a2e);
+  const fin = mat(0xf7b9cc, { opacity: 0.9 });
+  const body = new THREE.Group();
+  body.add(
+    box(0.3, 0.16, 0.56, skin, 0, 0.13, -0.02),
+    box(0.22, 0.03, 0.5, pale, 0, 0.05, -0.02),
+    // A wide flat head, paler underneath, with two small eyes set wide and a faint smile.
+    box(0.36, 0.12, 0.26, skin, 0, 0.14, 0.38),
+    box(0.34, 0.03, 0.24, pale, 0, 0.07, 0.38),
+    box(0.03, 0.03, 0.03, dark, -0.13, 0.21, 0.46),
+    box(0.03, 0.03, 0.03, dark, 0.13, 0.21, 0.46),
+    box(0.1, 0.01, 0.01, mat(0xc4607e), 0, 0.12, 0.515),
+  );
+  group.add(body);
+  const tail = new THREE.Group();
+  tail.position.set(0, 0, -0.3);
+  tail.add(
+    box(0.12, 0.1, 0.3, skin, 0, 0.12, -0.15),
+    box(0.07, 0.07, 0.2, skin, 0, 0.11, -0.4),
+    box(0.02, 0.2, 0.5, fin, 0, 0.2, -0.28),
+  );
+  group.add(tail);
+  const legs: THREE.Group[] = [];
+  for (const z of [0.25, -0.2]) {
+    for (const side of [-1, 1]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(side * 0.17, 0.07, z);
+      pivot.add(box(0.07, 0.07, 0.09, skin, 0, -0.03, 0), box(0.09, 0.02, 0.11, pale, 0, -0.065, 0.01));
+      group.add(pivot);
+      legs.push(pivot);
+    }
   }
-  return group;
+  // Three gill stalks a side fan up and back from the head, one rainbow colour each.
+  const rainbow = [0xe03c3c, 0xf08a2a, 0xf2d230, 0x4cc95a, 0x3c8ee0, 0x8a4ce0];
+  const gills: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    for (let n = 0; n < 3; n++) {
+      const colour = mat(rainbow[(side < 0 ? 0 : 3) + n]);
+      const pivot = new THREE.Group();
+      pivot.position.set(side * 0.18, 0.15, 0.3);
+      pivot.rotation.set(-0.5, 0, -side * (0.5 + n * 0.35));
+      pivot.add(box(0.02, 0.15, 0.02, colour, 0, 0.075, 0), box(0.07, 0.04, 0.02, colour, 0, 0.17, 0));
+      group.add(pivot);
+      gills.push(pivot);
+    }
+  }
+  return { group, body, tail, gills, legs };
 }
 
 export function makeBadGuy(tester: boolean): BadGuyModel {
