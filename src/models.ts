@@ -68,6 +68,8 @@ export interface HumanModel {
   legL: THREE.Group;
   legR: THREE.Group;
   blade: THREE.Mesh;
+  /** Cream wings with tawny tips on the back; folded when closed, spread along x when open. */
+  wings: { left: THREE.Group; right: THREE.Group };
 }
 
 // The models face +z (toward the camera's side of the world) at rotation 0.
@@ -106,7 +108,25 @@ export function makeHuman(look: Look = DEFAULT_LOOK): HumanModel {
   sword.add(blade, box(0.26, 0.06, 0.09, mat(0x6b4423), 0, 0.1, 0), box(0.07, 0.16, 0.07, mat(0x4a2f17), 0, 0, 0));
   armR.add(sword);
 
-  return { group, armL, armR, legL, legR, blade };
+  // Wings like a kestrel's: cream feathers with tawny tips, hinged at the shoulder blades.
+  const cream = mat(0xf4ecd8);
+  const tawny = mat(0xa8672c);
+  const wing = (side: number): THREE.Group => {
+    const w = new THREE.Group();
+    w.position.set(side * 0.16, 1.0, -0.17);
+    // Feathers run out along x from the hinge: two cream, then a tawny tip.
+    w.add(
+      box(0.5, 0.04, 0.3, cream, side * 0.25, 0, 0),
+      box(0.4, 0.04, 0.26, cream, side * 0.6, 0, -0.02),
+      box(0.12, 0.045, 0.26, tawny, side * 0.74, 0, -0.02),
+      box(0.3, 0.04, 0.2, tawny, side * 0.9, 0, -0.04),
+    );
+    return w;
+  };
+  const wings = { left: wing(-1), right: wing(1) };
+  group.add(wings.left, wings.right);
+
+  return { group, armL, armR, legL, legR, blade, wings };
 }
 
 export interface MermaidModel {

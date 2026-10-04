@@ -966,7 +966,7 @@ export class World {
     this.buildGates();
     this.buildTangles();
     this.buildKelp();
-    this.buildHollows();
+    this.buildHollows(tiles, bodies);
     this.buildCloudSkirt(tiles);
     this.group.add(
       buildFrostDecor({
@@ -1043,12 +1043,14 @@ export class World {
       sun: { tint: 0xd9b27a, frame: 0x7a4a22 },
       slate: { tint: 0x7f93ad, frame: 0x252d3a },
       reed: { tint: 0xc9d68a, frame: 0x3a4a1c },
+      quartz: { tint: 0xf3dfe6, frame: 0x6b6870 },
     };
     const lookOf = (k: number): keyof typeof looks => {
       const owner = this.ownerAt(k % this.width, Math.floor(k / this.width));
       if (owner.startsWith('sunveld')) return 'sun';
       if (owner.startsWith('coilstone')) return 'slate';
       if (owner.startsWith('hollowfen')) return 'reed';
+      if (owner.startsWith('galecrest')) return 'quartz';
       return owner === 'underroot' ? 'leaf' : owner === 'saltmere' ? 'salt' : 'ice';
     };
     const brittle = (k: number) => this.sheet[k] === BRITTLE_SPEED;
@@ -1071,7 +1073,9 @@ export class World {
             ? { tint: 0xe4ddca, frame: 0x3b362d }
             : lookOf(k) === 'reed'
               ? { tint: 0xe6e3b4, frame: 0x6b6a3a }
-              : { tint: 0xf6dfae, frame: 0x2e1a08 }
+              : lookOf(k) === 'quartz'
+                ? { tint: 0xf8eef0, frame: 0x8a868c }
+                : { tint: 0xf6dfae, frame: 0x2e1a08 }
           : looks[lookOf(k)];
         mesh.setColorAt(n, new THREE.Color(look.tint));
         cracks.setColorAt(n, new THREE.Color(look.frame));
@@ -1079,7 +1083,7 @@ export class World {
       this.group.add(mesh, cracks);
     };
     build(
-      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) !== 'salt' && lookOf(k) !== 'sun' && lookOf(k) !== 'slate' && lookOf(k) !== 'reed'),
+      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) !== 'salt' && lookOf(k) !== 'sun' && lookOf(k) !== 'slate' && lookOf(k) !== 'reed' && lookOf(k) !== 'quartz'),
       new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x2c5f86, transparent: true, opacity: 0.6 }),
       'thin-ice',
     );
@@ -1112,6 +1116,18 @@ export class World {
       new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x2a2916, transparent: true, opacity: 0.92 }),
       'dry-reed',
     );
+    // Quartz flakes: pale pink-white in a grey frame, no glow.
+    build(
+      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) === 'quartz'),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }),
+      'quartz-flake',
+    );
+    // Cracked quartz crust, paler and drier than the flakes: no amber glow.
+    build(
+      this.iceTiles.filter((k) => brittle(k) && lookOf(k) === 'quartz'),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x2a2427, transparent: true, opacity: 0.92 }),
+      'dry-quartz',
+    );
     // Cracked pale stone, for Coilstone's Bridge: no amber glow.
     build(
       this.iceTiles.filter((k) => brittle(k) && lookOf(k) === 'slate'),
@@ -1119,7 +1135,7 @@ export class World {
       'cracked-stone',
     );
     build(
-      this.iceTiles.filter((k) => brittle(k) && lookOf(k) !== 'slate' && lookOf(k) !== 'reed'),
+      this.iceTiles.filter((k) => brittle(k) && lookOf(k) !== 'slate' && lookOf(k) !== 'reed' && lookOf(k) !== 'quartz'),
       new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x6b3f10, transparent: true, opacity: 0.85 }),
       'brittle',
     );
@@ -1239,10 +1255,11 @@ export class World {
    * it, with a darker rim below: a ring of them reads as a stone lid on the
    * lake with dark water beneath. Look only: the roof's rules live in `hollow`.
    */
-  private buildHollows(): void {
+  private buildHollows(all: { i: number; j: number }[], bodies: THREE.InstancedMesh): void {
     const tiles: number[] = [];
     for (let k = 0; k < this.hollow.length; k++) if (this.hollow[k] === 1) tiles.push(k);
     if (tiles.length === 0) return;
+    this.buildLintels(tiles, all, bodies);
     const lids = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), tiles.length * 2);
     lids.name = 'hollow-lids';
     const m = new THREE.Matrix4();
@@ -1263,6 +1280,48 @@ export class World {
     lids.castShadow = true;
     lids.receiveShadow = true;
     this.group.add(lids);
+  }
+
+  /**
+   * A wall that stands over a hollow (ground 6 or more above the water on both
+   * sides along z) would show a hole above the lid that looks like a doorway.
+   * Fill it from the lid up to the lower side, in the colour of that ground.
+   * Look only: nothing passes over a hollow.
+   */
+  private buildLintels(hollows: number[], all: { i: number; j: number }[], bodies: THREE.InstancedMesh): void {
+    const W = this.width;
+    // The ground at the end of a walk over neighbouring hollows, or -1 where there is none.
+    const wall = (k: number, dir: number): number => {
+      let n = k + dir * W;
+      while (n >= 0 && n < this.hollow.length && this.hollow[n] === 1) n += dir * W;
+      return n >= 0 && n < this.hollow.length && this.kind[n] !== Kind.Void ? n : -1;
+    };
+    const blocks: { k: number; from: number; to: number; src: number }[] = [];
+    for (const k of hollows) {
+      const a = wall(k, -1);
+      const b = wall(k, 1);
+      if (a < 0 || b < 0) continue;
+      const low = this.height[a] <= this.height[b] ? a : b;
+      const from = this.waterTop[k] + 0.14;
+      if (this.height[low] < this.waterTop[k] + 6) continue;
+      blocks.push({ k, from, to: this.height[low], src: low });
+    }
+    if (blocks.length === 0) return;
+    const slot = new Map<number, number>();
+    all.forEach((t, n) => slot.set(t.j * W + t.i, n));
+    const lintels = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), blocks.length);
+    lintels.name = 'hollow-lintels';
+    const m = new THREE.Matrix4();
+    const c = new THREE.Color();
+    blocks.forEach((b, n) => {
+      m.makeScale(1, b.to - b.from, 1).setPosition((b.k % W) + 0.5, (b.from + b.to) / 2, Math.floor(b.k / W) + 0.5);
+      lintels.setMatrixAt(n, m);
+      bodies.getColorAt(slot.get(b.src) as number, c);
+      lintels.setColorAt(n, c);
+    });
+    lintels.castShadow = true;
+    lintels.receiveShadow = true;
+    this.group.add(lintels);
   }
 
   /** How far down the rock goes under a tile: deeper toward the middle. */

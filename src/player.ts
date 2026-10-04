@@ -1010,6 +1010,13 @@ export class Player {
       h.legL.rotation.x = 0.5;
       h.legR.rotation.x = -0.3;
     }
+    // Wings: hidden below level 10, folded down the back, flat and wide in a glide.
+    for (const [side, w] of [[-1, h.wings.left], [1, h.wings.right]] as const) {
+      w.visible = this.winged;
+      w.rotation.set(0, 0, side * (this.gliding ? 0 : -1.35));
+      // Folded wings are drawn shorter, so their tips stay above the feet.
+      w.scale.setScalar(this.gliding ? 1 : 0.6);
+    }
   }
 
   private animateMermaid(swing: number, dt: number): void {
