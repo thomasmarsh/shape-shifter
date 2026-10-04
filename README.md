@@ -29,7 +29,7 @@ If the game runs slowly, add `?fast` to the address to turn off shadows.
 | --- | --- |
 | `W` `A` `S` `D` or arrows | Walk |
 | `Space` | Jump. Hold it as a fairy to fly, or as a bunny to hop high (tap for a small hop) |
-| Click or `J` | Swing your sword (Human and Orangutan). As a Snake: bite |
+| Click or `J` | Swing your sword (Human and Orangutan). As a Winter Wolf or a Snake: bite |
 | `E` | Use things: speakers, candles |
 | `F` | Eat a piece of bread (+1 heart) |
 | `Shift` | Dive, as a Human or a Mermaid. Hold it to sink, let go to float back up |
@@ -48,7 +48,9 @@ you can climb more; the bar under your hearts counts them.
 is running, so keep running and do not stop. A wolf that stops, or is slowed
 by bumping into something, will fall through. Over the lake it then has to
 swim out and try again; over the sky it falls. Jump gaps in the ice at a run.
-Thin ice grows back a few seconds after it breaks.
+Thin ice grows back a few seconds after it breaks. The Wolf has no sword, but
+it bites (click or `J`): 2 hearts a bite, from close up, with a little over
+half a second between bites.
 
 **Ant:** tiny, slow, and it has one heart. It is the only form that fits into a
 root tangle (the woven roots with strands hanging up out of sight). Everything
@@ -93,7 +95,11 @@ the Snake's alone. A tangle is too tight for it. Its bite (click or `J`) does
 no damage, but a bitten bad guy faints for 20 seconds: it lies still, cannot
 hit, and does not stop you using a speaker. It can still be hit while it is
 down, so bite as a Snake and finish as a Human. It wakes with the hearts it
-had.
+had. Only the Snake is quiet: a bad guy standing at its post looks one way
+(west, unless the island turns it), and it does not notice a Snake that is
+behind it or level with it, however close. Come round behind and bite. Every
+other shape is noticed from any side, and a bad guy that is already after you
+is not fooled.
 
 **Hop, then fly:** a Bunny can turn into a Fairy at the top of a hop and keep
 the height. Hold `Space` as a Bunny, press `1` when the hop is at its top, and
@@ -161,8 +167,8 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
 - **Coilstone** (level 7, then 8): a ruined city of blue-grey slate, split down
   the middle by the Rift, with a mesa of dark basalt, the Serpent's Head, at its
   east end. You land low and walk up a ramp. Five candles: the Sunken Court (a
-  Mermaid under a ring of deep kelp, guards behind a wall that she can beat
-  from the water with the bubble column, a Bunny up a terrace), the Colonnade
+  Mermaid under a ring of deep kelp, two guards shut in a walled cell that only
+  her bubble column reaches, a Bunny up a terrace), the Colonnade
   (a fight, an Orangutan along two great banyans, a Fairy across to a pillar),
   the Tooth (a run down a pier of slate slabs that turns into a Fairy at the
   end without stopping, then an Ant through a ring of fallen stone), the Stair
@@ -175,13 +181,13 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   the Serpent's Head, where the game stops for now.
 - Nine forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
   slow flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone
-  sword), Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts, the
-  fast, no sword, runs on thin ice), Ant (1 heart, slow, no
+  sword), Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts,
+  fast, no sword, a bite of 2 hearts, runs on thin ice), Ant (1 heart, slow, no
   sword, fits into root tangles), Mermaid (15 hearts, swims fast, dives
   without limit, sword and two water powers only in water), Cheetah (11
   hearts, the fastest of all while its breath lasts, no sword, runs on brittle
   crust) and Snake (6 hearts, slow, no sword, fits into holes, slides up tall
-  steps, a bite that makes bad guys faint). Hearts cap at the form's maximum when
+  steps, a bite that makes bad guys faint, not noticed from behind). Hearts cap at the form's maximum when
   you shift and only come back by eating.
 - 100 bread to start, more to find.
 - Four kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
@@ -232,8 +238,8 @@ src/
   player.ts     movement, flying, climbing, hopping, running on ice, fitting into
                 tangles and holes, swimming and diving, breath, sword, bite,
                 hearts, shape-shifting
-  enemy.ts      the regular bad guy, the archer and the two sword bad guys, and
-                how they faint
+  enemy.ts      the regular bad guy, the archer and the two sword bad guys, how
+                they faint, and which way they look at their posts
   arrows.ts     arrows in flight
   waterpowers.ts  the Mermaid's water shot and bubble column
   things.ts     puzzle speakers, candles and sea pickles, checkpoints, bread
@@ -352,6 +358,13 @@ islands, in `src/islands/*.routes.test.ts`. The Cheetah's own route tests
 (brittle runs, a timed gate, breath) are in `src/cheetah.routes.test.ts`, and
 the Snake's (a stepped burrow) in `src/snake.routes.test.ts`.
 
+The suite is 777 tests in 47 files and runs in 8 to 9 seconds on a busy
+8-core laptop (10 to 11 before). Test files run in forked workers without
+isolation (`pool: 'forks'`, `isolate: false` in `vite.config.ts`), so the
+engine is imported once per worker, not once per file. Each file still builds
+its own world; a test must not leave module-level state changed for the next
+file.
+
 Because of hop-then-fly, every raised thing (a ledge, a wall top, a treetop) is
 a launch pad. Level designs keep raised ground to where it is needed, and
 Frostfang's hub only has dips, never bumps. The island tests also check each
@@ -391,6 +404,8 @@ These were chosen to get a playable build. Change any of them freely.
   does one less.
 - **Bread:** one piece restores one heart.
 - **Forms with no attack** cannot hurt bad guys; they run, hide or shift.
+- **The Wolf bites:** 2 hearts flat, reach 1, 0.6 seconds between bites, no
+  faint. It is the Snake's bite with other numbers (`bite` in `src/forms.ts`).
 - **Falling off an island** costs one heart and returns you to the checkpoint.
 - **Fainting** returns you to the checkpoint with full hearts. Bad guys you
   already beat stay beaten; the rest go back to their posts.
@@ -486,7 +501,8 @@ These were chosen to get a playable build. Change any of them freely.
   the bubble column (`R`, 4 hearts, 7 tiles, bursts 0.6 s after a ring of
   bubbles warns, 3 s between columns) both need her to be swimming. The Gate
   Pond on Sunveld is there so she can clear the gate guards from the water.
-  Nothing in a level needs the powers, because the checker ignores bad guys.
+  No route needs the powers, because the checker ignores bad guys; the one
+  place built for them is the Sunken Court's cell on Coilstone.
 - **The Mermaid is slow on land (1.2) and cannot jump there.** She leaps only
   from the water's surface, which is enough to get onto a low shore.
 - **Saltmere's beach is its lowest land and is flat.** Its rooms are sealed by
@@ -551,6 +567,15 @@ These were chosen to get a playable build. Change any of them freely.
   guy is not beaten: it wakes where it lies with the hearts it had. The puzzle
   screen stops the clock, so 20 seconds only has to cover getting past. No
   route needs the bite, because the checker ignores bad guys.
+- **Sneaking is the Snake's alone.** A bad guy has a post facing (`facing` on
+  its spot, west when not given) and turns back to it after walking home or
+  waking. While it is idle it notices a Snake only in its front half (under 90
+  degrees between its facing and the direction to the Snake); the distance and
+  height limits are unchanged, and every other form is noticed from any side.
+  Once it has noticed, or been hit, it behaves as before until it is idle
+  again. The Foot's two guards look west, away from the Coil's mouth, so a
+  Snake that comes round behind them reaches the burrow unseen
+  (`src/sneak.test.ts`).
 - **The Snake cannot help with Coilstone's own candles,** because it unlocks on
   the fifth. The way off needs only the Snake.
 - **Coilstone's hub is flat, and its raised places were placed by reach.** All
@@ -572,9 +597,16 @@ These were chosen to get a playable build. Change any of them freely.
   too; the test proves only that one of the two runners is needed. In play the
   Wolf has no breath bar to run out.
 - **The Sunken Court's guards are for the bubble column.** They stand in a
-  pocket walled on three sides, 2 to 5 tiles from the inner water. The column
-  rises under the nearest bad guy within 7 tiles on the flat and ignores walls.
-  This is a layout, not a proof.
+  closed cell in the islet's north-west corner: a floor of two tiles inside a
+  wall one tile thick and 9.5 high (21.5), above a hop, then a flight, from the
+  terrace (20.93). `src/islands/coilstone-court.test.ts` proves it with the real
+  water powers: no water shot from any tile of the inner water hits a guard in
+  the cell, the column from the water beats both, and the eight old forms on
+  the generous setting stand on no tile of the cell or its walls. The cell
+  stands in that corner because anywhere else its walls hid the terrace. The
+  walls do hide the guards themselves from the camera; the hint at the Court
+  says they are there. A guard that has noticed you still stops the speaker, so
+  the fight matters.
 - **Tangle strands are faint threads:** one thin, pale, see-through thread per
   tile, so the wall still reads as going up but hides nothing behind it.
 - **Trees are solid:** a Human walks around them and arrows stop at them.
