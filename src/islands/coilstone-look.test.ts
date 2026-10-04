@@ -38,7 +38,7 @@ describe('Coilstone look', () => {
   });
 
   it('has only great banyans for trees', () => {
-    const trees = world.layout.trees.filter((t) => t.x >= 960);
+    const trees = world.layout.trees.filter((t) => t.x >= 960 && t.x < 1136);
     expect(trees).toHaveLength(3);
     for (const t of trees) expect(t.kind).toBe('greatBanyan');
   });

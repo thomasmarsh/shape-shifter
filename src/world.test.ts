@@ -17,8 +17,8 @@ describe('the default world', () => {
   const world = new World();
   const { layout } = world;
 
-  it('is 1136 by 64 tiles with the meadow where it always was', () => {
-    expect(world.width).toBe(1136);
+  it('is 1336 by 64 tiles with the meadow where it always was', () => {
+    expect(world.width).toBe(1336);
     expect(world.depth).toBe(64);
     expect(layout.spawn).toEqual({ x: 10.5, z: 27.5 });
     expect(world.groundAt(10.5, 27.5)).toBe(2);

@@ -24,7 +24,7 @@ import {
 const world = new World();
 const { layout } = world;
 
-const east = (s: { x: number }) => s.x >= 1031;
+const east = (s: { x: number }) => s.x >= 1031 && s.x < 1136;
 // Explores that start west of the Rift see from x 1000; the others from the Rift's west edge.
 const FROM_WEST = { x0: 1000, x1: 1136 };
 const RANGE = { x0: 1029, x1: 1136 };
@@ -46,7 +46,7 @@ const END = respawn(checkpoint('cs-end'));
 
 const eastCheckpoints = layout.checkpoints.filter(east);
 const eastEnemies = layout.enemies.filter(east);
-const tiles = solidTiles(world, { x0: 1031, x1: world.width });
+const tiles = solidTiles(world, { x0: 1031, x1: 1136 });
 const box = (i0: number, j0: number, i1: number, j1: number) => tiles.filter(([i, j]) => inBox(i, j, i0, j0, i1, j1));
 const mesaTop = box(1104, 14, 1129, 48).filter(([i, j]) => !(j === 30 && i <= 1114)); // the Coil has its own check
 const east1061 = tiles.filter(([i]) => i >= 1061);

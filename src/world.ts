@@ -49,7 +49,7 @@ export const NO_STAND = 100;
 const BOULDER = 0.9;
 
 /** Tiles from west to east. Background clouds in game.ts follow it. */
-export const WORLD_WIDTH = 1136;
+export const WORLD_WIDTH = 1336;
 
 /** Saltmere's water: turquoise, darker and bluer the deeper the bed (2 bright, 4 mid, 7 dark). */
 const SEA_STOPS: [number, THREE.Color][] = [
