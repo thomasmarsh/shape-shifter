@@ -20,7 +20,7 @@ function kindsIn(x0: number, x1: number): Map<Kind, number> {
 }
 
 describe('Coilstone look', () => {
-  const mine = kindsIn(960, world.width);
+  const mine = kindsIn(960, 1136);
 
   it('uses no earlier island look on any tile', () => {
     for (const k of OLD) expect(mine.has(k), `kind ${k}`).toBe(false);

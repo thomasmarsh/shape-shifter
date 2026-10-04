@@ -818,6 +818,15 @@ export class World {
         case Kind.Lichen:
           c.setHSL(0.19, 0.36, 0.6 + v * 0.07);
           break;
+        case Kind.Sedge:
+          c.setHSL(0.24 + v * 0.03, 0.42, 0.42 + v * 0.06);
+          break;
+        case Kind.Peat:
+          c.setHSL(0.08, 0.3, 0.24 + v * 0.05);
+          break;
+        case Kind.Chalk:
+          c.setHSL(0.12, 0.14, 0.74 + v * 0.05);
+          break;
         case Kind.Moss:
           c.setHSL(0.43 + v * 0.03, 0.55, 0.3 + v * 0.06);
           break;
@@ -871,6 +880,13 @@ export class World {
           break;
         case Kind.Basalt:
           c.setHSL(0.65, 0.1, 0.11 + v * 0.03);
+          break;
+        case Kind.Sedge:
+        case Kind.Peat:
+          c.setHSL(0.07, 0.32, 0.18 + v * 0.04);
+          break;
+        case Kind.Chalk:
+          c.setHSL(0.12, 0.1, 0.55 + v * 0.05);
           break;
         case Kind.Cloud:
           c.setHSL(0.58, 0.35, 0.93);

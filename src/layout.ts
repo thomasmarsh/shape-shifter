@@ -32,6 +32,12 @@ export const enum Kind {
   Basalt,
   /** Ordinary ground with a pale lichen top, for the ruins. Behaves like Stone. */
   Lichen,
+  /** Ordinary ground with a soft yellow-green top, for the fen. Behaves like Grass. */
+  Sedge,
+  /** Ordinary ground with a dark wet peat top, for the fen. Behaves like Dirt. */
+  Peat,
+  /** Ordinary ground with a pale chalk top, for the fen's stones. Behaves like Stone. */
+  Chalk,
 }
 
 /**

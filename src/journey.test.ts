@@ -206,6 +206,29 @@ describe('the journey through Coilstone', () => {
   });
 });
 
+describe('the journey through Hollowfen', () => {
+  const L8: FormId[] = [...L4, 'ant', 'mermaid', 'cheetah', 'snake'];
+  const L9: FormId[] = [...L8, 'axolotl'];
+  const from = standSpot('hollowfen');
+  // The whole island, with the Serpent's Head's margin on the west.
+  const range = cols(1125, 1336);
+  const ids = ['hf-pool', 'hf-ring', 'hf-road', 'hf-stair', 'hf-mound'];
+
+  it('level 8: the nine forms on easy use all five Hollowfen speakers and candles, and on max stand nowhere on the Last Stone', () => {
+    const r = explore(world, from, L8, 'easy', range);
+    for (const id of ids) {
+      const p = layout.puzzles.find((q) => q.id === id)!;
+      expect(r.canUse(p.speaker), `${id} speaker`).toBe(true);
+      expect(r.canUse(p.candle), `${id} candle`).toBe(true);
+    }
+    expect(explore(world, from, L8, 'max', range).canStand(standSpot('hf-end')), 'the Last Stone').toBe(false);
+  });
+
+  it('level 9: with the Axolotl the ten forms on easy stand on the Last Stone', () => {
+    expect(explore(world, from, L9, 'easy', range).canStand(standSpot('hf-end'))).toBe(true);
+  });
+});
+
 describe('the candles', () => {
   /** Puzzles whose speaker stands on the given island. */
   const puzzlesOn = (island: string) => {
@@ -225,6 +248,7 @@ describe('the candles', () => {
     ['saltmere', 5],
     ['sunveld', 6],
     ['coilstone', 7],
+    ['hollowfen', 8],
   ];
 
   it('gives each island exactly the lights its level needs', () => {
