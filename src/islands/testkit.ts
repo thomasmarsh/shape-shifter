@@ -33,11 +33,11 @@ export function solidTiles(world: World, { x0, x1 }: XRange): Tile[] {
  * inside one test file. Give the island's own x range plus a margin for its neighbours.
  */
 export function exploreIn(world: World, range: XRange) {
-  const explore = (from: Spot, forms: readonly FormId[], profile: Profile): Reach =>
-    exploreCached(world, from, forms, profile, range);
+  const explore = (from: Spot, forms: readonly FormId[], profile: Profile, wings = false): Reach =>
+    exploreCached(world, from, forms, profile, range, wings);
   /** Can `from` reach a tile of one of the goals? Stops at the first (see `reachesAny`); not cached. */
-  explore.reachesAny = (from: Spot, forms: readonly FormId[], profile: Profile, goals: readonly Spot[]): boolean =>
-    reachesAny(world, from, forms, profile, goals, range);
+  explore.reachesAny = (from: Spot, forms: readonly FormId[], profile: Profile, goals: readonly Spot[], wings = false): boolean =>
+    reachesAny(world, from, forms, profile, goals, range, wings);
   return explore;
 }
 

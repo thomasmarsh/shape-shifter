@@ -8,6 +8,7 @@ import { IslandBounds, Spot, World } from '../src/world';
 //   npm run map
 //   npm run map -- --island=meadow
 //   npm run map -- --reach=human,fairy --profile=max --from=10.5,27.5
+//   npm run map -- --reach=human --wings
 //
 // Up to four grids per island, one character per tile, with x and z rulers
 // every ten tiles: heights, things, water depth (only if the island has water)
@@ -21,9 +22,14 @@ function fail(message: string): never {
 // ---- arguments -------------------------------------------------------------
 
 const args = new Map<string, string>();
+let wings = false;
 for (const a of process.argv.slice(2)) {
+  if (a === '--wings') {
+    wings = true;
+    continue;
+  }
   const m = /^--([a-z]+)=(.*)$/.exec(a);
-  if (!m) fail(`Unknown argument "${a}". Use --island=<id>, --reach=<forms>, --profile=easy|max, --from=x,z`);
+  if (!m) fail(`Unknown argument "${a}". Use --island=<id>, --reach=<forms>, --profile=easy|max, --from=x,z, --wings`);
   args.set(m[1], m[2]);
 }
 for (const key of args.keys()) {
@@ -56,8 +62,8 @@ if (reachArg !== undefined) {
     if (!Number.isFinite(x) || !Number.isFinite(z)) fail('--from must look like 10.5,27.5');
     from = { x, z };
   }
-  reach = explore(world, from, forms, profile);
-  reachTitle = `reach: ${forms.join(' + ')}, ${profile}, from ${from.x},${from.z} (${reach.tiles} tiles)`;
+  reach = explore(world, from, forms, profile, undefined, wings);
+  reachTitle = `reach: ${forms.join(' + ')}, ${profile}${wings ? ', wings' : ''}, from ${from.x},${from.z} (${reach.tiles} tiles)`;
 }
 
 // ---- characters ------------------------------------------------------------

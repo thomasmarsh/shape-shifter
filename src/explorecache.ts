@@ -7,11 +7,11 @@ import type { Spot, World } from './world';
 // back the same Reach (a Reach is read-only).
 const cache = new WeakMap<World, Map<string, Reach>>();
 
-export function exploreCached(world: World, from: Spot, forms: readonly FormId[], profile: Profile, range?: XRange): Reach {
+export function exploreCached(world: World, from: Spot, forms: readonly FormId[], profile: Profile, range?: XRange, wings = false): Reach {
   let byKey = cache.get(world);
   if (!byKey) cache.set(world, (byKey = new Map()));
-  const key = `${from.x},${from.z}|${[...forms].sort().join(',')}|${profile}|${range ? `${range.x0}-${range.x1}` : 'all'}`;
+  const key = `${from.x},${from.z}|${[...forms].sort().join(',')}|${profile}|${range ? `${range.x0}-${range.x1}` : 'all'}|${wings ? 'wings' : 'walk'}`;
   let r = byKey.get(key);
-  if (!r) byKey.set(key, (r = explore(world, from, forms, profile, range)));
+  if (!r) byKey.set(key, (r = explore(world, from, forms, profile, range, wings)));
   return r;
 }

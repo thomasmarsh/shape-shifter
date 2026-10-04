@@ -1,4 +1,4 @@
-import { fitsUnderKelp, FORMS, FormId, PHYSICS as MOVER } from './forms';
+import { fitsUnderKelp, FORMS, FormId, GLIDE_SINK, GLIDE_SPEED, PHYSICS as MOVER } from './forms';
 import type { Spot, World } from './world';
 
 // An abstract reachability solver over tiles, so level designs can be checked
@@ -100,6 +100,20 @@ const MARGINS = {
    * from a standing start; taking off at the very edge of the tile adds up to
    * about a tile (the pilot's best flat gap is 21 tiles of sky).
    */
+  /**
+   * The wings (see WINGS_LEVEL in forms.ts): a glide gives up 1 / ratio of height
+   * per tile, from `lift` above the Human's tile (a jump is 1.2), with `extra`
+   * flat tiles on top for the body radius and the edge of the tile. The ideal
+   * ratio is GLIDE_SPEED / GLIDE_SINK = 6. Easy: 85 percent of it, from a jump
+   * a player can count on (0.9). Max: 105 percent, the full jump, 1.5 tiles.
+   * The field spreads over eight neighbours, so a straight line is overstated by
+   * up to 8.2 percent; 'max' takes that back (see `glideField`).
+   */
+  glide: {
+    ratio: { easy: 0.85, max: 1.05 },
+    lift: { easy: 0.9, max: 1.2 },
+    extra: { easy: 0, max: 1.5 },
+  },
   hopFly: {
     /** Where she stops hovering, and how far she glides per unit of height still to lose. */
     hover: 16.3,
@@ -129,6 +143,12 @@ const CENTRE_EXTRA = Math.SQRT2;
 /** Forms that move by jumping; their speed and jump come from FORMS. */
 const JUMPERS = ['human', 'orangutan', 'bunny', 'wolf', 'ant', 'mermaid', 'cheetah', 'snake', 'axolotl'] as const;
 type Jumper = (typeof JUMPERS)[number];
+
+/** The glide of the wings: tiles per unit of height, the height above the standing tile it starts at, and tiles added flat. */
+export function glideLimits(profile: Profile): { ratio: number; lift: number; extra: number } {
+  const h = MARGINS.glide;
+  return { ratio: h.ratio[profile] * (GLIDE_SPEED / GLIDE_SINK), lift: h.lift[profile], extra: h.extra[profile] };
+}
 
 /** What the checker says about hop-then-fly for a launch from `a` to a target, for tests. */
 export function hopFlyLimits(profile: Profile): {
@@ -175,8 +195,15 @@ export interface XRange {
  * range. Inside the range the answer is the same as the whole world's as long
  * as nothing reachable inside needs a path through the columns left out.
  */
-export function explore(world: World, from: Spot, forms: readonly FormId[], profile: Profile, range?: XRange): Reach {
-  return run(world, from, forms, profile, range);
+export function explore(
+  world: World,
+  from: Spot,
+  forms: readonly FormId[],
+  profile: Profile,
+  range?: XRange,
+  wings = false,
+): Reach {
+  return run(world, from, forms, profile, range, undefined, wings);
 }
 
 /**
@@ -197,8 +224,9 @@ export function reachesAny(
   profile: Profile,
   goals: readonly Spot[],
   range?: XRange,
+  wings = false,
 ): boolean {
-  const r = run(world, from, forms, profile, range, goals);
+  const r = run(world, from, forms, profile, range, goals, wings);
   return goals.some((g) => r.canStand(g));
 }
 
@@ -209,6 +237,7 @@ function run(
   profile: Profile,
   range?: XRange,
   goals?: readonly Spot[],
+  wings = false,
 ): Reach {
   const { depth } = world;
   const ox = range ? Math.max(0, range.x0) : 0;
@@ -517,6 +546,104 @@ function run(
     return true;
   };
 
+  // ---- the glide ---------------------------------------------------------
+
+  // The wings: a Human who stands on a tile opens them at `lift` above it and
+  // glides, losing 1 / ratio of height per tile. `galt` is the best altitude a
+  // glide can have over each tile; it only ever goes up, so a tile reached
+  // later adds its own glide on top of the field and the search stays a fixpoint.
+  const gliding = wings && can.has('human');
+  const galt = new Float64Array(gliding ? width * depth : 0).fill(-Infinity);
+  const gtop = new Float64Array(gliding ? width * depth : 0);
+  /** A wall with no top, or a tile nobody lands on (a tangle, a mat, a hollow, a gate shut). */
+  const gblock = new Uint8Array(gliding ? width * depth : 0);
+  let glideStep = 0;
+  let glideExtra = 0;
+  let gliderLift = 0;
+  let gliderFloor = Infinity;
+  if (gliding) {
+    const { ratio, lift, extra } = glideLimits(profile);
+    // Eight neighbours overstate a straight line by up to 8.2 percent: safe on easy, undone on max.
+    const eff = profile === 'max' ? ratio * 1.09 : ratio;
+    glideStep = 1 / eff;
+    glideExtra = extra / eff;
+    gliderLift = lift;
+    const tops = topsOf('human');
+    for (let k = 0; k < width * depth; k++) {
+      gtop[k] = wet[k] ? Math.max(tops[k], level[k]) : tops[k];
+      if (tangle[k] > 0 || kelp[k] > 0 || kelpRoom[k] < Infinity) gblock[k] = 1;
+      else if (exists[k]) gliderFloor = Math.min(gliderFloor, gtop[k]);
+    }
+  }
+  /** A max-heap of tiles by altitude: stale entries are skipped when popped. */
+  const gheap: { k: number; alt: number }[] = [];
+  const gpush = (k: number, alt: number): void => {
+    let n = gheap.length;
+    gheap.push({ k, alt });
+    while (n > 0) {
+      const p = (n - 1) >> 1;
+      if (gheap[p].alt >= alt) break;
+      gheap[n] = gheap[p];
+      n = p;
+    }
+    gheap[n] = { k, alt };
+  };
+  const gpop = (): { k: number; alt: number } => {
+    const top = gheap[0];
+    const last = gheap.pop()!;
+    const n = gheap.length;
+    if (n > 0) {
+      let i = 0;
+      for (;;) {
+        let c = 2 * i + 1;
+        if (c >= n) break;
+        if (c + 1 < n && gheap[c + 1].alt > gheap[c].alt) c++;
+        if (gheap[c].alt <= last.alt) break;
+        gheap[i] = gheap[c];
+        i = c;
+      }
+      gheap[i] = last;
+    }
+    return top;
+  };
+  /** Does a glide at `alt` pass over the tile (it has a top, and the glider is above it)? */
+  const gpasses = (k: number, alt: number): boolean => !gblock[k] && !shut[k] && alt > gtop[k];
+  /** Can a glide at `alt` come down on the tile as a Human? Not on a sheet, which no Human stands on. */
+  const glands = (k: number): boolean => exists[k] === 1 && !gblock[k] && !shut[k] && !ice[k];
+
+  /** Open the wings over the tile `ak` a Human stands on, at ground `a`, and spread what that adds. */
+  const glideFrom = (ak: number, a: number): void => {
+    const alt = a + gliderLift + glideExtra;
+    if (alt <= galt[ak]) return;
+    galt[ak] = alt;
+    gpush(ak, alt);
+    while (gheap.length > 0 && !found) {
+      const { k, alt: h } = gpop();
+      if (h < galt[k]) continue;
+      const ki = k % width;
+      const kj = (k - ki) / width;
+      const lower = h - glideStep;
+      const diag = h - glideStep * Math.SQRT2;
+      if (diag < gliderFloor) continue;
+      for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          if (di === 0 && dj === 0) continue;
+          const bi = ki + di;
+          const bj = kj + dj;
+          if (!onGrid(bi, bj)) continue;
+          const bk = tileIndex(bi, bj);
+          const next = di !== 0 && dj !== 0 ? diag : lower;
+          if (next <= galt[bk] || next < gtop[bk] || gblock[bk] || shut[bk]) continue;
+          // A diagonal step is no squeeze between two walls: both side tiles must let it by.
+          if (di !== 0 && dj !== 0 && (!gpasses(tileIndex(ki + di, kj), next) || !gpasses(tileIndex(ki, kj + dj), next))) continue;
+          galt[bk] = next;
+          if (glands(bk)) reach(bk, surfaceHuman[bk]);
+          if (next > gtop[bk]) gpush(bk, next);
+        }
+      }
+    }
+  };
+
   // ---- the search --------------------------------------------------------
 
   const reached = new Uint8Array(width * depth);
@@ -550,6 +677,7 @@ function run(
     skipTo[width * depth] = width * depth;
     count = 0;
     queue.length = 0;
+    if (gliding) galt.fill(-Infinity);
     const fi = Math.floor(from.x) - ox;
     const fj = Math.floor(from.z);
     if (onGrid(fi, fj) && exists[tileIndex(fi, fj)]) reach(tileIndex(fi, fj), surface(tileIndex(fi, fj), forms[0] ?? 'human'));
@@ -605,6 +733,8 @@ function run(
         if (kelp[ak] > 0 || (form === 'mermaid' && !wet[ak])) continue;
         // Whoever fits a tangle walks out of it but cannot hop from one.
         if (tangle[ak] > 0) continue;
+        // The Human stands here: she can jump and open the wings (never from water or a sheet).
+        if (gliding && form === 'human' && !wet[ak] && !ice[ak]) glideFrom(ak, a);
         const tops = topsOf(form);
 
         // Per-form numbers for this tile, worked out once for the whole window.
