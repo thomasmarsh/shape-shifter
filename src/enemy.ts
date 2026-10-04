@@ -233,6 +233,23 @@ export class Enemy implements Attackable {
     return this.state !== 'dead';
   }
 
+  /** Make a boss beaten at once, with no sound or puff: for loading a save. */
+  beat(): void {
+    this.hearts = 0;
+    this.state = 'dead';
+    this.timer = 0;
+    this.group.visible = false;
+    this.bar.visible = false;
+  }
+
+  /** Undo a beating: the bad guy stands at its post again with all its hearts. For a new game. */
+  revive(): void {
+    if (this.alive) return;
+    this.state = 'idle';
+    this.reset();
+    this.group.visible = this.awake;
+  }
+
   /** False while the bad guy is still waiting for a higher level. */
   get active(): boolean {
     return this.awake;

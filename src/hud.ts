@@ -1,4 +1,4 @@
-import { FORMS, lightsNeeded } from './forms';
+import { CREDITS, FORMS, lightsNeeded } from './forms';
 
 // Everything drawn on top of the 3D view: hearts, bread, candle lights, the
 // form bar, hints and the title / level-up / finish screens. Plain DOM.
@@ -37,6 +37,12 @@ export class Hud {
   private hint: HTMLElement;
   private action: HTMLElement;
   private toasts: HTMLElement;
+  private boss: HTMLElement;
+  private bossName: HTMLElement;
+  private bossFill: HTMLElement;
+  private credits: HTMLElement;
+  private creditsRoll: HTMLElement;
+  private lastBoss = '';
   private flash: HTMLElement;
   private fade: HTMLElement;
   private last = '';
@@ -64,7 +70,9 @@ export class Hud {
           <div class="bread"></div>
         </div>
       </div>
+      <div class="boss hidden"><span class="boss-name"></span><div class="boss-track"><div class="boss-fill"></div></div></div>
       <div class="toasts"></div>
+      <div class="credits hidden"><div class="credits-roll"></div></div>
       <div class="action hidden"></div>
       <div class="formbar" role="toolbar" aria-label="Shape-shift"></div>
       <button class="sound-toggle" aria-label="Sound on or off">Sound: on</button>
@@ -83,6 +91,11 @@ export class Hud {
     this.hint = q('.hint');
     this.action = q('.action');
     this.toasts = q('.toasts');
+    this.boss = q('.boss');
+    this.bossName = q('.boss-name');
+    this.bossFill = q('.boss-fill');
+    this.credits = q('.credits');
+    this.creditsRoll = q('.credits-roll');
     this.flash = q('.hurt-flash');
     this.fade = q('.fade');
 
@@ -169,6 +182,32 @@ export class Hud {
     this.lastAction = text;
     this.action.classList.toggle('hidden', !text);
     this.action.innerHTML = text;
+  }
+
+  /** The boss's name and hearts bar, or null to hide it. */
+  setBoss(boss: { name: string; hearts: number; maxHearts: number } | null): void {
+    const key = boss ? `${boss.name}|${boss.hearts}|${boss.maxHearts}` : '';
+    if (key === this.lastBoss) return;
+    this.lastBoss = key;
+    this.boss.classList.toggle('hidden', !boss);
+    if (!boss) return;
+    this.bossName.textContent = boss.name;
+    this.bossFill.style.width = `${Math.max(0, Math.min(1, boss.hearts / boss.maxHearts)) * 100}%`;
+  }
+
+  /** Roll the credits over the world, over `seconds`, or take them away. */
+  showCredits(on: boolean, seconds = 0): void {
+    this.credits.classList.toggle('hidden', !on);
+    if (!on) {
+      this.creditsRoll.innerHTML = '';
+      return;
+    }
+    const rows = CREDITS.map(([what, who]) => `<p class="credit"><span class="what">${what}</span><span class="who">${who}</span></p>`).join('');
+    this.creditsRoll.innerHTML = `<h1>Shape Shifter</h1><h2>You won</h2>${rows}<h2 class="end">The End</h2>`;
+    // Scroll from just under the screen until the last line is just past the top.
+    this.creditsRoll.style.animation = 'none';
+    void this.creditsRoll.offsetWidth;
+    this.creditsRoll.style.animation = `credits-roll ${seconds}s linear forwards`;
   }
 
   toast(text: string): void {

@@ -19,6 +19,8 @@ export interface SaveData {
   hintsDone: string[];
   /** Ids of the arrivals (new places) the player has reached. */
   arrived: string[];
+  /** The bosses beaten: 'warden', 'eel'. */
+  bosses: string[];
 }
 
 export function freshSave(): SaveData {
@@ -34,6 +36,7 @@ export function freshSave(): SaveData {
     breadTaken: [],
     hintsDone: [],
     arrived: [],
+    bosses: [],
   };
 }
 
@@ -43,6 +46,7 @@ export function loadSave(): SaveData | null {
     if (!raw) return null;
     const saved = JSON.parse(raw) as Partial<SaveData> & { finished?: boolean };
     const data = { ...freshSave(), ...saved };
+    if (!Array.isArray(data.bosses)) data.bosses = [];
     // Old saves marked the end of the tutorial with `finished`.
     if (saved.finished && !saved.arrived) data.arrived = ['tanglewood'];
     delete (data as { finished?: boolean }).finished;

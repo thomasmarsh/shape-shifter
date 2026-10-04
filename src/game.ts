@@ -3,7 +3,8 @@ import { sound } from './audio';
 import { WaterPowers } from './waterpowers';
 import { Arrows } from './arrows';
 import { Enemy } from './enemy';
-import { FORMS, lightsNeeded, swordTier, WINGS_LEVEL } from './forms';
+import { Ending, creditsEndZoom, creditsTarget, creditsZoom } from './ending';
+import { EEL, FORMS, lightsNeeded, MAX_LEVEL, swordTier, WARDEN, WINGS_LEVEL, CREDITS_SECONDS } from './forms';
 import { Card, Hud } from './hud';
 import { Input } from './input';
 import { coldAt, Snowfall } from './frost';
@@ -99,6 +100,12 @@ export class Game {
   /** Ids of the arrivals the player has reached. */
   private arrived = new Set<string>();
   private activeCheckpoint: string | null = null;
+  private ending!: Ending;
+  /** Set while the credits roll: seconds so far, where the camera began, and the zoom it ends on. */
+  private credits: { t: number; from: THREE.Vector3; endZoom: number } | null = null;
+  private zoom = 1;
+  private viewHeight = VIEW_HEIGHT;
+  private viewAspect = 1;
 
   constructor(private mount: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -193,7 +200,7 @@ export class Game {
 
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Escape' && this.playing && !this.puzzleUi.isOpen && !this.card.isOpen) this.showPause();
+      if (e.code === 'Escape' && this.playing && !this.credits && !this.puzzleUi.isOpen && !this.card.isOpen) this.showPause();
     });
     this.resize();
 
@@ -249,11 +256,18 @@ export class Game {
     this.renderer.setSize(w, h);
     const aspect = w / h;
     // On narrow windows, keep a minimum width in view instead.
-    const height = Math.max(VIEW_HEIGHT, 17 / aspect);
+    this.viewHeight = Math.max(VIEW_HEIGHT, 17 / aspect);
+    this.viewAspect = aspect;
+    this.setFrustum();
+  }
+
+  /** The view's size: the normal one times `zoom`, which only the credits change. */
+  private setFrustum(): void {
+    const height = this.viewHeight * this.zoom;
     this.camera.top = height / 2;
     this.camera.bottom = -height / 2;
-    this.camera.left = (-height * aspect) / 2;
-    this.camera.right = (height * aspect) / 2;
+    this.camera.left = (-height * this.viewAspect) / 2;
+    this.camera.right = (height * this.viewAspect) / 2;
     this.camera.updateProjectionMatrix();
   }
 
@@ -273,6 +287,7 @@ export class Game {
     // Bad guys for a level you already have are simply there, with no fanfare.
     for (const e of this.enemies) e.settle(p.level);
     this.flags = new Set(s.hintsDone);
+    this.ending = new Ending(this.world, this.enemies, s.bosses);
     for (const z of this.puzzles) {
       z.solved = s.solved.includes(z.spot.id);
       z.taken = s.taken.includes(z.spot.id);
@@ -298,6 +313,7 @@ export class Game {
       breadTaken: this.breads.filter((b) => b.taken).map((b) => b.id),
       hintsDone: [...this.flags],
       arrived: [...this.arrived],
+      bosses: this.ending.beaten(),
     });
   }
 
@@ -377,7 +393,11 @@ export class Game {
              : ''
        }
        ${sword}
-       <p class="soft">Next level: ${next} candle lights.</p>`,
+       <p class="soft">${
+         Number.isFinite(next)
+           ? `Next level: ${next} candle lights.`
+           : 'The last island has no candle lights. Two bosses guard the end.'
+       }</p>`,
       [{ label: 'Keep playing', onClick: () => {} }],
       'levelup',
     );
@@ -665,7 +685,7 @@ export class Game {
   private frame(): void {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.time += dt;
-    const running = this.playing && !this.transition && !this.puzzleUi.isOpen && !this.card.isOpen;
+    const running = this.playing && !this.transition && !this.credits && !this.puzzleUi.isOpen && !this.card.isOpen;
     this.input.enabled = running;
 
     if (running) this.step(dt);
@@ -683,7 +703,8 @@ export class Game {
     this.updateOrbs(dt);
     this.updateLanding();
     this.updateFinder(dt);
-    this.updateCamera(dt);
+    if (this.credits) this.updateCredits(dt);
+    else this.updateCamera(dt);
     this.updateCold();
     this.updateHud();
     this.input.endFrame();
@@ -702,6 +723,7 @@ export class Game {
     for (const e of this.enemies) e.update(dt, p, this.enemies);
     this.arrows.update(dt, p);
     this.waterPowers.update(dt, p, this.input);
+    this.checkEnding();
     if (p.hearts < heartsBefore) this.hud.hurt();
 
     // Checkpoints light up when you walk near them.
@@ -897,6 +919,87 @@ export class Game {
     this.mount.style.setProperty('--cold', cold.toFixed(3));
   }
 
+  // ---- the end -----------------------------------------------------------
+
+  /** The Warden beaten drops the lid; the Eel beaten wins the game. */
+  private checkEnding(): void {
+    for (const event of this.ending.step()) {
+      if (event === 'warden') {
+        sound.crack();
+        this.hud.toast('The floor is falling!');
+        this.save();
+      } else {
+        const p = this.player;
+        p.level = MAX_LEVEL;
+        p.lights = 0;
+        p.refreshGear();
+        sound.levelUp();
+        this.particles.burst(p.chest, 0xffe98a, 40, 5, 0.18, 2);
+        this.save();
+        this.startCredits();
+      }
+    }
+  }
+
+  /** The boss to show a hearts bar for: awake, alive, and alert or close. */
+  private nearBoss(): Enemy | null {
+    const p = this.player;
+    for (const e of this.enemies) {
+      if (!e.boss || !e.alive || !e.active) continue;
+      if (e.alert || Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < 20) return e;
+    }
+    return null;
+  }
+
+  private startCredits(): void {
+    const w = this.world;
+    // Heights run 0 to about 31, so the world's box is 31 high.
+    const endZoom = creditsEndZoom(CAMERA_DIR, w.width, w.depth, 31, this.viewAspect, this.viewHeight);
+    this.credits = { t: 0, from: this.camTarget.clone(), endZoom };
+    this.camera.far = 2600;
+    this.hud.showCredits(true, CREDITS_SECONDS);
+    window.addEventListener('keydown', this.stopCredits);
+    window.addEventListener('pointerdown', this.stopCredits);
+  }
+
+  // Any key or click ends the credits, but not in the first moment, so the
+  // blow that won the game does not end them.
+  private stopCredits = (): void => {
+    if (this.credits && this.credits.t > 0.6) this.endCredits();
+  };
+
+  private updateCredits(dt: number): void {
+    const c = this.credits!;
+    c.t += dt;
+    if (c.t >= CREDITS_SECONDS) {
+      this.endCredits();
+      return;
+    }
+    const w = this.world;
+    this.zoom = creditsZoom(c.t, c.endZoom);
+    this.setFrustum();
+    const m = creditsTarget(c.t, c.from, { x: w.width / 2, y: 15, z: w.depth / 2 });
+    this.camTarget.set(m.x, m.y, m.z);
+    // Pull the camera back as the view grows, so the near world is not cut off.
+    this.camera.position.copy(this.camTarget).addScaledVector(CAMERA_DIR, 80 + this.zoom * 20);
+    this.camera.lookAt(this.camTarget);
+    this.sun.position.set(m.x - 10, m.y + 30, m.z + 6);
+    this.sun.target.position.copy(this.camTarget);
+  }
+
+  private endCredits(): void {
+    if (!this.credits) return;
+    this.credits = null;
+    window.removeEventListener('keydown', this.stopCredits);
+    window.removeEventListener('pointerdown', this.stopCredits);
+    this.hud.showCredits(false);
+    this.zoom = 1;
+    this.camera.far = 400;
+    this.setFrustum();
+    this.snapCamera();
+    this.hud.toast('The sky is yours to wander.');
+  }
+
   private updateHud(): void {
     const p = this.player;
     this.hud.update({
@@ -908,6 +1011,8 @@ export class Game {
       formIndex: p.formIndex,
       meter: p.meter,
     });
+    const boss = this.playing && !this.credits ? this.nearBoss() : null;
+    this.hud.setBoss(boss ? { name: boss.kind === 'eel' ? EEL.name : WARDEN.name, hearts: boss.hearts, maxHearts: boss.maxHearts } : null);
     if (this.playing) this.hud.setHint(this.currentHint());
   }
 
