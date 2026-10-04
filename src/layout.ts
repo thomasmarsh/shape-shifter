@@ -38,6 +38,12 @@ export const enum Kind {
   Peat,
   /** Ordinary ground with a pale chalk top, for the fen's stones. Behaves like Stone. */
   Chalk,
+  /** Ordinary ground with a purple heather top, for the windy crest. Behaves like Grass. */
+  Heather,
+  /** Ordinary ground with a grey-brown top of loose stones, for the crest. Behaves like Dirt. */
+  Scree,
+  /** Ordinary ground with a pale pink-white quartz top, for the crest's stones. Behaves like Stone. */
+  Quartz,
 }
 
 /**
