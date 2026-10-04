@@ -298,7 +298,9 @@ describe('who owns the look of a tile', () => {
     return out;
   };
   /** Water in the grid, whether or not a thin sheet lies over it. */
-  const hasWater = (i: number, j: number): boolean => (world as any).water[j * world.width + i] === 1;
+  // The lake under a shut lid is drawn too: its water is in the mesh though the tile is dry.
+  const hasWater = (i: number, j: number): boolean =>
+    (world as any).water[j * world.width + i] === 1 || world.isLid(i + 0.5, j + 0.5);
   const hexOf = (mesh: THREE.InstancedMesh, n: number): number => {
     const c = new THREE.Color();
     mesh.getColorAt(n, c);

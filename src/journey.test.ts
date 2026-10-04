@@ -282,6 +282,7 @@ describe('the candles', () => {
     ['coilstone', 7],
     ['hollowfen', 8],
     ['galecrest', 9],
+    ['cinderhold', 10],
   ];
 
   it('gives each island exactly the lights its level needs', () => {
@@ -289,7 +290,8 @@ describe('the candles', () => {
       world.bounds.map((b) => b.id),
       'every island has a row in ISLANDS',
     ).toEqual(ISLANDS.map(([id]) => id));
-    for (const [id, level] of ISLANDS) expect(puzzlesOn(id), id).toHaveLength(lightsNeeded(level));
+    // Level 10 needs no lights (it is the bosses that give level 11), so the last island has no candles.
+    for (const [id, level] of ISLANDS) expect(puzzlesOn(id), id).toHaveLength(level >= 10 ? 0 : lightsNeeded(level));
     expect(ISLANDS.reduce((n, [id]) => n + puzzlesOn(id).length, 0)).toBe(layout.puzzles.length);
   });
 

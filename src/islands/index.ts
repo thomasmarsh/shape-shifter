@@ -9,6 +9,7 @@ import { sunveld } from './sunveld';
 import { coilstone } from './coilstone';
 import { hollowfen } from './hollowfen';
 import { galecrest } from './galecrest';
+import { cinderhold } from './cinderhold';
 
 /** Every island in the world, in the order they are built. */
-export const ISLANDS: readonly Island[] = [meadow, tanglewood, highcrag, frostfang, underroot, saltmere, sunveld, coilstone, hollowfen, galecrest];
+export const ISLANDS: readonly Island[] = [meadow, tanglewood, highcrag, frostfang, underroot, saltmere, sunveld, coilstone, hollowfen, galecrest, cinderhold];
