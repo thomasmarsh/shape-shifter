@@ -1297,48 +1297,59 @@ export function makeCloud(seed: number): THREE.Group {
   return group;
 }
 
-/** The Warden: a big dark stone figure, about 2.2 tall, with glowing eyes. */
+/** The Warden: a big old cinder-stone figure, about 2.2 tall, wide at the shoulders, with ember cracks and a heavy right fist. */
 export function makeWarden(): BadGuyModel {
   const group = new THREE.Group();
-  const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4a4d57 });
-  const rock = mat(0x2b2d35);
-  const moss = mat(0x3d5a3a);
-  const legL = limb(0.5, 0.8, 0.5, rock, -0.35, 0.8);
-  const legR = limb(0.5, 0.8, 0.5, rock, 0.35, 0.8);
-  const armL = limb(0.45, 1.0, 0.45, bodyMat, -0.95, 1.9);
-  const armR = limb(0.45, 1.0, 0.45, bodyMat, 0.95, 1.9);
-  armL.add(box(0.6, 0.5, 0.6, rock, 0, -1.05, 0));
-  armR.add(box(0.6, 0.5, 0.6, rock, 0, -1.05, 0));
-  const eye = mat(0xffb040, { emissive: 0xcc7a10 });
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0x3b3a40 });
+  const rock = mat(0x25242a);
+  const ash = mat(0x5a5860);
+  const ember = mat(0xff7a1a, { emissive: 0xcc4a08 });
+  const legL = limb(0.55, 0.8, 0.55, rock, -0.38, 0.8);
+  const legR = limb(0.55, 0.8, 0.55, rock, 0.38, 0.8);
+  const armL = limb(0.5, 1.0, 0.5, bodyMat, -1.05, 1.85);
+  const armR = limb(0.6, 1.0, 0.6, bodyMat, 1.05, 1.85);
+  armL.add(box(0.7, 0.55, 0.7, rock, 0, -1.05, 0));
+  armR.add(box(0.95, 0.75, 0.95, rock, 0, -1.15, 0), box(0.5, 0.06, 0.06, ember, 0, -0.5, 0.31));
   group.add(
     legL,
     legR,
     armL,
     armR,
-    box(1.4, 1.1, 0.9, bodyMat, 0, 1.35, 0),
-    box(1.5, 0.3, 1.0, moss, 0, 0.85, 0),
-    box(0.9, 0.7, 0.8, bodyMat, 0, 2.0, 0),
-    box(0.7, 0.14, 0.06, eye, 0, 2.05, 0.41),
+    box(1.5, 1.1, 1.0, bodyMat, 0, 1.3, 0),
+    box(1.9, 0.4, 1.1, ash, 0, 1.85, 0),
+    box(0.9, 0.7, 0.8, bodyMat, 0, 2.0, 0.05),
+    box(1.6, 0.25, 1.05, rock, 0, 0.8, 0),
+    box(0.12, 0.7, 0.06, ember, -0.3, 1.3, 0.51),
+    box(0.4, 0.08, 0.06, ember, 0.3, 1.45, 0.51),
+    box(0.1, 0.4, 0.06, ember, 0.45, 1.2, 0.51),
+    box(0.7, 0.12, 0.06, ember, 0, 2.05, 0.46),
+    box(0.3, 0.2, 0.3, ash, -0.5, 2.38, 0),
+    box(0.3, 0.2, 0.3, ash, 0.5, 2.38, 0),
   );
   return { group, armL, armR, legL, legR, bodyMat };
 }
 
-/** The Eel: a long dark blue-green body, about 2.4 long, lying along +z. It has no legs or arms, only empty groups. */
+/** The Eel: a long dark blue-green body, about 2.4 long, lying along +z, with a pale belly and back stripe, a fin and a jaw. It has no legs or arms, only empty groups. */
 export function makeEel(): BadGuyModel {
   const group = new THREE.Group();
   const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1d4a4f });
-  const belly = mat(0x7fa89a);
+  const belly = mat(0x9fc8b8);
+  const stripe = mat(0x8fe8d0, { emissive: 0x2a8a70 });
   const fin = mat(0x143338);
+  const jaw = mat(0x0f2a2e);
   const eye = mat(0xffe066, { emissive: 0xaa8800 });
   group.add(
     box(0.5, 0.5, 1.2, bodyMat, 0, 0, 0.3),
     box(0.4, 0.4, 0.8, bodyMat, 0, 0, -0.6),
-    box(0.26, 0.26, 0.5, bodyMat, 0, 0, -1.2),
+    box(0.26, 0.26, 0.5, bodyMat, 0, 0, -1.0),
     box(0.4, 0.14, 1.0, belly, 0, -0.22, 0.3),
+    box(0.14, 0.04, 1.6, stripe, 0, 0.26, -0.1),
     box(0.06, 0.26, 1.4, fin, 0, 0.3, -0.1),
-    box(0.4, 0.4, 0.4, bodyMat, 0, 0, 1.05),
-    box(0.08, 0.08, 0.06, eye, -0.14, 0.1, 1.27),
-    box(0.08, 0.08, 0.06, eye, 0.14, 0.1, 1.27),
+    box(0.04, 0.4, 0.4, fin, 0, 0.1, -1.2),
+    box(0.4, 0.4, 0.4, bodyMat, 0, 0.04, 1.05),
+    box(0.34, 0.1, 0.35, jaw, 0, -0.2, 1.2),
+    box(0.1, 0.1, 0.06, eye, -0.15, 0.12, 1.26),
+    box(0.1, 0.1, 0.06, eye, 0.15, 0.12, 1.26),
   );
   return { group, armL: new THREE.Group(), armR: new THREE.Group(), legL: new THREE.Group(), legR: new THREE.Group(), bodyMat };
 }

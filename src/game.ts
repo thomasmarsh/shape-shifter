@@ -691,6 +691,7 @@ export class Game {
     if (running) this.step(dt);
 
     this.world.update(this.time);
+    this.world.stepLid(dt);
     for (const z of this.puzzles) z.update(this.time);
     this.updateCandleLights();
     for (const c of this.checkpoints) c.update(this.time);
@@ -927,6 +928,8 @@ export class Game {
       if (event === 'warden') {
         sound.crack();
         this.hud.toast('The floor is falling!');
+        const mid = this.enemies.find((e) => e.kind === 'warden')?.pos ?? this.player.pos;
+        this.particles.burst(new THREE.Vector3(mid.x, mid.y + 0.5, mid.z), 0x6b6670, 30, 3.5, 0.2, 1.5);
         this.save();
       } else {
         const p = this.player;

@@ -94,10 +94,10 @@ const KINDS: Record<EnemyKind, Tuning> = {
 };
 
 /** The rock the Warden throws and the ball of water the Eel spits. */
-const ROCK = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3), new THREE.MeshLambertMaterial({ color: 0x6b6b72 }));
+const ROCK = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), new THREE.MeshLambertMaterial({ color: 0x3a3840 }));
 const BALL = new THREE.Mesh(
-  new THREE.SphereGeometry(0.25, 12, 8),
-  new THREE.MeshLambertMaterial({ color: 0x4aa8ff, transparent: true, opacity: 0.8 }),
+  new THREE.SphereGeometry(0.2, 12, 8),
+  new THREE.MeshLambertMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.8 }),
 );
 /** A rock or ball is in the air this long at most. */
 const SHOT_LIFE = 3;
@@ -213,10 +213,10 @@ export class Enemy implements Attackable {
     if (this.kind === 'warden') {
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(WARDEN.slamRadius - 0.15, WARDEN.slamRadius, 48),
-        new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
+        new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
       );
       ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.05;
+      ring.position.y = 0.03;
       ring.visible = false;
       this.ring = ring;
       this.group.add(ring);

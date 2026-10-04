@@ -132,6 +132,8 @@ export class World {
   /** Every lid tile by tile index: the bed, the top of the slab and the kelp and hollow it hides while shut. */
   private lidTiles = new Map<number, { bed: number; top: number; kelp: number; hollow: number }>();
   private lidSlab: THREE.InstancedMesh | null = null;
+  /** How far the dropped lid's mesh has sunk, 0 to 1, or -1 when it is not sinking. */
+  private lidFall = -1;
 
   readonly layout: Layout;
   /** Where each island put its ground, for tools like the map printer. */
@@ -487,7 +489,30 @@ export class World {
       this.kelp[k] = l.kelp;
       this.hollow[k] = l.hollow;
     }
-    if (this.lidSlab) this.lidSlab.visible = false;
+    // The mesh lingers: it sinks and fades in stepLid.
+    if (this.lidSlab) this.lidFall = 0;
+  }
+
+  /** Sink and fade the dropped lid's slabs over about 0.8 s, then hide them. */
+  stepLid(dt: number): void {
+    const slab = this.lidSlab;
+    if (!slab || this.lidFall < 0) return;
+    this.lidFall = Math.min(1, this.lidFall + dt / 0.8);
+    const mat = slab.material as THREE.MeshLambertMaterial;
+    mat.transparent = true;
+    mat.opacity = 1 - this.lidFall;
+    slab.position.y = -this.lidFall * 1.5;
+    if (this.lidFall >= 1) this.resetLidMesh(false);
+  }
+
+  private resetLidMesh(visible: boolean): void {
+    this.lidFall = -1;
+    if (!this.lidSlab) return;
+    const mat = this.lidSlab.material as THREE.MeshLambertMaterial;
+    mat.transparent = false;
+    mat.opacity = 1;
+    this.lidSlab.position.y = 0;
+    this.lidSlab.visible = visible;
   }
 
   /** Put the lid back. */
@@ -499,7 +524,7 @@ export class World {
       this.kelp[k] = 0;
       this.hollow[k] = 0;
     }
-    if (this.lidSlab) this.lidSlab.visible = true;
+    this.resetLidMesh(true);
   }
 
   /** True on a lid tile, shut or not. */
@@ -519,13 +544,28 @@ export class World {
     slab.name = 'lid';
     const m = new THREE.Matrix4();
     const c = new THREE.Color();
+    // A round seal: rings of obsidian around the middle, with a paler band on the rim.
+    const mid = { x: 0, z: 0 };
+    for (const k of this.lidTiles.keys()) {
+      const t = this.tileMiddle(k);
+      mid.x += t.x / this.lidTiles.size;
+      mid.z += t.z / this.lidTiles.size;
+    }
+    let reach = 0;
+    for (const k of this.lidTiles.keys()) {
+      const t = this.tileMiddle(k);
+      reach = Math.max(reach, Math.hypot(t.x - mid.x, t.z - mid.z));
+    }
     let n = 0;
     for (const [k, l] of this.lidTiles) {
       const low = this.waterTop[k] - 0.3;
       const at = this.tileMiddle(k);
       m.makeScale(1, l.top - low, 1).setPosition(at.x, (l.top + low) / 2, at.z);
       slab.setMatrixAt(n, m);
-      slab.setColorAt(n, c.setHSL(0.74, 0.2, 0.16 + hash(k % this.width, Math.floor(k / this.width), 3) * 0.03));
+      const f = Math.hypot(at.x - mid.x, at.z - mid.z) / (reach || 1);
+      const tone = f > 0.88 ? 0.34 : f > 0.62 ? 0.2 : f > 0.3 ? 0.08 : 0.14;
+      const grain = hash(k % this.width, Math.floor(k / this.width), 3) * 0.02;
+      slab.setColorAt(n, c.setHSL(f > 0.88 ? 0.08 : 0.74, f > 0.88 ? 0.1 : 0.25, tone + grain));
       n++;
     }
     this.lidSlab = slab;

@@ -104,14 +104,20 @@ describe('the lid', () => {
     expect(world.groundAt(mid.x, mid.z)).toBe(TOP);
   });
 
-  it('shows the slab while shut and hides it when dropped', () => {
+  it('shows the slab while shut, sinks it when dropped and hides it once it has sunk', () => {
     const slab = world.group.getObjectByName('lid');
     expect(slab).toBeDefined();
     world.raiseLid();
     expect(slab!.visible).toBe(true);
     world.dropLid();
+    // The tiles are water at once; only the slab lingers, for under a second.
+    expect(world.isWater(12.5, 7.5)).toBe(true);
+    world.stepLid(0.4);
+    expect(slab!.visible).toBe(true);
+    world.stepLid(1);
     expect(slab!.visible).toBe(false);
     world.raiseLid();
+    expect(slab!.visible).toBe(true);
   });
 
   it('throws on a dry tile', () => {
