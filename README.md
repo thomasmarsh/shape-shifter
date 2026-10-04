@@ -36,7 +36,7 @@ If the game runs slowly, add `?fast` to the address to turn off shadows.
 | `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, `6` Mermaid, `7` Cheetah, `8` Snake, `9` Axolotl) |
 | `Q` | Fairy: make a tiny home to hide in. Mermaid, in the water: shoot water at the nearest bad guy |
 | `R` | Mermaid, in the water: raise a bubble column under the nearest bad guy |
-| `Esc` | Pause |
+| `Esc` | Pause. The pause card also has **New game**, which asks once more and then starts over |
 
 **Orangutan:** walk into a tree trunk and keep pushing to climb it. At the top
 you stand on the tree, and from a treetop you can jump to the next tree and
@@ -185,6 +185,8 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   the open sky, each with a gap to jump, with a Bunny hop between them, to
   Sunset Rock, and on to the next island. One breath covers each run but not
   two in a row, so the Cheetah has to rest in the Yard and on the Terrace.
+  Between the rooms the valley has pans of water, dry wallows, clumps of thorn
+  and more bad guys, and one roofed pan, the Lair, for a much later shape.
 - **Coilstone** (level 7, then 8): a ruined city of blue-grey slate, split down
   the middle by the Rift, with a mesa of dark basalt, the Serpent's Head, at its
   east end. You land low and walk up a ramp. Five candles: the Sunken Court (a
@@ -200,7 +202,8 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   the Snake is what the way off needs: past two heavy sword bad guys at the
   Foot and up the Coil, a burrow of ten tall steps in the mesa's west face, to
   the Serpent's Head, and from there a hop, then a flight, east and down to the
-  next island.
+  next island. Between the rooms the city has cisterns, sunk floors, heaps of
+  fallen stone and more guards, and one roofed cistern, the Vault.
 - **Hollowfen** (level 8, then 9): a fen of sedge, peat and still water, cut in
   two by the Gap. You land low and walk up a ramp. Five candles: the Reed Pool
   (a fight, then a pickle 8 deep that only the Mermaid reaches), the Reed Ring
@@ -214,14 +217,18 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   the Well, a lake with a ring of hollows round the Last Stone. The Last Stone
   is a dead end. The way on is from the fen's east bank: a hop, then a flight,
   east and down. Between the rooms the fen has pools, peat cuts, reed beds and
-  more herons, two camps of them with the quick blades.
+  more herons, two camps of them with the quick blades, and the Holt: a pool
+  with a stone roof round its middle, and bread on a stone that only the
+  Axolotl reaches.
 - **Galecrest** (level 9, then 10): a windy heath of heather, scree and quartz,
   cut in two by the Gap. You land low in the Court, in front of the Windbreak,
   a wall across the whole island that is too tall for anything that hops or
   flies. Water runs under it through the Sluice, beneath a low stone roof, and
   only the Axolotl gets through; under the roof it is hidden from the two
   guards on the bank. Past the wall a ramp of scree climbs to the heath. Five
-  candles: the Tarn (a fight, then a pickle 8 deep, too deep for a Human), the
+  candles: the Tarn (a fight, then a pickle 8 deep in a corner shut off by a low
+  stone roof: Snappers in the open water for the Mermaid, the roof for the
+  Axolotl), the
   Gorse Ring (an Ant through a ring of gorse, a Bunny up a terrace), the Pine
   Road (a fight, an Orangutan along two great pines, a Fairy across to a
   pillar), the Stair (a fight, a run up a stair of quartz flakes, then hop,
@@ -236,7 +243,8 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   There is a way back: the Kestrel Steps, north of the Rock, five steps a Bunny
   hops to a top high enough for a glide west to the heath. Between the rooms
   the heath has tarns, scree hollows, gorse and more guards than any island
-  before it.
+  before it, and two roofed tarns, the Kettle and the Cauldron, with bread
+  only the Axolotl gets.
 - **Cinderhold** (level 10, the end): ash, black glass and one arena, the Ring.
   It has no candles. You land low, a short Fairy flight east of Kestrel Rock,
   and walk up the Climb. The Warden stands in the middle of the Ring on a
@@ -266,8 +274,8 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   two slower "testers" on the training ground, archers (8 hearts) who
   appear once you reach level 3, and two kinds with a sword who appear once you
   reach level 7: a heavy one (5 hearts, slow, a long wind-up, 4 hearts a blow)
-  and a light one (3 hearts, a short wind-up, 2 hearts a blow, and faster
-  than everything but the Cheetah: only a Cheetah runs away from it). And the Snapper (6 hearts), a fish that appears once you reach level
+  and a light one (3 hearts, a short wind-up, 2 hearts a blow, and at speed 8
+  faster than everything but the Cheetah: only a Cheetah runs away from it). And the Snapper (6 hearts), a fish that appears once you reach level
   6 in the deep pools of Sunveld, Hollowfen and Galecrest. It never leaves its
   pool and takes no notice of anyone on the bank. At a swimmer it glows for
   half a second, then snaps 3.5 tiles in a straight line for 2 hearts. A pale
@@ -326,11 +334,11 @@ src/
                       wings' way off (east half), built by galecrest.ts
     cinderhold.ts     the last island: the Landing, the Climb, the Ring, the
                       Lid over the Deep, and the two Stairs
-    fill.ts       ponds, dells and thickets: what fills a flat hub without
-                  changing who reaches what
-    hollowfen-fill.ts  galecrest-fill.ts
+    fill.ts       ponds, dells, thickets and holts: what fills a flat hub
+                  without changing who reaches what
+    sunveld-fill.ts  coilstone-fill.ts  hollowfen-fill.ts  galecrest-fill.ts
                   what stands between those islands' rooms: water, dips,
-                  thickets, more bad guys, bread
+                  thickets, holts, more bad guys, bread
     testkit.ts    the checks every island's tests repeat (closed rings, guard
                   and archer distances, things on real ground, ids, melodies,
                   the camera, a way out from every respawn spot, gate timing)
@@ -514,9 +522,13 @@ and a Mermaid jump out of every pond tried, dells are walked through, and a
 glide from the heath comes down on Kestrel Rock. `src/islands/fill.test.ts`
 checks the same things with the checker: nothing higher than the hub, the
 lanes clear, the new guards far enough from checkpoints, rings and ways off.
+The holts are checked in `src/islands/holt.test.ts` (no set without the
+Axolotl reaches the stone or the moat) and swum in
+`src/islands/holt.routes.test.ts`, where an Axolotl jumps from the moat onto
+the single stone and gets back out.
 
-The suite is 1174 tests in 82 files and runs in about 15 seconds on an 8-core
-laptop (the 1138 before the hubs were filled took about 14, the 977 tests before Cinderhold took about 12, the 872 before Galecrest
+The suite is 1230 tests in 84 files and runs in about 15 seconds on an 8-core
+laptop (the 1174 before Sunveld and Coilstone were filled took the same, the 1138 before any hub was filled about 14, the 977 tests before Cinderhold took about 12, the 872 before Galecrest
 about 11, the 777 before Hollowfen 8.5; with isolation those took 10 to 11). Test files run in forked workers without
 isolation (`pool: 'forks'`, `isolate: false` in `vite.config.ts`), so the
 engine is imported once per worker, not once per file. Each file still builds
@@ -698,10 +710,11 @@ These were chosen to get a playable build. Change any of them freely.
 - **Two sword bad guys.** The plan has one kind: 5 hearts, a sword that does 4,
   appearing with the Cheetah. That is the heavy one: slow (2.4), with a wind-up
   of 0.8 seconds that glows, so there is time to step back. The light one is
-  an addition: 3 hearts, 2 hearts a blow, wind-up 0.4 seconds, and speed 8.5:
+  an addition: 3 hearts, 2 hearts a blow, wind-up 0.4 seconds, and speed 8:
   faster than the Wolf (7), slower than the Cheetah (10). At first it ran 5.5,
-  and a Wolf could leave it behind; now only the Cheetah gets away, or anyone
-  who reaches water. It also keeps running through its wind-up and follows 60
+  and a Wolf could leave it behind; then 8.5, and in play even the Cheetah had
+  trouble getting away. At 8 the Cheetah gains two tiles a second, and still
+  nobody else gets away, but for anyone who reaches water. It also keeps running through its wind-up and follows 60
   tiles from its post (other bad guys stand still to strike and turn back at
   14), because a blow struck standing still never lands on a runner. It still
   gives up on anyone 11 tiles ahead, and it cannot find its way round a
@@ -847,8 +860,9 @@ These were chosen to get a playable build. Change any of them freely.
   Galecrest's candles:** take away the Fairy, Orangutan, Bunny, Ant, Cheetah,
   Snake or Axolotl and a candle goes out of reach
   (`src/islands/galecrest-whole.test.ts`). The Human and the Wolf are
-  the exceptions as before, and now the Mermaid too: the Axolotl dives as deep
-  as she does, so the checker cannot tell her work in the Tarn from its.
+  the exceptions as before, and the Mermaid too: the Tarn's pickle lies under
+  a roof that only the Axolotl fits, and her work there, the Snappers, is a
+  fight, which the checker ignores.
 - **Galecrest's rooms are Hollowfen's, moved and renamed,** 207 columns
   farther east, because those shapes were already proved. What is new is the
   arrival (the Court, the Windbreak, the Sluice) and the way off.
@@ -865,6 +879,30 @@ These were chosen to get a playable build. Change any of them freely.
   archers), Galecrest 13 (four blades, two archers, a heavy sword). None
   stands within 10 tiles of an Ant's ring, 7 of a checkpoint or 12 of a way
   off.
+- **Four hubs are filled now.** Sunveld and Coilstone got the same ponds,
+  dells and thickets as Hollowfen and Galecrest, and more bad guys in the open:
+  Sunveld 13 (four blades, one archer in the east; none in the west, where a
+  one-heart Ant has work), Coilstone 11 (three blades, two archers). Sunveld's
+  blades appear at level 7, so after its last candle. Lanes are left clear for
+  a runner there too, and on Sunveld the whole south of the valley, where the
+  Cheetah runs from the plate to the gate.
+- **A holt is the Axolotl's treasure.** A pond 9 by 9 with a ring of hollows 2
+  thick, a moat inside the ring and one stone in the middle with ten loaves on
+  it. The ring has no top, so nothing hops, flies or glides in. There is one
+  on Sunveld (the Lair), Coilstone (the Vault) and Hollowfen (the Holt), and
+  two on Galecrest (the Kettle and the Cauldron). The first two are for coming
+  back to: their hints say so.
+- **The Tarn's pickle is the Axolotl's.** Galecrest's Tarn was Hollowfen's Reed
+  Pool again, a pickle 8 deep for the Mermaid. Now a ring of hollows shuts the
+  pickle's corner off, and the Mermaid does not fit under it. So the two water
+  shapes each have work there: the Mermaid beats the Snappers in the open
+  water, or the Axolotl slips past them and hides under the roof, where a
+  Snapper gives up. The pickle stands in the far corner of its cell, because
+  anywhere else the pool's rim hid it from the camera.
+- **A new game at any time.** The title card offered it only when there was a
+  save. The pause card has it now too. It asks once more, clears the save and
+  loads the page again, which is the one sure way to put every bad guy, sheet,
+  gate and the Lid back.
 - **Kestrel Rock is no longer a trap.** Cinderhold's Landing lies 9 tiles east
   of it at the same height, a Fairy's flight. Wings are no use there: a glide
   never rises. A Fairy can also fly back from the Landing to the Rock.
@@ -943,16 +981,12 @@ These were chosen to get a playable build. Change any of them freely.
 
 ## Next
 
-1. Play the two fights again with their new numbers (`WARDEN` and `EEL` in
-   `src/forms.ts`), and the Snappers (`SNAPPER`): none of the new numbers or
-   looks has been played yet.
-2. Play the filled hubs of Hollowfen and Galecrest and the blades at their new
-   speed, and then fill Coilstone and Sunveld the same way if it reads well.
-3. More for the Axolotl to do: in play it had little use.
-4. Work only the Wolf and only the Mermaid can do, that the checker can see.
-5. Character customising.
-6. More for the other forms to do on the ways off Underroot (Human, Ant and
+1. Play the filled hubs of Sunveld and Coilstone, the holts, the Tarn's roofed
+   corner and the blades at speed 8: none of that has been played yet.
+2. Work only the Wolf and only the Mermaid can do, that the checker can see.
+3. Character customising.
+4. More for the other forms to do on the ways off Underroot (Human, Ant and
    Fairy only), Saltmere (Mermaid only), Sunveld (Cheetah and Bunny only),
    Coilstone (Snake only), Hollowfen (Axolotl only) and Galecrest (Human
    only).
-7. Rooms of its own for Galecrest, which repeats Hollowfen's.
+5. Rooms of its own for Galecrest, which repeats Hollowfen's.
