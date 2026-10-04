@@ -4,9 +4,9 @@ A web game. You are a shape shifter stuck on a cloud island. Solve music
 puzzles to free candle lights, collect enough lights to level up, and each
 level lets you shift into a new creature.
 
-The design lives in [`PLAN.md`](PLAN.md). This build has **ten islands** to
-play, from level 0 (Human) to level 10 (wings). It stops for now on Kestrel
-Rock, far out in the sky past the tenth island.
+The design lives in [`PLAN.md`](PLAN.md). This build has **eleven islands** to
+play, from level 0 (Human) to level 10 (wings), and the end of the game: two
+bosses on the last island, level 11 and the credits.
 
 ## Play it
 
@@ -229,7 +229,15 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   the Cheetah. The fifth candle gives the wings, and the wings are what the way
   off needs: the heath ends at the open sky, and Kestrel Rock lies 43 tiles out
   and 11 down, too far for a hop and a flight. Jump off the edge and glide.
-  The game stops there for now.
+- **Cinderhold** (level 10, the end): ash, black glass and one arena, the Ring.
+  It has no candles. You land low, a short Fairy flight east of Kestrel Rock,
+  and walk up the Climb. The Warden stands in the middle of the Ring on a round
+  floor of black stone, the Lid. Beat it and the Lid falls: under it is the
+  Deep, a lake as deep as a Human dives, and in it the Eel. Two Stairs stand on
+  the Ring's north and east sides. Their steps are too tall for the Warden, and
+  from the top the wings carry you anywhere in the Ring, or out over the lake.
+  Beat the Eel and you are level 11: the credits roll while the camera pulls
+  back over the whole world. Any key stops them, and you can walk on.
 - Ten forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
   slow flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone
   sword), Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts,
@@ -250,6 +258,16 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   reach level 7: a heavy one (5 hearts, slow, a long wind-up, 4 hearts a blow)
   and a light one (3 hearts, faster than a Human, a short wind-up, 2 hearts a
   blow).
+- Two bosses, at level 10. **The Warden** (16 hearts, slow): it raises its arms
+  for 1.2 seconds while a red ring shows on the ground round it, then slams
+  everything in the ring for 5 hearts and stands still for 1.8 seconds. Walk
+  out of the ring and strike while it stands. Out of its reach (far off, or up
+  a Stair) it throws rocks: 3 hearts, straight, after a glow of a second.
+  **The Eel** (20 hearts, quick): it never leaves the water. It glows for under
+  half a second, then lunges 6 tiles in a straight line for 5 hearts: swim
+  sideways. At anyone within 12 tiles who is not in the water it spits water
+  (3 hearts); the Stairs' tops are out of its reach. A boss does not faint from a Snake's bite. If you faint, a boss that
+  is not beaten has all its hearts again; a beaten one stays beaten.
 - Forty-seven music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
   after), each guarding a candle. You cannot use a speaker while a bad guy
   close by is after you: deal with them, lose them or hide first.
@@ -264,7 +282,7 @@ src/
   main.ts       starts the game
   game.ts       the loop, camera, saving, hints, and what happens when
   world.ts      builds the whole world from the islands: terrain, heights, water,
-                thin ice, root tangles, kelp mats, hollows, meshes
+                thin ice, root tangles, kelp mats, hollows, the lid, meshes
   layout.ts     the shared words of a level: tile kinds, spots, hints, arrivals
   islands/      one file per island, plus the tests for the island
     index.ts      the list of islands, in build order
@@ -291,18 +309,24 @@ src/
                       (west half)
     galecrest-east.ts the Gap and its Bridge, two candles and Kestrel Rock, the
                       wings' way off (east half), built by galecrest.ts
+    cinderhold.ts     the last island: the Landing, the Climb, the Ring, the
+                      Lid over the Deep, and the two Stairs
     testkit.ts    the checks every island's tests repeat (closed rings, guard
                   and archer distances, things on real ground, ids, melodies,
                   the camera, a way out from every respawn spot, gate timing)
     scatter.ts    sprinkles ordinary trees over an island's grass
-  forms.ts      the ten forms and level rules, as a data table
+  forms.ts      the ten forms and level rules, as a data table, and the
+                bosses' numbers and rules
+  ending.ts     the end of the game: which boss is beaten, when the lid drops,
+                the win, and how the camera pulls back for the credits
   player.ts     movement, flying, climbing, hopping, running on ice, fitting into
                 tangles, holes and hollows, swimming and diving, breath, sword,
                 bite, hearts and their regrowth, hiding, gliding on wings,
                 shape-shifting
   enemy.ts      the regular bad guy, the archer and the two sword bad guys, how
-                they faint, and which way they look at their posts
-  arrows.ts     arrows in flight
+                they faint, and which way they look at their posts; the two
+                bosses, the Warden and the Eel
+  arrows.ts     arrows in flight, and the bosses' rocks and balls of water
   waterpowers.ts  the Mermaid's water shot and bubble column
   things.ts     puzzle speakers, candles and sea pickles, checkpoints, bread
   puzzleUi.ts   the music puzzle screen
@@ -431,9 +455,15 @@ The checker knows these things beyond walking, hopping, flying and climbing:
 - **A range of x:** `explore` can be told to look only at a range of columns
   (an island and its neighbours). `src/levelcheck.range.test.ts` proves that
   reach inside the range is the same as with the whole world.
+- **The lid:** the checker has no rule for it. A lid tile is plain ground
+  while the lid is shut and a water tile once it is down, and the checker
+  reads the world as it is. A test explores a world before and after
+  `dropLid()`.
 - **Bad guys are ignored.** The checker proves where they stand (not near a
   checkpoint or a respawn spot, not where the player must be an Ant), never
-  that a fight is fair.
+  that a fight is fair. For the bosses, `src/boss.test.ts` runs the real
+  attacks: a player who walks out of the red ring is not hit, one who stands
+  still is.
 
 The route tests for Underroot, Saltmere, Sunveld, Coilstone, Hollowfen and Galecrest sit
 next to the islands, in `src/islands/*.routes.test.ts`. The Cheetah's own route tests
@@ -442,11 +472,16 @@ the Snake's (a stepped burrow) in `src/snake.routes.test.ts`, and the Axolotl's
 (a row of hollows) in `src/axolotl.routes.test.ts`. The wings are tested with
 the real physics in `src/wings.test.ts`, which also measures how far a glide
 carries (76 tiles from ground at 12 down to ground at 1), and in the checker
-in `src/levelcheck.wings.test.ts`.
+in `src/levelcheck.wings.test.ts`. Cinderhold's are in
+`src/islands/cinderhold.routes.test.ts`: the Fairy's flight from Kestrel Rock,
+the Human's climb of a Stair and glide onto the Lid and into the lake, the
+Warden that cannot follow up the steps, the lid dropping under a player, the
+Eel that never leaves its lake, and a scripted Human that beats the Warden
+without losing a heart (four blows of the level 10 sword, in under 12 seconds).
 
-The suite is 977 tests in 71 files and runs in about 12 seconds on an 8-core
-laptop (the 872 tests before Galecrest took about 11, the 777 before Hollowfen
-8.5; with isolation those took 10 to 11). Test files run in forked workers without
+The suite is 1088 tests in 77 files and runs in about 14 seconds on an 8-core
+laptop (the 977 tests before Cinderhold took about 12, the 872 before Galecrest
+about 11, the 777 before Hollowfen 8.5; with isolation those took 10 to 11). Test files run in forked workers without
 isolation (`pool: 'forks'`, `isolate: false` in `vite.config.ts`), so the
 engine is imported once per worker, not once per file. Each file still builds
 its own world; a test must not leave module-level state changed for the next
@@ -482,14 +517,16 @@ Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `sv-kraal`, `sv-yard`, `sv-kopje`, `sv-end`, `coilstone`, `cs-hub`, `cs-court`,
 `cs-rim`, `cs-far`, `cs-foot`, `cs-end`, `hollowfen`, `hf-hub`, `hf-ring`,
 `hf-rim`, `hf-far`, `hf-foot`, `hf-well`, `hf-end`, `galecrest`, `gc-hub`,
-`gc-ring`, `gc-rim`, `gc-far`, `gc-foot`, `gc-edge`, `gc-end`.
+`gc-ring`, `gc-rim`, `gc-far`, `gc-foot`, `gc-edge`, `gc-end`, `cinderhold`,
+`ch-ring`.
 
 ## Decisions the plan did not spell out
 
 These were chosen to get a playable build. Change any of them freely.
 
 - **Candles per level:** 3, then 4, then 5 for every level after.
-- **Level 11:** earned by beating both bosses; that ends the game.
+- **Level 11:** earned by beating both bosses; that ends the game. The credits
+  roll once, and after them the world is still there to walk in.
 - **Sword damage:** wooden 2, stone 3, iron 4, diamond 5 hearts. An orangutan
   does one less.
 - **Bread:** one piece restores one heart.
@@ -773,11 +810,49 @@ These were chosen to get a playable build. Change any of them freely.
 - **Galecrest's rooms are Hollowfen's, moved and renamed,** 207 columns
   farther east, because those shapes were already proved. What is new is the
   arrival (the Court, the Windbreak, the Sluice) and the way off.
-- **Kestrel Rock has a checkpoint though the only way off it is a fall.** The
-  game stops there for now, and the next island will start from it.
+- **Kestrel Rock is no longer a trap.** Cinderhold's Landing lies 9 tiles east
+  of it at the same height, a Fairy's flight. Wings are no use there: a glide
+  never rises. A Fairy can also fly back from the Landing to the Rock, but
+  there is still no way from the Rock back up to Galecrest.
 - **Galecrest has its own ground:** heather, scree and quartz, used on no
   other island. Its look, and the wings', were built without being seen on a
   screen.
+- **One arena, two fights.** The plan gives two boss stages, land and then
+  underwater. Here they share one place: the lake lies under a stone floor,
+  the Lid, and the floor falls when the Warden is beaten. So there is no water
+  in the first fight (a Mermaid cannot shoot the Warden from a pond), and the
+  second fight starts where the first one ended.
+- **The lid is a tile that changes.** A lid tile is built as water with a roof.
+  While the lid is shut it is plain ground at the roof's height; `dropLid()`
+  makes it the water it was built as, at once. Only the slab's picture lingers:
+  it sinks and fades for under a second. The checker needs no new rule.
+- **The credits pull the camera back** until the whole world, 1700 tiles of
+  it, is in view (about 49 times the normal view on a wide screen), over 30
+  seconds. Any key or a click ends them, except in the first half second, so
+  the blow that won the game does not end them too.
+- **The Stairs are for getting away, not for hiding.** Their steps are 1 high:
+  a Human jumps them, a bad guy cannot (it steps up 0.35 at most). So the
+  Warden throws rocks at anyone it cannot reach, and the Eel spits at anyone
+  out of the water. The plan gives each boss one number, 5 hearts a blow; the
+  thrown rock and the spit (3 hearts each) are additions.
+- **The Warden gives up at 18 tiles.** A Human who gets up a Stair fast enough
+  is left alone, and the Warden walks back to its post with the hearts it had.
+  One that stays near the foot of the Stair has rocks thrown at it, and they
+  hurt: a Human standing still there is beaten in about 20 seconds.
+- **The Warden falls in four blows.** The plan gives it 16 hearts, and the
+  level 10 sword does 5. The fight is in getting the blows in, not in their
+  number. Its numbers are in one place (`WARDEN` in `src/forms.ts`).
+- **The Eel is the first bad guy in the water.** Only it swims; every other
+  bad guy still stays out. It follows a swimmer's depth, so the Human's sword
+  (the lake is 4 deep, a Human's dive) and the Mermaid's sword and water
+  powers all reach it.
+- **The Ring has a low rim** (0.6, more than a walking step), so nobody walks
+  off the edge in a fight by accident. It can be jumped.
+- **Cinderhold has no candles and no trees.** Level 10 needs no lights. Its
+  ground is its own: ash, obsidian and coral. Its look, the bosses' and the
+  credits' were built without being seen on a screen.
+- **The credits:** game design Laura Elena Marsh-Leguia, coding Papa & Claude,
+  play testing Mama (`CREDITS` in `src/forms.ts`).
 - **Tangle strands are faint threads:** one thin, pale, see-through thread per
   tile, so the wall still reads as going up but hides nothing behind it.
 - **Trees are solid:** a Human walks around them and arrows stop at them.
@@ -786,8 +861,9 @@ These were chosen to get a playable build. Change any of them freely.
 
 ## Next
 
-1. The two bosses (land, then underwater), level 11 and the end of the game.
-2. Bad guys that can be fought in the water, for the Mermaid's powers.
+1. Play the two fights and tune their numbers (`WARDEN` and `EEL` in
+   `src/forms.ts`): nothing of them has been played yet.
+2. More bad guys that can be fought in the water, for the Mermaid's powers.
 3. Work only the Wolf and only the Mermaid can do, that the checker can see.
 4. Character customising.
 5. More for the other forms to do on the ways off Underroot (Human, Ant and
@@ -795,4 +871,4 @@ These were chosen to get a playable build. Change any of them freely.
    Coilstone (Snake only), Hollowfen (Axolotl only) and Galecrest (Human
    only).
 6. Rooms of its own for Galecrest, which repeats Hollowfen's.
-7. A way back from Kestrel Rock.
+7. A way back from Kestrel Rock to Galecrest.
