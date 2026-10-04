@@ -239,6 +239,35 @@ describe('the Eel', () => {
     expect(f.player.hearts).toBe(10);
   });
 
+  it('shows a wake while awake and its red streak exactly during the lunge windup', () => {
+    const f = new Fight('eel', 'mermaid', island(pool), { x: 44.5, z: 14.5 }, { x: 50.5, z: 14.5 });
+    const wake = f.boss.surfaceWake!;
+    const streak = f.boss.streak!;
+    expect((wake.geometry as THREE.CircleGeometry).parameters.radius * 2).toBeCloseTo(1.2, 5);
+    f.run(0.2);
+    expect(wake.visible).toBe(false);
+    expect(streak.visible).toBe(false);
+    f.world.dropLid();
+    f.player.hearts = 10;
+    let glowing = 0;
+    while (f.player.hearts === 10 && f.time < 10) {
+      f.frame();
+      expect(wake.visible).toBe(true);
+      if (streak.visible) {
+        glowing += DT;
+        expect(streak.scale.z).toBeGreaterThan(0.5);
+        expect(streak.scale.z).toBeLessThanOrEqual(EEL.lungeLength);
+      }
+    }
+    expect(f.player.hearts).toBeLessThan(10);
+    expect(glowing).toBeGreaterThan(EEL.windup - 0.1);
+    expect(glowing).toBeLessThan(EEL.windup + 0.1);
+    f.boss.takeHit(EEL.hearts, 0, 0);
+    f.run(0.1);
+    expect(wake.visible).toBe(false);
+    expect(streak.visible).toBe(false);
+  });
+
   it('spits at a still player on the shore for spitDamage', () => {
     const f = new Fight('eel', 'human', island(pool), { x: 50.5, z: 8.5 }, { x: 50.5, z: 14.5 });
     f.world.dropLid();

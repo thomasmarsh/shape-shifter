@@ -136,6 +136,32 @@ describe('Galecrest west: the Gap', () => {
   });
 });
 
+
+// A Snapper stands in water, kelp-free and a tile from the pool's edge; its pool is the water it can reach.
+const snapperOk = (world: World, e: { x: number; z: number }) => {
+  const i = Math.floor(e.x), j = Math.floor(e.z);
+  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    expect(world.isWater(i + di + 0.5, j + dj + 0.5), `snapper (${e.x}, ${e.z}) near ${i + di},${j + dj}`).toBe(true);
+  }
+  expect(world.isKelp(e.x, e.z), `snapper (${e.x}, ${e.z}) kelp`).toBe(false);
+};
+const poolOf = (world: World, e: { x: number; z: number }) => {
+  const seen = new Set<string>([`${Math.floor(e.x)},${Math.floor(e.z)}`]);
+  const todo: [number, number][] = [[Math.floor(e.x), Math.floor(e.z)]];
+  while (todo.length) {
+    const [i, j] = todo.pop()!;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const k = `${i + di},${j + dj}`;
+      if (!seen.has(k) && world.isWater(i + di + 0.5, j + dj + 0.5)) { seen.add(k); todo.push([i + di, j + dj]); }
+    }
+  }
+  return [...seen].map((k) => k.split(',').map(Number) as [number, number]);
+};
+const noTangleNear = (world: World, e: { x: number; z: number }) => {
+  for (const [i, j] of poolOf(world, e)) for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    expect(world.isTangle(i + di + 0.5, j + dj + 0.5), `tangle at ${i + di},${j + dj} touches the pool of snapper (${e.x}, ${e.z})`).toBe(false);
+  }
+};
 describe('Galecrest west things', () => {
   const things = () =>
     [
@@ -147,7 +173,10 @@ describe('Galecrest west things', () => {
 
   it('stand on real ground, and the pickle in water', () => {
     const pickle = puzzle('gc-tarn').candle;
-    expectOnRealGround(world, things(), (s) => s.x === pickle.x && s.z === pickle.z);
+    const snappers = westEnemies.filter((e) => e.kind === 'snapper');
+    expect(snappers.length).toBe(2);
+    expectOnRealGround(world, things(), (s) => (s.x === pickle.x && s.z === pickle.z) || snappers.includes(s as never));
+    for (const e of snappers) snapperOk(world, e);
     expect(world.isWater(pickle.x, pickle.z)).toBe(true);
   });
 
@@ -158,6 +187,10 @@ describe('Galecrest west things', () => {
 
   it('keeps every bad guy 10 tiles from the Gorse Ring', () => {
     for (const e of westEnemies) {
+      if (e.kind === 'snapper') {
+        noTangleNear(world, e); // a Snapper never leaves its pool, so it cannot reach a one-heart Ant
+        continue;
+      }
       const dx = Math.max(1421 - e.x, 0, e.x - 1436);
       const dz = Math.max(47 - e.z, 0, e.z - 62);
       expect(Math.hypot(dx, dz), `guard (${e.x}, ${e.z})`).toBeGreaterThanOrEqual(10);

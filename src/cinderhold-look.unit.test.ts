@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { beaconSpots, Cinder, crackSpots, PILLAR_HEIGHT, stoneSpots } from './cinder';
+import { inDeep } from './islands/cinderhold';
 import { makeEel, makeSwordGuy, makeWarden } from './models';
 import { World } from './world';
 
@@ -50,11 +52,25 @@ describe('the Warden model', () => {
 });
 
 describe('the Eel model', () => {
-  it('is 2.0 to 2.8 long along z and longer than it is tall', () => {
+  it('is 5.0 to 5.6 long along z, under 1.3 tall and longer than it is tall', () => {
     const s = size(makeEel().group);
-    expect(s.z).toBeGreaterThanOrEqual(2.0);
-    expect(s.z).toBeLessThanOrEqual(2.8);
+    expect(s.z).toBeGreaterThanOrEqual(5.0);
+    expect(s.z).toBeLessThanOrEqual(5.6);
+    expect(s.y).toBeLessThan(1.3);
     expect(s.z).toBeGreaterThan(s.y);
+  });
+
+  it('has white teeth and two glowing eyes', () => {
+    const teeth: number[] = [];
+    let eyes = 0;
+    makeEel().group.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshLambertMaterial | undefined;
+      if (!m || !('color' in m)) return;
+      if (m.color.getHex() === 0xffffff) teeth.push(1);
+      if (m.color.getHex() === 0xffe066 && m.emissive.getHex() !== 0) eyes++;
+    });
+    expect(teeth.length).toBeGreaterThanOrEqual(6);
+    expect(eyes).toBe(2);
   });
 
   it('keeps every field of the bad guy model', () => {
@@ -65,9 +81,9 @@ describe('the Eel model', () => {
 });
 
 describe('the Lid mesh', () => {
-  it('has 208 slabs, shown while shut', () => {
+  it('has 872 slabs, shown while shut', () => {
     const slab = lidOf(new World());
-    expect(slab.count).toBe(208);
+    expect(slab.count).toBe(872);
     expect(slab.visible).toBe(true);
   });
 
@@ -124,5 +140,50 @@ describe('the Lid mesh', () => {
     }
     expect(cs[outer].getHex()).not.toBe(cs[inner].getHex());
     expect(cs[outer].getHSL({ h: 0, s: 0, l: 0 }).l).toBeGreaterThan(cs[inner].getHSL({ h: 0, s: 0, l: 0 }).l);
+  });
+});
+
+describe('the look of Cinderhold', () => {
+  it('builds 8 beacons: 4 at the feet of the Stairs, 4 on their tops', () => {
+    const b = beaconSpots();
+    expect(b).toHaveLength(8);
+    expect(b.filter((x) => x.kind === 'foot')).toHaveLength(4);
+    expect(b.filter((x) => x.kind === 'top')).toHaveLength(4);
+    const feet = b.filter((x) => x.kind === 'foot').map((x) => `${x.stair} ${Math.floor(x.x)},${Math.floor(x.z)}`).sort();
+    expect(feet).toEqual(['east 1667,27', 'east 1667,36', 'north 1640,14', 'north 1649,14']);
+    const tops = b.filter((x) => x.kind === 'top').map((x) => `${x.stair} ${Math.floor(x.x)},${Math.floor(x.z)}`).sort();
+    expect(tops).toEqual(['east 1678,28', 'east 1678,35', 'north 1641,3', 'north 1648,3']);
+  });
+
+  it('shows every beacon to the camera, which looks north-east', () => {
+    const w = new World();
+    for (const b of beaconSpots()) {
+      const y = b.y + PILLAR_HEIGHT;
+      for (let k = 1; k <= 30; k++) expect(w.groundAt(b.x - k, b.z + k)).toBeLessThanOrEqual(y + 0.9 + 1.12 * k);
+    }
+  });
+
+  it('keeps every crack off the lid, and every stone thin and low', () => {
+    const cracks = crackSpots();
+    expect(cracks.length).toBeGreaterThan(10);
+    for (const c of cracks) {
+      for (const f of [-0.5, -0.25, 0, 0.25, 0.5]) {
+        const x = c.x + Math.sin(c.rot) * c.len * f;
+        const z = c.z + Math.cos(c.rot) * c.len * f;
+        expect(inDeep(Math.floor(x), Math.floor(z))).toBe(false);
+      }
+    }
+    for (const s of stoneSpots()) expect(s.h).toBeLessThan(1.5);
+  });
+
+  it('builds the same placements twice', () => {
+    expect(beaconSpots()).toEqual(beaconSpots());
+    expect(crackSpots()).toEqual(crackSpots());
+    expect(stoneSpots()).toEqual(stoneSpots());
+    const w = new World();
+    const a = new Cinder((x, z) => w.groundAt(x, z), true);
+    const b = new Cinder((x, z) => w.groundAt(x, z), true);
+    expect(a.cracks).toEqual(b.cracks);
+    a.update(0.1);
   });
 });

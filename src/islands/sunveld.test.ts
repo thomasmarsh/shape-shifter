@@ -182,6 +182,15 @@ describe('Sunveld west way out', () => {
   }, 30000);
 });
 
+
+// A Snapper stands in water, kelp-free and a tile from the pool's edge; its pool is the water it can reach.
+const snapperOk = (world: World, e: { x: number; z: number }) => {
+  const i = Math.floor(e.x), j = Math.floor(e.z);
+  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    expect(world.isWater(i + di + 0.5, j + dj + 0.5), `snapper (${e.x}, ${e.z}) near ${i + di},${j + dj}`).toBe(true);
+  }
+  expect(world.isKelp(e.x, e.z), `snapper (${e.x}, ${e.z}) kelp`).toBe(false);
+};
 describe('Sunveld west things', () => {
   it('stand on real ground', () => {
     const spots = [
@@ -191,7 +200,10 @@ describe('Sunveld west things', () => {
       ...layout.enemies,
     ].filter(west);
     const candles = [puzzle('sv-hole').candle];
-    expectOnRealGround(world, spots, (s) => candles.includes(s as never));
+    const snappers = spots.filter((s) => (s as { kind?: string }).kind === 'snapper');
+    expect(snappers.length).toBe(1);
+    expectOnRealGround(world, spots, (s) => candles.includes(s as never) || snappers.includes(s));
+    for (const e of snappers) snapperOk(world, e);
   });
 
   it('has no id clash among its things', () => {

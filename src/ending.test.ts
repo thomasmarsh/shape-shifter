@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Arrows } from './arrows';
-import { Ending, creditsEndZoom, creditsTarget, creditsZoom, viewSize } from './ending';
+import { CHIME_NOTES, CreditsChimes, Ending, creditsEndZoom, creditsTarget, creditsZoom, viewSize } from './ending';
 import { Enemy, EnemyKind } from './enemy';
 import { CREDITS, CREDITS_SECONDS } from './forms';
 import { Particles } from './particles';
@@ -155,5 +155,58 @@ describe('the credits', () => {
     expect(creditsTarget(0, from, mid)).toEqual(from);
     expect(creditsTarget(CREDITS_SECONDS, from, mid)).toEqual(mid);
     expect(creditsTarget(CREDITS_SECONDS / 2, from, mid).x).toBeGreaterThan(10);
+  });
+});
+
+describe('the music of the credits', () => {
+  // A small seeded generator, so the test hears the same bells every time.
+  const seeded = (seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+  const play = (seed: number) => {
+    const chimes = new CreditsChimes(seeded(seed));
+    const bells: { at: number; note: number; volume: number }[] = [];
+    for (let t = 0; t < CREDITS_SECONDS; t += 1 / 60) {
+      for (const b of chimes.step(1 / 60)) bells.push({ at: t + b.delay, note: b.note, volume: b.volume });
+    }
+    return bells;
+  };
+
+  it('rings only puzzle notes that sound well together, softly, and never the same one twice in a row', () => {
+    for (const seed of [1, 2, 3]) {
+      const bells = play(seed);
+      for (const b of bells) {
+        expect(CHIME_NOTES).toContain(b.note);
+        expect(b.volume).toBeGreaterThan(0.2);
+        expect(b.volume).toBeLessThan(0.4);
+      }
+      for (let k = 1; k < bells.length; k++) expect(bells[k].note).not.toBe(bells[k - 1].note);
+    }
+  });
+
+  it('rings between 25 and 60 bells over the credits, with no silence longer than 2 s', () => {
+    for (const seed of [1, 2, 3]) {
+      const bells = play(seed).sort((a, b) => a.at - b.at);
+      expect(bells.length).toBeGreaterThanOrEqual(25);
+      expect(bells.length).toBeLessThanOrEqual(60);
+      expect(bells[0].at).toBeLessThan(1);
+      for (let k = 1; k < bells.length; k++) expect(bells[k].at - bells[k - 1].at).toBeLessThan(2);
+    }
+  });
+
+  it('lets some bells overlap: a bell lasts 0.55 s, and some start within 0.4 s of the one before', () => {
+    for (const seed of [1, 2, 3]) {
+      const bells = play(seed).sort((a, b) => a.at - b.at);
+      let close = 0;
+      for (let k = 1; k < bells.length; k++) if (bells[k].at - bells[k - 1].at < 0.4) close++;
+      expect(close).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('rings nothing in a step of no time once the first bell has rung', () => {
+    const chimes = new CreditsChimes(seeded(7));
+    chimes.step(1);
+    expect(chimes.step(0)).toEqual([]);
   });
 });

@@ -1329,27 +1329,73 @@ export function makeWarden(): BadGuyModel {
   return { group, armL, armR, legL, legR, bodyMat };
 }
 
-/** The Eel: a long dark blue-green body, about 2.4 long, lying along +z, with a pale belly and back stripe, a fin and a jaw. It has no legs or arms, only empty groups. */
+/** The Eel: a big dark blue-green fish, about 5.4 long and 1.25 tall, lying along +z, in tapering segments to a tail fin, with a wide head, white teeth, yellow eyes, dark back fins and bright side stripes. It has no legs or arms, only empty groups. */
 export function makeEel(): BadGuyModel {
   const group = new THREE.Group();
   const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1d4a4f });
   const belly = mat(0x9fc8b8);
-  const stripe = mat(0x8fe8d0, { emissive: 0x2a8a70 });
-  const fin = mat(0x143338);
+  const stripe = mat(0x8fe8d0, { emissive: 0x3aa88a });
+  const fin = mat(0x0c2428);
   const jaw = mat(0x0f2a2e);
+  const tooth = mat(0xffffff);
+  const eye = mat(0xffe066, { emissive: 0xffcc22 });
+  group.add(
+    // Segments, head to tail, each thinner than the last.
+    box(1.1, 0.7, 0.95, bodyMat, 0, 0, 2.18),
+    box(0.9, 0.7, 1.25, bodyMat, 0, 0, 1.12),
+    box(0.8, 0.64, 1.2, bodyMat, 0, 0, -0.1),
+    box(0.6, 0.5, 1.1, bodyMat, 0, 0, -1.25),
+    box(0.4, 0.34, 0.6, bodyMat, 0, 0, -2.1),
+    box(0.08, 1.0, 0.32, fin, 0, 0, -2.54),
+    // Belly and the jaw.
+    box(0.8, 0.12, 2.2, belly, 0, -0.34, 0.9),
+    box(1.0, 0.16, 0.85, jaw, 0, -0.42, 2.24),
+    // Bright stripes along the sides and the back.
+    box(0.04, 0.08, 3.6, stripe, 0.43, 0.08, 0.1),
+    box(0.04, 0.08, 3.6, stripe, -0.43, 0.08, 0.1),
+    box(0.04, 0.08, 1.0, stripe, 0.34, 0.06, -1.3),
+    box(0.04, 0.08, 1.0, stripe, -0.34, 0.06, -1.3),
+    box(0.12, 0.04, 3.4, stripe, 0, 0.36, 0.1),
+    // A ridge of dark fins along the back, tall at the shoulders.
+    box(0.06, 0.34, 0.9, fin, 0, 0.5, 1.1),
+    box(0.06, 0.3, 0.8, fin, 0, 0.47, 0.1),
+    box(0.06, 0.24, 0.7, fin, 0, 0.4, -0.9),
+    box(0.06, 0.16, 0.5, fin, 0, 0.3, -1.9),
+    box(0.5, 0.06, 0.4, fin, 0.62, -0.2, 1.0),
+    box(0.5, 0.06, 0.4, fin, -0.62, -0.2, 1.0),
+    // Eyes on a heavy brow.
+    box(0.9, 0.08, 0.3, fin, 0, 0.38, 2.4),
+    box(0.16, 0.16, 0.08, eye, -0.34, 0.22, 2.67),
+    box(0.16, 0.16, 0.08, eye, 0.34, 0.22, 2.67),
+  );
+  // A jaw of white teeth: a row along the front, and fangs at the corners.
+  for (let n = 0; n < 7; n++) group.add(box(0.1, 0.2, 0.08, tooth, -0.42 + n * 0.14, -0.26, 2.68));
+  group.add(box(0.1, 0.3, 0.1, tooth, -0.5, -0.24, 2.5), box(0.1, 0.3, 0.1, tooth, 0.5, -0.24, 2.5));
+  return { group, armL: new THREE.Group(), armR: new THREE.Group(), legL: new THREE.Group(), legR: new THREE.Group(), bodyMat };
+}
+
+/** The Snapper: a small teal fish, about 1.1 long, with a jaw of white teeth. It faces +z. */
+export function makeSnapper(): BadGuyModel {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2f9a94 });
+  const belly = mat(0xcfeee4);
+  const fin = mat(0x1e6a68);
+  const jaw = mat(0x14403f);
+  const tooth = mat(0xffffff);
   const eye = mat(0xffe066, { emissive: 0xaa8800 });
   group.add(
-    box(0.5, 0.5, 1.2, bodyMat, 0, 0, 0.3),
-    box(0.4, 0.4, 0.8, bodyMat, 0, 0, -0.6),
-    box(0.26, 0.26, 0.5, bodyMat, 0, 0, -1.0),
-    box(0.4, 0.14, 1.0, belly, 0, -0.22, 0.3),
-    box(0.14, 0.04, 1.6, stripe, 0, 0.26, -0.1),
-    box(0.06, 0.26, 1.4, fin, 0, 0.3, -0.1),
-    box(0.04, 0.4, 0.4, fin, 0, 0.1, -1.2),
-    box(0.4, 0.4, 0.4, bodyMat, 0, 0.04, 1.05),
-    box(0.34, 0.1, 0.35, jaw, 0, -0.2, 1.2),
-    box(0.1, 0.1, 0.06, eye, -0.15, 0.12, 1.26),
-    box(0.1, 0.1, 0.06, eye, 0.15, 0.12, 1.26),
+    box(0.34, 0.34, 0.6, bodyMat, 0, 0, 0.05),
+    box(0.26, 0.26, 0.3, bodyMat, 0, 0, -0.3),
+    box(0.28, 0.1, 0.5, belly, 0, -0.15, 0.1),
+    box(0.04, 0.16, 0.4, fin, 0, 0.22, -0.05),
+    box(0.04, 0.3, 0.22, fin, 0, 0.04, -0.5),
+    box(0.3, 0.24, 0.26, bodyMat, 0, 0.04, 0.42),
+    box(0.26, 0.08, 0.26, jaw, 0, -0.14, 0.5),
+    box(0.04, 0.05, 0.04, tooth, -0.08, -0.08, 0.62),
+    box(0.04, 0.05, 0.04, tooth, 0.08, -0.08, 0.62),
+    box(0.04, 0.05, 0.04, tooth, 0, -0.08, 0.64),
+    box(0.07, 0.07, 0.04, eye, -0.11, 0.1, 0.55),
+    box(0.07, 0.07, 0.04, eye, 0.11, 0.1, 0.55),
   );
   return { group, armL: new THREE.Group(), armR: new THREE.Group(), legL: new THREE.Group(), legR: new THREE.Group(), bodyMat };
 }

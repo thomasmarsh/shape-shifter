@@ -4,8 +4,9 @@ import { EnemySpot, HintZone, Island, IslandLayout, Kind, Spot } from '../layout
 // Cinderhold, the last island (x 1592..1681): ash, black glass and one arena,
 // the Ring. It has no candles. You land low, 9 tiles of sky east of Kestrel
 // Rock, and walk up the Climb into the Ring. The Warden stands in the middle,
-// on a round floor of black stone: the Lid. Under the Lid is the Deep, a lake
-// 4 deep, and in it the Eel. The Lid drops when the Warden is beaten (see the
+// on a floor of black stone that fills the Ring but for a walk of ash four
+// tiles wide round it: the Lid. Under the Lid is the Deep, a lake 4 deep, and
+// in it the Eel. The Lid drops when the Warden is beaten (see the
 // bosses' contract in forms.ts). Two Stairs stand on the Ring's north and east
 // sides, with steps 1 high: a bad guy cannot climb them, and from their tops
 // the wings carry a Human anywhere in the Ring.
@@ -18,8 +19,11 @@ export const CLIMB = { i0: 1604, j0: 27, i1: 1621, j1: 34 };
 export const RING = { i0: 1622, j0: 14, i1: 1667, j1: 49, h: 6 };
 /** The rim is higher than a walking step, so nobody walks off the Ring by accident. */
 export const RIM = RING.h + 0.6;
-/** The Deep: a round lake in the middle of the Ring, under the Lid. */
-export const DEEP = { x: 1645, z: 32, r: 8.2, level: RING.h - 0.3, bed: RING.h - 4.3 };
+/**
+ * The Deep: a lake under the Lid, a rectangle with round corners that leaves
+ * a walk of ash 4 tiles wide inside the rim (x 1627..1662, z 19..44).
+ */
+export const DEEP = { x: 1645, z: 32, rx: 18, rz: 13, level: RING.h - 0.3, bed: RING.h - 4.3 };
 /** The Stairs: steps 1 high and 2 deep, six of them, to a top 6 above the Ring. */
 export const STEPS = 6;
 export const STAIR_TOP = RING.h + STEPS;
@@ -29,7 +33,8 @@ export const NORTH_STAIR = { i0: 1641, i1: 1648, top: { j0: 0, j1: 3 } };
 export const EAST_STAIR = { j0: 28, j1: 35, top: { i0: 1678, i1: 1681 } };
 
 /** True for a tile of the Deep. */
-export const inDeep = (i: number, j: number): boolean => Math.hypot(i + 0.5 - DEEP.x, j + 0.5 - DEEP.z) <= DEEP.r;
+export const inDeep = (i: number, j: number): boolean =>
+  ((i + 0.5 - DEEP.x) / DEEP.rx) ** 4 + ((j + 0.5 - DEEP.z) / DEEP.rz) ** 4 <= 1;
 
 export const cinderhold: Island = {
   id: 'cinderhold',
@@ -69,7 +74,7 @@ export const cinderhold: Island = {
 
     const checkpoints: (Spot & { id: string })[] = [
       { id: 'cinderhold', x: 1595.5, z: 30.5 },
-      { id: 'ch-ring', x: 1624.5, z: 30.5 },
+      { id: 'ch-ring', x: 1612.5, z: 30.5 }, // on the Climb: farther from the Deep than the Eel spits
     ];
     const enemies: EnemySpot[] = [
       { x: 1645.5, z: 30.5, tester: false, kind: 'warden', minLevel: BOSS_LEVEL }, // on the Lid, looking west at the Climb
@@ -84,8 +89,8 @@ export const cinderhold: Island = {
     ];
     const hints: HintZone[] = [
       { id: 'ch-landing', x: 1599.5, z: 30.5, r: 3, text: 'Ash underfoot, and no candle anywhere. Something waits at the top of the Climb.' },
-      { id: 'ch-ring', x: 1627.5, z: 30.5, r: 3, text: 'The Warden is slow. When the red ring shows round it, walk out of the ring, then strike while it stands still.' },
-      { id: 'ch-lid', x: 1634.5, z: 32, r: 2.5, text: 'The black floor rings hollow. Under it is water, as deep as a Human dives. What swims there is quick: swim sideways when it glows.' },
+      { id: 'ch-ring', x: 1625.5, z: 29.5, r: 3, text: 'When the red ring shows round the Warden, walk out of the ring, then strike while it stands still. Two Stairs, north and east, are too tall for it: rest there.' },
+      { id: 'ch-lid', x: 1625.5, z: 36.5, r: 3, text: 'The black floor rings hollow. Under it is water, as deep as a Human dives. What swims there is quick: swim sideways when it glows.' },
       { id: 'ch-north', x: 1644.5, z: 16.5, r: 3, text: 'Steps too tall for the Warden, but not for its rocks. From the top, wings carry you anywhere in the Ring.' },
       { id: 'ch-east', x: 1665.5, z: 31.5, r: 3, text: 'Steps too tall for the Warden, but not for its rocks. From the top, wings carry you anywhere in the Ring.' },
     ];

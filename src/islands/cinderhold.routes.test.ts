@@ -205,7 +205,7 @@ describe('the Warden on the island', () => {
     expect(w.pos.x).toBeGreaterThan(RING.i0);
   });
 
-  it('is beaten unhurt by a level 10 sword (5 a blow, 4 blows that land) with scripted slam dodging', () => {
+  it('is beaten by a level 10 sword (5 a blow, 12 blows that land) with scripted dodging, in over 20 s', () => {
     const r = new Rig(shut, 'human', at(1643.5, 30.5), ['warden']);
     const w = r.bosses[0];
     const ring = ringOf(w);
@@ -240,9 +240,26 @@ describe('the Warden on the island', () => {
     };
     expect(r.run(120, goal, () => !w.alive, each), `hearts ${w.hearts}, strikes ${strikes}, time ${r.time.toFixed(1)}`).toBe(true);
     if (w.hearts < lastHearts) hits++; // the last blow ends the run before `each` sees it
-    expect(hits, 'blows that landed').toBe(4);
-    expect(r.time).toBeLessThan(30);
-    expect(r.player.hearts).toBe(max);
+    expect(hits, 'blows that landed').toBe(12);
+    expect(r.time).toBeGreaterThan(20);
+    expect(r.time).toBeLessThan(40); // measured 26.3 s
+    expect(max - r.player.hearts, 'hearts lost').toBe(0);
+  });
+
+  it('beats a Human who only stands next to it and swings, never dodging', () => {
+    const r = new Rig(shut, 'human', at(1643.5, 30.5), ['warden']);
+    const w = r.bosses[0];
+    let next = 0;
+    const each = () => {
+      if (r.time >= next && dist(r.p, w.pos) < 2) {
+        r.pad.tapped.add('KeyJ');
+        next = r.time + 0.4;
+      }
+    };
+    const over = () => !w.alive || r.player.dead || r.player.hearts <= 0;
+    r.run(120, () => at(w.pos.x - 1, w.pos.z), over, each);
+    expect(w.alive, `warden left with ${w.hearts}`).toBe(true);
+    expect(r.player.hearts).toBeLessThanOrEqual(0);
   });
 });
 
@@ -259,7 +276,7 @@ describe('the Lid', () => {
     const hop = () => {
       if (r.player.onGround && r.pad.dir.x !== 0) r.pad.tapped.add('Space');
     };
-    expect(r.run(20, () => at(1632.5, 32.5), () => !r.player.swimming && r.p.x < 1634, hop), `at ${r.p.x.toFixed(1)}, ${r.p.y.toFixed(1)}`).toBe(true);
+    expect(r.run(20, () => at(1624.5, 32.5), () => !r.player.swimming && r.p.x < 1626.5, hop), `at ${r.p.x.toFixed(1)}, ${r.p.y.toFixed(1)}`).toBe(true);
     r.run(1, null);
     expect(r.p.y).toBeCloseTo(RING.h, 1);
     expect(r.player.hearts).toBe(r.player.form.maxHearts);
@@ -278,13 +295,64 @@ describe('the Eel on the island', () => {
     const r = new Rig(open, 'human', at(1645, 22), ['eel']);
     const check = eelRange(r);
     r.run(30, () => {
+      // The ash walk round the Deep, at its middle (a rounded rectangle 18 by 13 from the centre).
       const a = -Math.PI / 2 + r.time * 0.3;
-      return at(DEEP.x + 10 * Math.cos(a), DEEP.z + 10 * Math.sin(a));
+      const c = Math.cos(a);
+      const s = Math.sin(a);
+      const k = 1 / Math.max(Math.abs(c) / (DEEP.rx + 2), Math.abs(s) / (DEEP.rz + 2));
+      return at(DEEP.x + c * k, DEEP.z + s * k);
     }, () => false, () => {
       check();
       r.player.hearts = r.player.form.maxHearts;
     });
     expect(r.bosses[0].alert).toBe(true);
+  });
+
+  /** Swim in the middle of the lake with the Eel after us: still, or sideways whenever its streak shows. Counts the glows, and the tiles swum during them. */
+  const lunge = (form: FormId, sidestep: boolean, seconds: number) => {
+    const r = new Rig(open, form, at(1645.5, 27.5), ['eel']);
+    const e = r.bosses[0];
+    const max = r.player.hearts;
+    let glows = 0;
+    let glowing = false;
+    let glowTime = 0;
+    let moved = 0;
+    let side: { x: number; z: number } | null = null;
+    let last = { x: r.p.x, z: r.p.z };
+    r.run(seconds, () => {
+      const on = e.streak!.visible;
+      if (on && !glowing) {
+        // The direction is fixed when the glow starts: go at right angles to it.
+        const d = Math.max(0.01, dist(r.p, e.pos));
+        side = { x: -(e.pos.z - r.p.z) / d, z: (e.pos.x - r.p.x) / d };
+      }
+      return sidestep && on && side ? at(r.p.x + side.x * 5, r.p.z + side.z * 5) : null;
+    }, () => r.player.hearts < max, () => {
+      const on = e.streak!.visible;
+      if (on && !glowing) glows++;
+      if (on) {
+        glowTime += DT;
+        moved += dist(r.p, last);
+      }
+      glowing = on;
+      last = { x: r.p.x, z: r.p.z };
+    });
+    return { lost: max - r.player.hearts, glows, glowTime, moved, swimming: r.player.swimming };
+  };
+
+  it('lunges at a Human who swims still in the lake, for EEL.damage, with the streak showing for the windup', () => {
+    const got = lunge('human', false, 20);
+    expect(got.swimming).toBe(true);
+    expect(got.lost).toBe(EEL.damage);
+    expect(got.glows).toBe(1);
+    expect(got.glowTime).toBeGreaterThan(EEL.windup - 0.1);
+    expect(got.glowTime).toBeLessThan(EEL.windup + 0.1);
+  });
+
+  it('misses a Human who swims sideways during the glow', () => {
+    const got = lunge('human', true, 15);
+    expect(got.glows).toBeGreaterThanOrEqual(3);
+    expect(got.lost).toBe(0);
   });
 
   it('loses hearts to a Human who swims up beside it and strikes', () => {
@@ -320,13 +388,18 @@ describe('the Eel on the island', () => {
     expect(EEL.hearts - e.hearts).toBe(damage);
   });
 
-  it('cannot reach a Human on the East Stair top (34 tiles away), but spits at one on the Ring 11 tiles off', () => {
+  it('cannot reach a Human on either Stair top, but spits at one on the south ash walk 11 tiles off', () => {
     const top = new Rig(open, 'human', at(1679.5, 31.5), ['eel']);
     top.run(20, null);
     expect(top.bosses[0].alert).toBe(false);
     expect(top.player.hearts).toBe(top.player.form.maxHearts);
 
-    const ring = new Rig(open, 'human', at(1656.5, 32.5), ['eel']);
+    const north = new Rig(open, 'human', at(1644.5, 1.5), ['eel']);
+    north.run(20, null);
+    expect(north.bosses[0].alert).toBe(false);
+    expect(north.player.hearts).toBe(north.player.form.maxHearts);
+
+    const ring = new Rig(open, 'human', at(1645.5, 45.5), ['eel']);
     const before = ring.player.hearts;
     expect(ring.run(20, null, () => ring.player.hearts < before)).toBe(true);
     expect(ring.player.hearts).toBe(before - EEL.spitDamage);
@@ -334,6 +407,13 @@ describe('the Eel on the island', () => {
 });
 
 describe('the checkpoints', () => {
+  it('leave the Human at the ch-ring respawn spot unhurt for 20 s with the lid down and the Eel awake', () => {
+    const r = new Rig(open, 'human', at(1611.5, 31.5), ['eel']);
+    expect(dist(r.p, r.bosses[0].pos)).toBeGreaterThan(EEL.notice + 20);
+    r.run(20, null, () => false, () => expect(r.player.hearts).toBe(r.player.form.maxHearts));
+    expect(r.bosses[0].alert).toBe(false);
+  });
+
   it.each([
     ['the Landing', at(1595.5, 30.5)],
     ['the Ring', at(1624.5, 30.5)],

@@ -1,3 +1,4 @@
+import { SNAPPER_LEVEL } from '../forms';
 import { EnemySpot, HintZone, Island, IslandLayout, Kind, PuzzleSpot, Spot, Terrain, TreeSpot } from '../layout';
 import { slab } from './coilstone-east';
 import { buildGalecrestEast, HUB, LANDING } from './galecrest-east';
@@ -104,6 +105,8 @@ export const galecrest: Island = {
       { x: 1358.5, z: 33.5, tester: false },
       { x: 1406.5, z: 53.5, tester: false }, // the Tarn's guards, by the speaker
       { x: 1407.5, z: 54.5, tester: false },
+      { x: 1408.5, z: 48.5, tester: false, kind: 'snapper', minLevel: SNAPPER_LEVEL }, // two Snappers in the Tarn
+      { x: 1412.5, z: 46.5, tester: false, kind: 'snapper', minLevel: SNAPPER_LEVEL },
       { x: 1415.5, z: 36.5, tester: false }, // the Pine Road's, at the foot of T1
       { x: 1422.5, z: 36.5, tester: false },
     ];

@@ -64,9 +64,9 @@ describe('Cinderhold: the lid shut', () => {
     for (const [i, j] of here) expect(shut.isWater(i + 0.5, j + 0.5), `tile ${i},${j}`).toBe(false);
   });
 
-  it('has 208 lid tiles, each at 6 and reached by the Human on easy', () => {
+  it('has 872 lid tiles, each at 6 and reached by the Human on easy', () => {
     const r = exploreShut(LAND, ['human'], 'easy');
-    expect(lake.length).toBe(208);
+    expect(lake.length).toBe(872);
     for (const [i, j] of lake) {
       expect(shut.isLid(i + 0.5, j + 0.5), `lid ${i},${j}`).toBe(true);
       expect(shut.groundAt(i + 0.5, j + 0.5), `height ${i},${j}`).toBeCloseTo(6, 5);
@@ -74,10 +74,10 @@ describe('Cinderhold: the lid shut', () => {
     }
   });
 
-  it('lets the Human from the Landing reach every Ring tile but the checkpoint and both Stair tops', () => {
+  it('lets the Human from the Landing reach every Ring tile and both Stair tops', () => {
     const r = exploreShut(LAND, ['human'], 'easy');
     expect(ringTiles.length).toBe(1656);
-    expect(ringTiles.filter(([i, j]) => !r.has(i, j))).toEqual([[1624, 30]]);
+    expect(ringTiles.filter(([i, j]) => !r.has(i, j))).toEqual([]);
     expect(r.canStand(northStairTop)).toBe(true);
     expect(r.canStand(southStairTop)).toBe(true);
   });
@@ -93,7 +93,7 @@ describe('Cinderhold: the lid shut', () => {
 });
 
 describe('Cinderhold: the lid down', () => {
-  it('makes the 208 tiles water at 5.7 over a bed of 1.7', () => {
+  it('makes the 872 tiles water at 5.7 over a bed of 1.7', () => {
     for (const [i, j] of lake) {
       expect(down.isWater(i + 0.5, j + 0.5), `water ${i},${j}`).toBe(true);
       expect(down.waterLevelAt(i + 0.5, j + 0.5), `level ${i},${j}`).toBeCloseTo(5.7, 5);
@@ -187,6 +187,10 @@ describe('Cinderhold: fairness', () => {
   it('puts bread, checkpoints and hints on real ground, with unique ids', () => {
     expectOnRealGround(shut, [...layout.bread.filter(mine), ...layout.checkpoints.filter(mine), ...layout.hints.filter(mine)]);
     expectUniqueIds(layout.bread, layout.checkpoints, layout.hints, layout.arrivals);
+  });
+
+  it('keeps bread, checkpoints and hints off the lid, on the ash walk or the Climb', () => {
+    for (const t of items) expect(inDeep(Math.floor(t.x), Math.floor(t.z)), `${t.id ?? ''} (${t.x}, ${t.z})`).toBe(false);
   });
 
   it('has five bread, five hints, one arrival, two checkpoints and two bosses', () => {

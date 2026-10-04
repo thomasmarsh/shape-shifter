@@ -1,3 +1,4 @@
+import { SNAPPER_LEVEL } from '../forms';
 import { EnemySpot, HintZone, Island, IslandLayout, Kind, PuzzleSpot, Spot, Terrain, TreeSpot } from '../layout';
 import { slab } from './coilstone-east';
 import { buildHollowfenEast, HUB, LANDING } from './hollowfen-east';
@@ -78,6 +79,8 @@ export const hollowfen: Island = {
     const enemies: EnemySpot[] = [
       { x: 1199.5, z: 53.5, tester: false }, // the Reed Pool's guards, by the speaker
       { x: 1200.5, z: 54.5, tester: false },
+      { x: 1201.5, z: 48.5, tester: false, kind: 'snapper', minLevel: SNAPPER_LEVEL }, // two Snappers in the Reed Pool
+      { x: 1205.5, z: 46.5, tester: false, kind: 'snapper', minLevel: SNAPPER_LEVEL },
       { x: 1208.5, z: 36.5, tester: false }, // the Heron Road's, at the foot of T1
       { x: 1215.5, z: 36.5, tester: false },
     ];

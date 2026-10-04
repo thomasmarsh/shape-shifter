@@ -16,6 +16,12 @@ export const CRAG = 19.5;
 export const BURROW_RISE = 0.75;
 /** Kestrel Rock, far out and far down: 11 under the hub, so only a glide carries that far. */
 export const END_ROCK = 1;
+/** The Kestrel Steps: the way back. Each step is a Bunny's hop and more than a Fairy rises; the top is a glide above the heath. */
+export const RETURN_STEPS = 5;
+export const RETURN_RISE = 4;
+export const RETURN_TOP = END_ROCK + RETURN_RISE * RETURN_STEPS;
+/** The Steps' columns, and the top's rows (z 9..13). */
+export const RETURN = { i0: 1576, i1: 1580, j0: 9, j1: 13 };
 /** The Table and the Spire: raised things in the open, launch pads. */
 const TABLE = 18;
 const SPIRE = 22;
@@ -54,6 +60,15 @@ export function buildGalecrestEast(t: Terrain): IslandLayout {
   // ---- The way off: Kestrel Rock, 43 tiles of sky east of the hub and 11 down ----------
   slab(t, 1574, 26, 1582, 34, END_ROCK, Kind.Quartz);
 
+  // ---- The way back: the Kestrel Steps, north of the Rock ---------------------------
+  // Five steps a Bunny hops, each 4 up and 3 deep, to a top high enough for
+  // a glide back west to the heath. They rise north, so they hide nothing.
+  for (let s = 1; s <= RETURN_STEPS; s++) {
+    const j1 = 26 - 3 * (s - 1) - 1;
+    const j0 = s === RETURN_STEPS ? RETURN.j0 : j1 - 2;
+    slab(t, RETURN.i0, j0, RETURN.i1, j1, END_ROCK + RETURN_RISE * s, Kind.Scree);
+  }
+
   const checkpoints: (Spot & { id: string })[] = [
     { id: 'gc-far', x: 1478.5, z: 10.5 },
     { id: 'gc-foot', x: 1491.5, z: 36.5 },
@@ -90,6 +105,7 @@ export function buildGalecrestEast(t: Terrain): IslandLayout {
     { id: 'gc-e-bread-2', x: 1481.5, z: 52.5, amount: 1 },
     { id: 'gc-e-bread-3', x: 1495.5, z: 40.5, amount: 1 },
     { id: 'gc-e-bread-4', x: 1580.5, z: 32.5, amount: 1 },
+    { id: 'gc-e-bread-5', x: 1579.5, z: 10.5, amount: 1 },
   ];
 
   const trees: TreeSpot[] = [];
@@ -100,7 +116,8 @@ export function buildGalecrestEast(t: Terrain): IslandLayout {
     { id: 'gc-e-foot', x: 1494.5, z: 44.5, r: 4, text: 'The kestrels look west. Something low could come up behind them.' },
     { id: 'gc-e-burrow', x: 1501.5, z: 44.5, r: 3, text: 'A burrow into the Crag. Only the low and the sure-footed go in.' },
     { id: 'gc-e-edge', x: 1527.5, z: 32.5, r: 4, text: 'The heath ends at the sky. A rock lies far out and far down, too far for a hop and a flight. Wings would glide it.' },
-    { id: 'gc-e-end', x: 1578.5, z: 32.5, r: 3, text: 'The wind drops here. The way on is not built yet.' },
+    { id: 'gc-e-end', x: 1578.5, z: 32.5, r: 3, text: 'The wind drops here. East, a short flight off, lies ash. North, tall steps climb back up into the wind.' },
+    { id: 'gc-e-steps', x: 1578.5, z: 11.5, r: 3, text: 'High above the heath again. Jump west and open your wings.' },
   ];
 
   return {

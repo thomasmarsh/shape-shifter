@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { makeArcher, makeBadGuy, makeBladeGuy, makeEel, makeSwordGuy, makeWarden, BadGuyModel } from './models';
-import { EEL, WARDEN } from './forms';
+import { makeArcher, makeBadGuy, makeBladeGuy, makeEel, makeSnapper, makeSwordGuy, makeWarden, BadGuyModel } from './models';
+import { EEL, SNAPPER, WARDEN } from './forms';
 import { Arrows, Shot } from './arrows';
 import { Particles } from './particles';
 import { sound } from './audio';
@@ -90,6 +90,16 @@ const KINDS: Record<EnemyKind, Tuning> = {
     damage: EEL.damage,
     reach: EEL.lungeStart,
   },
+  snapper: {
+    hearts: SNAPPER.hearts,
+    speed: SNAPPER.speed,
+    notice: SNAPPER.notice,
+    noticeHeight: Infinity,
+    windup: SNAPPER.windup,
+    recover: SNAPPER.recover,
+    damage: SNAPPER.damage,
+    reach: SNAPPER.lungeStart,
+  },
   blade: { hearts: 3, speed: 5.5, notice: 7.5, noticeHeight: 3, windup: 0.4, recover: 0.9, damage: 2, reach: 1.4 },
 };
 
@@ -101,10 +111,12 @@ const BALL = new THREE.Mesh(
 );
 /** A rock or ball is in the air this long at most. */
 const SHOT_LIFE = 3;
-/** The longest hop the Eel's dash takes between checks. */
+/** The longest hop a swimmer's dash takes between checks. */
 const DASH_HOP = 0.2;
-/** How fast the Eel rises and sinks to follow the player's depth. */
-const EEL_DEPTH_SPEED = 3;
+/** How fast a swimmer rises and sinks to follow the player's depth. */
+const SWIM_DEPTH_SPEED = 3;
+/** What the Eel and the Snapper share: one swimmer, two tunings. */
+type Fish = typeof EEL | typeof SNAPPER;
 
 /** What a tester changes about the regular bad guy. */
 const TESTER: Partial<Tuning> = { speed: 2.0, notice: 4.5, windup: 0.85, recover: 1.8 };
@@ -129,6 +141,8 @@ export class Enemy implements Attackable {
   readonly tester: boolean;
   /** True for the Warden and the Eel. */
   readonly boss: boolean;
+  /** True for the Eel and the Snapper, which swim and never leave the water. */
+  readonly swims: boolean;
   readonly maxHearts: number;
   hearts: number;
   private state: State = 'idle';
@@ -157,7 +171,11 @@ export class Enemy implements Attackable {
   private act: 'slam' | 'throw' | 'lunge' | 'spit' = 'slam';
   /** The red ring on the ground that shows where the Warden's slam lands. */
   private ring: THREE.Mesh | null = null;
-  /** The Eel's fixed direction and what is left of its dash. */
+  /** The pale disc on the surface over an awake Eel or Snapper. */
+  readonly surfaceWake: THREE.Mesh | null = null;
+  /** The red streak on the surface along the path of a swimmer's lunge, shown while it glows. */
+  readonly streak: THREE.Mesh | null = null;
+  /** A swimmer's fixed direction and what is left of its dash. */
   private dashDir = new THREE.Vector3();
   private dashLeft = 0;
   private dashHit = false;
@@ -175,6 +193,7 @@ export class Enemy implements Attackable {
     this.kind = spot.kind ?? 'regular';
     this.tester = spot.tester;
     this.boss = this.kind === 'warden' || this.kind === 'eel';
+    this.swims = this.kind === 'eel' || this.kind === 'snapper';
     this.tuning = this.tester ? { ...KINDS[this.kind], ...TESTER } : KINDS[this.kind];
     this.maxHearts = this.tuning.hearts;
     this.hearts = this.maxHearts;
@@ -189,6 +208,8 @@ export class Enemy implements Attackable {
       this.bladeMat = guy.bladeMat;
     } else if (this.kind === 'warden' || this.kind === 'eel') {
       this.model = this.kind === 'warden' ? makeWarden() : makeEel();
+    } else if (this.kind === 'snapper') {
+      this.model = makeSnapper();
     } else {
       this.model = makeBadGuy(this.tester);
     }
@@ -207,7 +228,7 @@ export class Enemy implements Attackable {
     back.renderOrder = 10;
     this.barFill.renderOrder = 11;
     this.bar.add(back, this.barFill);
-    this.bar.position.y = this.kind === 'warden' ? 2.9 : 2.15;
+    this.bar.position.y = this.kind === 'warden' ? 2.9 : this.kind === 'snapper' ? 1 : 2.15;
     this.bar.visible = false;
     this.group.add(this.bar);
     if (this.kind === 'warden') {
@@ -220,6 +241,28 @@ export class Enemy implements Attackable {
       ring.visible = false;
       this.ring = ring;
       this.group.add(ring);
+    }
+    if (this.swims) {
+      const F = this.fish;
+      const red = () => new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false });
+      // The wake is a flat disc, about 1.2 across for the Eel and 0.6 for the Snapper.
+      const surfaceWake = new THREE.Mesh(
+        new THREE.CircleGeometry(F === EEL ? 0.6 : 0.3, 24),
+        new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      surfaceWake.rotation.x = -Math.PI / 2;
+      surfaceWake.renderOrder = 5;
+      surfaceWake.visible = false;
+      // The streak is a strip one tile long that is stretched to the lunge.
+      const strip = new THREE.PlaneGeometry(F === EEL ? 0.7 : 0.4, 1);
+      strip.rotateX(-Math.PI / 2);
+      strip.translate(0, 0, 0.5);
+      const streak = new THREE.Mesh(strip, red());
+      streak.renderOrder = 5;
+      streak.visible = false;
+      this.surfaceWake = surfaceWake;
+      this.streak = streak;
+      this.group.add(surfaceWake, streak);
     }
 
     // Bad guys for a later level wait out of sight until `wake` is called.
@@ -240,6 +283,7 @@ export class Enemy implements Attackable {
     this.timer = 0;
     this.group.visible = false;
     this.bar.visible = false;
+    this.hideSwimMarks();
   }
 
   /** Undo a beating: the bad guy stands at its post again with all its hearts. For a new game. */
@@ -297,10 +341,10 @@ export class Enemy implements Attackable {
   reset(): void {
     if (!this.alive) return;
     this.pos.set(this.home.x, this.world.groundAt(this.home.x, this.home.z), this.home.z);
-    if (this.kind === 'eel') {
+    if (this.swims) {
       this.parked = false;
       this.dashLeft = 0;
-      const [lo, hi] = this.eelRange();
+      const [lo, hi] = this.swimRange();
       this.pos.y = (lo + hi) / 2;
     }
     this.hearts = this.maxHearts;
@@ -324,7 +368,7 @@ export class Enemy implements Attackable {
    * cancelled, a second bite restarts the count, and it wakes where it lies.
    */
   faint(seconds: number): void {
-    if (!this.alive || !this.awake || this.boss) return;
+    if (!this.alive || !this.awake || this.boss || this.swims) return;
     this.state = 'faint';
     this.timer = seconds;
     this.wantX = 0;
@@ -339,8 +383,8 @@ export class Enemy implements Attackable {
     const dx = this.pos.x - fromX;
     const dz = this.pos.z - fromZ;
     const d = Math.hypot(dx, dz) || 1;
-    // A boss is too heavy to be shoved.
-    if (!this.boss) this.knock.set((dx / d) * 7, 0, (dz / d) * 7);
+    // A boss is too heavy to be shoved, and water holds a swimmer.
+    if (!this.boss && !this.swims) this.knock.set((dx / d) * 7, 0, (dz / d) * 7);
     this.particles.burst(new THREE.Vector3(this.pos.x, this.pos.y + 1, this.pos.z), 0xffffff, 6, 2.5, 0.1);
     sound.hit();
     this.bar.visible = true;
@@ -350,6 +394,7 @@ export class Enemy implements Attackable {
       this.state = 'dead';
       this.timer = 0.35;
       this.bar.visible = false;
+      this.hideSwimMarks();
       this.particles.burst(new THREE.Vector3(this.pos.x, this.pos.y + 0.9, this.pos.z), 0x6b4fa3, 22, 4, 0.18);
       sound.defeat();
     }
@@ -383,6 +428,7 @@ export class Enemy implements Attackable {
       this.state = 'idle';
       this.pos.set(this.home.x, -1000, this.home.z);
       this.group.visible = false;
+      this.hideSwimMarks();
       return;
     }
     if (this.parked) this.reset();
@@ -404,8 +450,8 @@ export class Enemy implements Attackable {
 
     this.wantX = 0;
     this.wantZ = 0;
-    if (this.kind === 'eel') {
-      this.thinkEel(dt, player, s);
+    if (this.swims) {
+      this.thinkSwimmer(dt, player, s);
       this.animate(dt);
       return;
     }
@@ -618,21 +664,32 @@ export class Enemy implements Attackable {
     if (d < HEARING) sound.bow();
   }
 
-  /** The depths the Eel's centre may be at here: off the bed, and under the surface. */
-  private eelRange(): [number, number] {
-    const lo = this.world.groundAt(this.pos.x, this.pos.z) + EEL.bedGap;
-    const hi = this.world.waterLevelAt(this.pos.x, this.pos.z) - EEL.topGap;
+  /** The numbers of the swimmer this is: the Eel's or the Snapper's. */
+  private get fish(): Fish {
+    return this.kind === 'snapper' ? SNAPPER : EEL;
+  }
+
+  /** The depths a swimmer's centre may be at here: off the bed, and under the surface. */
+  private swimRange(): [number, number] {
+    const F = this.fish;
+    const lo = this.world.groundAt(this.pos.x, this.pos.z) + F.bedGap;
+    const hi = this.world.waterLevelAt(this.pos.x, this.pos.z) - F.topGap;
     return [lo, Math.max(lo, hi)];
   }
 
-  /** Swim a step in the plane, one axis at a time, never onto a tile that is not water. Returns how far it got. */
-  private eelMove(stepX: number, stepZ: number): number {
+  /** True where a swimmer may be: water, and for a Snapper not on kelp or a hollow. */
+  private swimmable(x: number, z: number): boolean {
+    return this.world.isWater(x, z) && (this.kind !== 'snapper' || !this.world.isKelp(x, z));
+  }
+
+  /** Swim a step in the plane, one axis at a time, never onto a tile that is not swimmable. Returns how far it got. */
+  private swimMove(stepX: number, stepZ: number): number {
     let moved = 0;
-    if (stepX !== 0 && this.world.isWater(this.pos.x + stepX, this.pos.z)) {
+    if (stepX !== 0 && this.swimmable(this.pos.x + stepX, this.pos.z)) {
       this.pos.x += stepX;
       moved += Math.abs(stepX);
     }
-    if (stepZ !== 0 && this.world.isWater(this.pos.x, this.pos.z + stepZ)) {
+    if (stepZ !== 0 && this.swimmable(this.pos.x, this.pos.z + stepZ)) {
       this.pos.z += stepZ;
       moved += Math.abs(stepZ);
     }
@@ -640,27 +697,34 @@ export class Enemy implements Attackable {
   }
 
   /** Swim toward (x, z) and rise or sink toward `y`, staying in the water. */
-  private eelSwim(dt: number, x: number, z: number, y: number, speed: number): void {
+  private swimTo(dt: number, x: number, z: number, y: number, speed: number): void {
     const d = Math.hypot(x - this.pos.x, z - this.pos.z);
     if (d > 0.05) {
       const step = Math.min(d, speed * dt);
-      this.eelMove(((x - this.pos.x) / d) * step, ((z - this.pos.z) / d) * step);
+      this.swimMove(((x - this.pos.x) / d) * step, ((z - this.pos.z) / d) * step);
     }
     const dy = y - this.pos.y;
-    this.pos.y += Math.sign(dy) * Math.min(Math.abs(dy), EEL_DEPTH_SPEED * dt);
+    this.pos.y += Math.sign(dy) * Math.min(Math.abs(dy), SWIM_DEPTH_SPEED * dt);
   }
 
-  /** Keep the Eel's centre between the bed and the surface. */
-  private eelClamp(): void {
-    const [lo, hi] = this.eelRange();
+  /** Keep a swimmer's centre between the bed and the surface. */
+  private swimClamp(): void {
+    const [lo, hi] = this.swimRange();
     this.pos.y = Math.min(hi, Math.max(lo, this.pos.y));
   }
 
-  /** The Eel: lunges at swimmers, spits at anyone it has noticed on the shore, and drifts home when alone. */
-  private thinkEel(dt: number, player: Player, s: Sense): void {
+  /**
+   * The Eel and the Snapper: lunge at swimmers and drift home when alone. The
+   * Eel also spits at anyone it has noticed on the shore; the Snapper notices
+   * only swimmers, and lets go of one who is farther than twice its notice.
+   */
+  private thinkSwimmer(dt: number, player: Player, s: Sense): void {
+    const F = this.fish;
     const swimmer = !player.dead && player.swimming && this.world.isWater(player.pos.x, player.pos.z);
-    const noticed = s.canSee && (swimmer || s.dist < EEL.notice);
-    const [lo, hi] = this.eelRange();
+    const snapper = this.kind === 'snapper';
+    const range = snapper && this.state === 'chase' ? F.notice * 2 : F.notice;
+    const noticed = s.canSee && (snapper ? swimmer && s.dist < range : swimmer || s.dist < F.notice);
+    const [lo, hi] = this.swimRange();
     const aimY = swimmer ? player.pos.y + 0.4 : hi;
     const dy = aimY - this.pos.y;
     this.wantX = 0;
@@ -672,43 +736,43 @@ export class Enemy implements Attackable {
           this.state = 'chase';
         } else if (s.fromHome < 0.3) {
           this.state = 'idle';
-          this.eelSwim(dt, this.pos.x, this.pos.z, (lo + hi) / 2, EEL.speed);
+          this.swimTo(dt, this.pos.x, this.pos.z, (lo + hi) / 2, F.speed);
         } else {
           this.state = 'return';
-          this.eelSwim(dt, this.home.x, this.home.z, (lo + hi) / 2, EEL.speed);
+          this.swimTo(dt, this.home.x, this.home.z, (lo + hi) / 2, F.speed);
         }
         break;
       case 'chase':
         if (!noticed) {
           this.state = 'return';
         } else if (swimmer) {
-          if (Math.hypot(s.dist, dy) < EEL.lungeStart) {
+          if (Math.hypot(s.dist, dy) < F.lungeStart) {
             // The direction is fixed now: swim sideways.
             this.dashDir.set(s.dx, dy, s.dz).normalize();
             this.state = 'windup';
             this.act = 'lunge';
-            this.timer = EEL.windup;
+            this.timer = F.windup;
           } else {
-            this.eelSwim(dt, player.pos.x, player.pos.z, aimY, EEL.speed);
+            this.swimTo(dt, player.pos.x, player.pos.z, aimY, F.speed);
           }
         } else if (this.cooldown <= 0) {
           this.state = 'windup';
           this.act = 'spit';
           this.timer = EEL.spitWindup;
         } else {
-          this.eelSwim(dt, player.pos.x, player.pos.z, aimY, EEL.speed);
+          this.swimTo(dt, player.pos.x, player.pos.z, aimY, F.speed);
         }
         break;
       case 'windup':
         this.timer -= dt;
-        if (this.act === 'spit') this.eelSwim(dt, this.pos.x, this.pos.z, hi, EEL.speed);
+        if (this.act === 'spit') this.swimTo(dt, this.pos.x, this.pos.z, hi, F.speed);
         if (this.timer > 0) break;
         if (this.act === 'lunge') {
           this.state = 'dash';
-          this.dashLeft = EEL.lungeLength;
+          this.dashLeft = F.lungeLength;
           this.dashHit = false;
         } else {
-          this.eelClamp();
+          this.swimClamp();
           const surface = this.world.waterLevelAt(this.pos.x, this.pos.z);
           this.shoot(player, Math.max(this.pos.y, surface) + 0.3 - this.pos.y, EEL.spitSpeed, EEL.spitDamage, BALL);
           this.cooldown = EEL.spitGap;
@@ -717,37 +781,37 @@ export class Enemy implements Attackable {
         }
         break;
       case 'dash': {
-        let todo = Math.min(this.dashLeft, EEL.lungeSpeed * dt);
+        let todo = Math.min(this.dashLeft, F.lungeSpeed * dt);
         let blocked = false;
         while (todo > 1e-6 && !blocked) {
           const hop = Math.min(DASH_HOP, todo);
           todo -= hop;
           this.dashLeft -= hop;
           const y0 = this.pos.y;
-          const moved = this.eelMove(this.dashDir.x * hop, this.dashDir.z * hop);
+          const moved = this.swimMove(this.dashDir.x * hop, this.dashDir.z * hop);
           this.pos.y = y0 + this.dashDir.y * hop;
-          this.eelClamp();
+          this.swimClamp();
           blocked = moved < Math.hypot(this.dashDir.x, this.dashDir.z) * hop * 0.5;
           const px = player.pos.x - this.pos.x;
           const pz = player.pos.z - this.pos.z;
-          if (!this.dashHit && s.canSee && Math.hypot(px, pz) < EEL.lungeHit && Math.abs(player.pos.y + 0.4 - this.pos.y) < 1.3) {
+          if (!this.dashHit && s.canSee && Math.hypot(px, pz) < F.lungeHit && Math.abs(player.pos.y + 0.4 - this.pos.y) < 1.3) {
             this.dashHit = true;
-            player.damage(EEL.damage, this.pos.x, this.pos.z);
+            player.damage(F.damage, this.pos.x, this.pos.z);
           }
         }
         if (blocked || this.dashLeft <= 1e-6) {
           this.state = 'recover';
-          this.timer = EEL.recover;
+          this.timer = F.recover;
         }
         break;
       }
       case 'recover':
         this.timer -= dt;
-        this.eelSwim(dt, this.pos.x, this.pos.z, aimY, EEL.speed);
+        this.swimTo(dt, this.pos.x, this.pos.z, aimY, F.speed);
         if (this.timer <= 0) this.state = 'chase';
         break;
     }
-    this.eelClamp();
+    this.swimClamp();
     // It faces the way it swims, or the way it lunges.
     const lunging = this.state === 'windup' || this.state === 'dash';
     const fx = lunging && this.act === 'lunge' ? this.dashDir.x : s.dx;
@@ -811,8 +875,36 @@ export class Enemy implements Attackable {
     this.pos.y = this.world.groundAt(this.pos.x, this.pos.z);
   }
 
+  private hideSwimMarks(): void {
+    if (this.surfaceWake) this.surfaceWake.visible = false;
+    if (this.streak) this.streak.visible = false;
+  }
+
+  /** Lay the wake over the swimmer and, while it glows for a lunge, the streak along the path. */
+  private markSwimmer(): void {
+    const { surfaceWake: wake, streak } = this;
+    if (!wake || !streak) return;
+    const F = this.fish;
+    const surface = this.world.waterLevelAt(this.pos.x, this.pos.z);
+    wake.visible = true;
+    wake.position.y = surface - this.pos.y + 0.04;
+    streak.visible = this.state === 'windup' && this.act === 'lunge';
+    if (!streak.visible) return;
+    // The path runs straight ahead (the swimmer faces its lunge) until the shore or its full length.
+    let length = 0;
+    const dx = this.dashDir.x;
+    const dz = this.dashDir.z;
+    const flat = Math.hypot(dx, dz);
+    while (flat > 0.001 && length < F.lungeLength && this.swimmable(this.pos.x + (dx / flat) * (length + 0.2), this.pos.z + (dz / flat) * (length + 0.2))) {
+      length += 0.2;
+    }
+    streak.position.y = surface - this.pos.y + 0.05;
+    streak.scale.z = Math.max(0.01, flat > 0.001 ? Math.min(length, F.lungeLength) : 0);
+  }
+
   private animate(dt: number): void {
     this.group.position.copy(this.pos);
+    if (this.swims) this.markSwimmer();
     if (this.ring) this.ring.visible = this.state === 'windup' && this.act === 'slam';
     this.group.rotation.y = this.facing;
     this.bar.rotation.y = -this.facing;

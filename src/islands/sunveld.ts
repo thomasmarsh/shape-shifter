@@ -1,4 +1,4 @@
-import { KELP_DEEP } from '../forms';
+import { KELP_DEEP, SNAPPER_LEVEL } from '../forms';
 import { EnemySpot, HintZone, Island, Kind, PuzzleSpot, Terrain } from '../layout';
 import { buildSunveldEast } from './sunveld-east';
 import { nibbleRow } from './underroot-east';
@@ -98,7 +98,11 @@ export const sunveld: Island = {
     ];
 
     const guard = (x: number, z: number): EnemySpot => ({ x, z, tester: false });
-    const enemies: EnemySpot[] = [guard(719.5, 26.5), guard(728.5, 26.5)];
+    const enemies: EnemySpot[] = [
+      guard(719.5, 26.5),
+      guard(728.5, 26.5),
+      { x: 721.5, z: 33.5, tester: false, kind: 'snapper', minLevel: SNAPPER_LEVEL }, // in the Watering Hole, by the pickle
+    ];
 
     const bread = [
       { id: 'sv-landing', x: 710.5, z: 52.5, amount: 5 },

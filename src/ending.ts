@@ -115,3 +115,52 @@ export function creditsTarget(seconds: number, from: Vec3, middle: Vec3): Vec3 {
     z: from.z + (middle.z - from.z) * k,
   };
 }
+
+/** One bell for the credits: a puzzle note, how long to wait before it, and how loud. */
+export interface Chime {
+  note: number;
+  delay: number;
+  volume: number;
+}
+
+/**
+ * The puzzle notes the credits play: C D E G A and high C. Any two of them
+ * sound well together, so bells that overlap never clash.
+ */
+export const CHIME_NOTES: readonly number[] = [0, 1, 2, 4, 5, 7];
+
+/**
+ * The music of the credits: puzzle bells at random, a little under one a
+ * second, and now and then two or three close together so they overlap.
+ */
+export class CreditsChimes {
+  private wait = 0.8;
+  private last = -1;
+
+  constructor(private readonly rand: () => number = Math.random) {}
+
+  /** The bells to start in the next `dt` seconds. */
+  step(dt: number): Chime[] {
+    const out: Chime[] = [];
+    this.wait -= dt;
+    while (this.wait <= 0) {
+      out.push(this.bell(0));
+      // About one time in three a second bell rings into the first, and
+      // sometimes a third into that.
+      if (this.rand() < 0.35) {
+        out.push(this.bell(0.12 + this.rand() * 0.2));
+        if (this.rand() < 0.3) out.push(this.bell(0.34 + this.rand() * 0.2));
+      }
+      this.wait += 0.5 + this.rand() * 1.1;
+    }
+    return out;
+  }
+
+  /** A bell that is not the one before it. */
+  private bell(delay: number): Chime {
+    let k = Math.floor(this.rand() * CHIME_NOTES.length) % CHIME_NOTES.length;
+    if (k === this.last) k = (k + 1) % CHIME_NOTES.length;
+    this.last = k;
+    return { note: CHIME_NOTES[k], delay, volume: 0.22 + this.rand() * 0.16 };
+  }
+}

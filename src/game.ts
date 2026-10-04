@@ -3,10 +3,11 @@ import { sound } from './audio';
 import { WaterPowers } from './waterpowers';
 import { Arrows } from './arrows';
 import { Enemy } from './enemy';
-import { Ending, creditsEndZoom, creditsTarget, creditsZoom } from './ending';
+import { CreditsChimes, Ending, creditsEndZoom, creditsTarget, creditsZoom } from './ending';
 import { EEL, FORMS, lightsNeeded, MAX_LEVEL, swordTier, WARDEN, WINGS_LEVEL, CREDITS_SECONDS } from './forms';
 import { Card, Hud } from './hud';
 import { Input } from './input';
+import { Cinder } from './cinder';
 import { coldAt, Snowfall } from './frost';
 import { hash } from './layout';
 import {
@@ -63,6 +64,7 @@ export class Game {
   private sun: THREE.DirectionalLight;
   private hemi: THREE.HemisphereLight;
   private snowfall: Snowfall;
+  private cinder: Cinder;
   private clock = new THREE.Clock();
   private time = 0;
 
@@ -102,7 +104,7 @@ export class Game {
   private activeCheckpoint: string | null = null;
   private ending!: Ending;
   /** Set while the credits roll: seconds so far, where the camera began, and the zoom it ends on. */
-  private credits: { t: number; from: THREE.Vector3; endZoom: number } | null = null;
+  private credits: { t: number; from: THREE.Vector3; endZoom: number; chimes: CreditsChimes } | null = null;
   private zoom = 1;
   private viewHeight = VIEW_HEIGHT;
   private viewAspect = 1;
@@ -150,6 +152,9 @@ export class Game {
     // Snow falls round the camera on Frostfang; ?fast keeps only a few flakes.
     this.snowfall = new Snowfall(fast, this.renderer.getPixelRatio());
     this.scene.add(this.snowfall.points);
+    // The beacons, embers, cracks and stones of Cinderhold: looks only.
+    this.cinder = new Cinder((x, z) => this.world.groundAt(x, z), fast);
+    this.scene.add(this.cinder.group);
 
     this.input = new Input(this.renderer.domElement);
     this.hud = new Hud(mount);
@@ -701,6 +706,9 @@ export class Game {
       if (c.position.x > CLOUD_MAX_X) c.position.x = CLOUD_MIN_X;
     }
     this.particles.update(dt);
+    // Shown near Cinderhold, and all through the credits, which start there.
+    this.cinder.group.visible = this.camTarget.x > 1540 || this.credits !== null;
+    if (this.cinder.group.visible) this.cinder.update(dt);
     this.updateOrbs(dt);
     this.updateLanding();
     this.updateFinder(dt);
@@ -958,7 +966,7 @@ export class Game {
     const w = this.world;
     // Heights run 0 to about 31, so the world's box is 31 high.
     const endZoom = creditsEndZoom(CAMERA_DIR, w.width, w.depth, 31, this.viewAspect, this.viewHeight);
-    this.credits = { t: 0, from: this.camTarget.clone(), endZoom };
+    this.credits = { t: 0, from: this.camTarget.clone(), endZoom, chimes: new CreditsChimes() };
     this.camera.far = 2600;
     this.hud.showCredits(true, CREDITS_SECONDS);
     window.addEventListener('keydown', this.stopCredits);
@@ -978,6 +986,7 @@ export class Game {
       this.endCredits();
       return;
     }
+    for (const bell of c.chimes.step(dt)) sound.note(bell.note, bell.delay, bell.volume);
     const w = this.world;
     this.zoom = creditsZoom(c.t, c.endZoom);
     this.setFrustum();

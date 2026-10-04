@@ -108,7 +108,7 @@ export interface PuzzleSpot {
 
 export interface EnemySpot extends Spot {
   tester: boolean;
-  kind?: 'regular' | 'archer' | 'sword' | 'blade' | 'warden' | 'eel';
+  kind?: 'regular' | 'archer' | 'sword' | 'blade' | 'warden' | 'eel' | 'snapper';
   /** Only appears once the player has reached this level. */
   minLevel?: number;
   /** Which way it faces at its post. Defaults to west. */

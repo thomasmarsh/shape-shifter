@@ -391,7 +391,9 @@ export const MAX_LEVEL = 11;
 // bite. A boss that is not beaten gets all its hearts back on `reset()` (the
 // player fainted). A beaten boss stays beaten, and that is saved.
 //
-// The Warden (phase 1, on land) is slow and hits hard:
+// The Warden (phase 1, on land) is slower than a Human and hits hard. It has
+// WARDEN.hearts hearts, a dozen blows of the level 10 sword, so the fight is
+// many rounds of walking out of the ring and coming back in:
 // - It walks at WARDEN.speed, cannot jump, steps up no more than any bad guy
 //   (0.35) and will not walk off an edge. So it cannot climb the Stairs, whose
 //   steps are 1 high.
@@ -421,6 +423,11 @@ export const MAX_LEVEL = 11;
 //   EEL.lungeLength tiles straight at EEL.lungeSpeed (it stops at the shore)
 //   and hits the player once, within EEL.lungeHit of it, for EEL.damage
 //   hearts. Then it lies still for EEL.recover seconds. Swim sideways.
+// - It must be easy to see. While it is awake a pale wake shows on the
+//   surface over it, wherever it swims and however deep. While it glows for
+//   the lunge a red streak shows on the surface along the whole path the
+//   lunge will take (EEL.lungeLength long, or to the shore), as the Warden's
+//   red ring shows its slam.
 // - The spit: a noticed player who is not in the water (on the shore, on the
 //   Stairs, in the air) gets a ball of water. The Eel comes up, glows for
 //   EEL.spitWindup seconds, then spits at where the player is at that moment:
@@ -428,6 +435,28 @@ export const MAX_LEVEL = 11;
 //   EEL.spitGap seconds between.
 // When the Eel is beaten the player is level 11 (MAX_LEVEL) and the credits
 // roll.
+//
+// The Snapper (`EnemySpot.kind` 'snapper') is a small bad guy that swims: the
+// Eel's little cousin, and no boss. It is there for the Mermaid.
+// - It lives in the water its post is in and never leaves the water: its
+//   centre stays on water tiles, between SNAPPER.bedGap above the bed and
+//   SNAPPER.topGap under the surface, and never on a kelp mat or a hollow. It
+//   swims at SNAPPER.speed and follows the player's depth.
+// - It notices only a player who is in the water (swimming or dived, not
+//   hidden) within SNAPPER.notice tiles on the flat, whatever the depth.
+//   Anyone on the shore or in the air is nothing to it, so it never stops a
+//   speaker on the bank from being used.
+// - The snap: with a swimmer inside SNAPPER.lungeStart it glows for
+//   SNAPPER.windup seconds and fixes its direction, then dashes
+//   SNAPPER.lungeLength tiles straight at SNAPPER.lungeSpeed (it stops at the
+//   shore) and hits the player once, within SNAPPER.lungeHit of it, for
+//   SNAPPER.damage hearts. Then it lies still for SNAPPER.recover seconds.
+// - When the player leaves the water, or is farther off than twice
+//   SNAPPER.notice, it swims back to its post.
+// - It takes no knockback and does not faint (nothing bites under water). It
+//   has a hearts bar like any bad guy, and swords, the water shot and the
+//   bubble column all hurt it. It appears at SNAPPER_LEVEL, with the Mermaid.
+// - A pale wake shows on the surface over it, as over the Eel.
 //
 // The ending (ending.ts, no DOM): it watches the two bosses. Warden beaten:
 // `world.dropLid()`. Eel beaten: level 11, credits. The save keeps
@@ -440,19 +469,19 @@ export const MAX_LEVEL = 11;
 export const BOSS_LEVEL = 10;
 export const WARDEN = {
   name: 'The Warden',
-  hearts: 16,
-  speed: 2.0,
+  hearts: 60,
+  speed: 3.2,
   notice: 14,
   noticeHeight: 8,
   damage: 5,
-  slamStart: 1.9,
-  slamRadius: 2.6,
+  slamStart: 2.3,
+  slamRadius: 3.0,
   slamHeight: 1.5,
-  windup: 1.2,
-  recover: 1.8,
+  windup: 0.9,
+  recover: 1.3,
   throwFrom: 5,
-  throwWindup: 1.0,
-  throwGap: 3,
+  throwWindup: 0.8,
+  throwGap: 2.2,
   rockSpeed: 9,
   rockDamage: 3,
 } as const;
@@ -465,15 +494,31 @@ export const EEL = {
   bedGap: 0.3,
   topGap: 0.6,
   lungeStart: 5,
-  lungeLength: 6,
+  lungeLength: 8,
   lungeSpeed: 14,
-  lungeHit: 1.0,
-  windup: 0.45,
+  lungeHit: 1.4,
+  windup: 0.7,
   recover: 0.9,
   spitWindup: 0.7,
   spitGap: 2.5,
   spitSpeed: 10,
   spitDamage: 3,
+} as const;
+/** The level at which Snappers appear: the Mermaid's. */
+export const SNAPPER_LEVEL = 6;
+export const SNAPPER = {
+  hearts: 6,
+  speed: 5,
+  notice: 8,
+  damage: 2,
+  bedGap: 0.3,
+  topGap: 0.5,
+  lungeStart: 3,
+  lungeLength: 3.5,
+  lungeSpeed: 11,
+  lungeHit: 0.8,
+  windup: 0.5,
+  recover: 1.0,
 } as const;
 /** The credits, in order: what was done, and who did it. */
 export const CREDITS: readonly (readonly [string, string])[] = [

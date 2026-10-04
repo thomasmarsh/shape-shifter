@@ -43,6 +43,15 @@ const svBread = mine(layout.bread);
 const svEnemies = mine(layout.enemies);
 const solid = solidTiles(world, { x0: 700, x1: 960 });
 
+
+// A Snapper stands in water, kelp-free and a tile from the pool's edge; its pool is the water it can reach.
+const snapperOk = (world: World, e: { x: number; z: number }) => {
+  const i = Math.floor(e.x), j = Math.floor(e.z);
+  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    expect(world.isWater(i + di + 0.5, j + dj + 0.5), `snapper (${e.x}, ${e.z}) near ${i + di},${j + dj}`).toBe(true);
+  }
+  expect(world.isKelp(e.x, e.z), `snapper (${e.x}, ${e.z}) kelp`).toBe(false);
+};
 describe('Sunveld as a whole: the proof', () => {
   it('lets the level-6 set use all five speakers and all five candles, on easy', () => {
     expect(svs.map((p) => p.id)).toEqual(['sv-hole', 'sv-table', 'sv-oxbow', 'sv-grove', 'sv-kraal']);
@@ -100,7 +109,10 @@ describe('Sunveld as a whole: ids, melodies and footing', () => {
   it('stands everything on real ground: dry, except the candles in water', () => {
     expect(svCheckpoints).toHaveLength(8);
     expectOnRealGround(world, [...svCheckpoints.flatMap((c) => [c, respawn(c)]), ...svBread, ...mine(layout.trees)]);
-    expectOnRealGround(world, svEnemies);
+    const snappers = svEnemies.filter((e) => e.kind === 'snapper');
+    expect(snappers.length).toBe(1);
+    expectOnRealGround(world, svEnemies, (s) => snappers.includes(s as never));
+    for (const e of snappers) snapperOk(world, e);
     expectOnRealGround(
       world,
       svs.map((p) => p.speaker),
