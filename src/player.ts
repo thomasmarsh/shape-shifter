@@ -3,6 +3,8 @@ import {
   AXOLOTL_REGROW,
   FORMS,
   FormDef,
+  GLIDE_SINK,
+  GLIDE_SPEED,
   ICE_STUMBLE,
   PHYSICS,
   RUN_BREATH,
@@ -11,6 +13,7 @@ import {
   SWORD_DAMAGE,
   swordTier,
   WINDED_SPEED,
+  WINGS_LEVEL,
 } from './forms';
 import type { Meter } from './hud';
 import type { Controls } from './input';
@@ -130,6 +133,14 @@ export class Player {
   }
   onGround = true;
   swimming = false;
+  /** True while the wings are open (a Human of level WINGS_LEVEL, holding Space in the air). */
+  gliding = false;
+  /** The wings opened since the last landing: no shifting until then. */
+  private glided = false;
+  /** The Human left the ground as a Human, so the wings may open. A shift in the air clears it. */
+  private humanLift = false;
+  /** Space was pressed in the air and is still held: the wings open as soon as the Human stops rising. */
+  private wingsAsked = false;
 
   level = 0;
   lights = 0;
@@ -343,6 +354,31 @@ export class Player {
     return ceiling;
   }
 
+  /** The Human of level WINGS_LEVEL has wings. They are not a form. */
+  get winged(): boolean {
+    return this.form.id === 'human' && this.level >= WINGS_LEVEL;
+  }
+
+  /** The wings open on a fresh press of Space in the air once the Human stops rising, and stay open while it is held. */
+  private stepWings(input: Controls): void {
+    if (this.onGround || this.swimming) {
+      this.gliding = false;
+      this.glided = false;
+      this.wingsAsked = false;
+      this.humanLift = this.winged && this.onGround;
+    } else if (this.gliding) {
+      this.gliding = input.held('Space');
+    } else if (this.winged && this.humanLift) {
+      // A press made while still rising is kept for as long as it is held, so the wings open at the top.
+      if (input.hit('Space')) this.wingsAsked = true;
+      if (!input.held('Space')) this.wingsAsked = false;
+      if (this.wingsAsked && this.vy <= 0) {
+        this.gliding = true;
+        this.glided = true;
+      }
+    }
+  }
+
   /** 'cramped' means a root tangle or a kelp mat leaves no room to change shape. */
   canShiftTo(index: number): 'ok' | 'locked' | 'soon' | 'same' | 'cramped' {
     const form = FORMS[index];
@@ -350,7 +386,7 @@ export class Player {
     if (index === this.formIndex) return 'same';
     if (this.level < form.level) return 'locked';
     if (!form.playable) return 'soon';
-    if (this.inTangle || this.inKelp) return 'cramped';
+    if (this.inTangle || this.inKelp || this.glided) return 'cramped';
     return 'ok';
   }
 
@@ -359,6 +395,7 @@ export class Player {
     this.leaveHome();
     this.letGo();
     this.formIndex = index;
+    if (!this.onGround) this.humanLift = false;
     // Hearts never go above what the new form can hold. Shifting back to a
     // bigger form does not give them back: you have to eat.
     this.hearts = Math.min(this.hearts, this.form.maxHearts);
@@ -494,6 +531,7 @@ export class Player {
     } else {
       const fromX = this.pos.x;
       const fromZ = this.pos.z;
+      this.stepWings(input);
       this.moveAround(dt, input);
       this.tryGrab(dt);
       if (!this.climb) this.moveUpDown(dt, input, isFairy);
@@ -517,7 +555,7 @@ export class Player {
     let dx = (m.x + m.y) * Math.SQRT1_2;
     let dz = (m.x - m.y) * Math.SQRT1_2;
     const len = Math.hypot(dx, dz);
-    let speed = this.swimming ? this.form.swim : this.topSpeed;
+    let speed = this.gliding ? GLIDE_SPEED : this.swimming ? this.form.swim : this.topSpeed;
     if (this.attackTimer > 0) speed *= 0.5;
 
     if (len > 0) {
@@ -743,6 +781,7 @@ export class Player {
       this.fall(dt, input, isFairy, ground, wasOnGround, impact, inWater);
     }
     this.swimming = inWater && this.pos.y <= floatY + 0.05;
+    if (this.swimming) this.gliding = false;
     if (this.onGround) this.recoverEnergy(dt);
   }
 
@@ -811,11 +850,14 @@ export class Player {
       if (isFairy) this.vy = Math.max(this.vy, -3.4);
     }
 
+    if (this.gliding) this.vy = Math.min(0, Math.max(this.vy, -GLIDE_SINK));
     this.pos.y += this.vy * dt;
     if (this.pos.y <= ground) {
       this.pos.y = ground;
       this.vy = 0;
       this.onGround = true;
+      this.gliding = false;
+      this.glided = false;
       this.lastGroundY = ground;
       if (!wasOnGround && impact < -3) this.landed(impact);
     } else if (this.pos.y > ground + 0.02) {

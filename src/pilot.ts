@@ -280,6 +280,40 @@ export class Pilot {
   }
 
   /**
+   * Glide as a Human with the wings (the player must be level 10, which a test
+   * sets with `pilot.player.level = 10`): walk, jump at the edge of the ground
+   * (or at once when the target is over open air), press Space again once
+   * falling, hold it and steer at `target`, and let go above it to land on it.
+   */
+  glide(target: Spot, { seconds = 15 }: MoveOptions = {}): boolean {
+    let lastY = this.y;
+    const ok = this.run(
+      () => this.standingOn(target),
+      seconds,
+      () => {
+        const d = this.steerTo(target);
+        const above = Math.max(0, this.y - this.world.groundAt(target.x, target.z));
+        const settle = d < 0.3 + above * 0.15;
+        if (this.onGround) {
+          this.pad.down.delete('Space');
+          if (d > 0.5 && this.edgeAhead() <= 0.25) this.pad.tapped.add('Space');
+        } else if (this.player.gliding) {
+          // Above the target, let go and drop onto it.
+          if (settle) this.pad.down.delete('Space');
+          else this.pad.down.add('Space');
+        } else if (!settle && this.y < lastY) {
+          // A fresh press, once falling, opens the wings.
+          this.pad.tapped.add('Space');
+          this.pad.down.add('Space');
+        }
+        lastY = this.y;
+      },
+    );
+    this.stopSteering();
+    return ok;
+  }
+
+  /**
    * Hop-then-fly: as a bunny, take a full hop toward `target` (jumping at the
    * edge, as `hop` does), shift to a fairy at the top and keep flying on, then
    * settle onto the target tile. Fails if she lands anywhere else or runs out

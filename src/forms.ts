@@ -79,6 +79,26 @@ export const HOLLOW_ROOM = 0.35;
 /** Seconds for the Axolotl to regrow one heart. */
 export const AXOLOTL_REGROW = 3;
 
+// ---- The wings (level 10) ----------------------------------------------------
+// The wings are not a form. Only the Human has them, from WINGS_LEVEL on, and
+// they only glide:
+// - They open on a press of Space in the air (not the press that jumped), once
+//   the Human is no longer rising, and stay open while Space is held.
+// - The Human must have left the ground as a Human: after a shift in the air
+//   there are no wings until the next landing. They do not open in water.
+// - Open wings fall at GLIDE_SINK at most and never rise, and move at
+//   GLIDE_SPEED where the player steers (nowhere, with no direction held).
+// - Once the wings have opened there is no shifting until the Human lands.
+// So a glide always starts from a place the Human can stand, at most a Human
+// jump above it, and carries GLIDE_SPEED / GLIDE_SINK tiles for each unit of
+// height it gives up. The level checker models exactly that.
+/** The level that gives the Human its wings. */
+export const WINGS_LEVEL = 10;
+/** Tiles a second over the ground while the wings are open. */
+export const GLIDE_SPEED = 9;
+/** Height lost a second while the wings are open. */
+export const GLIDE_SINK = 1.5;
+
 /**
  * Does a body of height `body` that can dive `dive` fit under a kelp mat that
  * hangs `depth` below the surface? Its whole body must get below the mat, and

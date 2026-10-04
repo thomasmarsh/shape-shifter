@@ -3,7 +3,7 @@ import { sound } from './audio';
 import { WaterPowers } from './waterpowers';
 import { Arrows } from './arrows';
 import { Enemy } from './enemy';
-import { FORMS, lightsNeeded, swordTier } from './forms';
+import { FORMS, lightsNeeded, swordTier, WINGS_LEVEL } from './forms';
 import { Card, Hud } from './hud';
 import { Input } from './input';
 import { coldAt, Snowfall } from './frost';
@@ -371,7 +371,10 @@ export class Game {
            ? `<p>You can now shape-shift into ${article} <b>${form.name}</b>.</p>
               <p class="soft">${form.blurb} ${article[0].toUpperCase()}${article.slice(1)} ${form.name} has ${form.maxHearts} hearts.</p>
               <p>Press <kbd>${level}</kbd> to shift, and <kbd>0</kbd> to turn back into a Human.</p>`
-           : ''
+           : level === WINGS_LEVEL
+             ? `<p>You have grown <b>Wings</b>.</p>
+                <p class="soft">Jump as a Human, then press <kbd>Space</kbd> again in the air and hold it to glide. Wings never climb.</p>`
+             : ''
        }
        ${sword}
        <p class="soft">Next level: ${next} candle lights.</p>`,
