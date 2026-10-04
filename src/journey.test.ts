@@ -261,6 +261,45 @@ describe('the journey through Galecrest', () => {
   });
 });
 
+describe('the journey through Cinderhold', () => {
+  const L10: FormId[] = [...L4, 'ant', 'mermaid', 'cheetah', 'snake', 'axolotl'];
+  // Kestrel Rock and the whole island.
+  const range = cols(1560, 1700);
+  const ring = standSpot('ch-ring');
+  const lake = { x: 1645.5, z: 32.5 };
+  const stairs = [
+    { x: 1644.5, z: 2.5 },
+    { x: 1679.5, z: 31.5 },
+  ];
+
+  it('level 10: the ten forms on easy cross from Kestrel Rock, stand in the Ring and on both Stairs, and find no water', () => {
+    const r = explore(world, standSpot('gc-end'), L10, 'easy', range);
+    expect(r.canStand(standSpot('cinderhold')), 'the Landing').toBe(true);
+    expect(r.canStand(ring), 'the Ring').toBe(true);
+    for (const top of stairs) expect(r.canStand(top), 'a Stair top').toBe(true);
+    expect(world.lidDown).toBe(false);
+    expect(world.isWater(lake.x, lake.z), 'the Lid is shut').toBe(false);
+    expect(r.canStand(lake), 'the Lid').toBe(true);
+  });
+
+  it('the Warden beaten: the Lid is down, and the Human and the Mermaid on easy are in the lake and get out of it', () => {
+    // A world of its own: the shared one must stay as it was built.
+    const after = new World();
+    after.dropLid();
+    expect(after.isWater(lake.x, lake.z)).toBe(true);
+    for (const form of ['human', 'mermaid'] as const) {
+      const r = explore(after, ring, [form], 'easy', range);
+      expect(r.has(Math.floor(lake.x), Math.floor(lake.z)), `${form} in the lake`).toBe(true);
+      expect(r.canStand({ x: 1660.5, z: 32.5 }), `${form} on the far shore`).toBe(true);
+    }
+  });
+
+  it('has no candles: level 11 is the bosses', () => {
+    expect(lightsNeeded(10)).toBe(Infinity);
+    expect(layout.enemies.filter((e) => e.kind === 'warden' || e.kind === 'eel').map((e) => e.kind)).toEqual(['warden', 'eel']);
+  });
+});
+
 describe('the candles', () => {
   /** Puzzles whose speaker stands on the given island. */
   const puzzlesOn = (island: string) => {
