@@ -530,6 +530,56 @@ export function makeAnt(): AntModel {
   return { group, legs };
 }
 
+export interface SnakeModel {
+  group: THREE.Group;
+  /** Body segments head to tail; each sways side to side in a slither. */
+  segments: THREE.Group[];
+}
+
+/**
+ * A banded snake, about 1.1 long and 0.15 tall: a wedge head with yellow eyes,
+ * then seven tapering segments in slate and gold. Faces +z. Slithers.
+ */
+export function makeSnake(): SnakeModel {
+  const group = new THREE.Group();
+  const scale = mat(0x3d5a4a);
+  const band = mat(0xc9a24a);
+  const dark = mat(0x23362c);
+  const belly = mat(0xe3d9b4);
+  const segments: THREE.Group[] = [];
+  // Segment 0 is the head, a wedge: a broad jaw, a narrow snout, a raised brow, two eyes, a tongue.
+  const head = new THREE.Group();
+  head.position.set(0, 0, 0.35);
+  head.add(
+    box(0.17, 0.1, 0.18, scale, 0, 0.07, 0),
+    box(0.11, 0.07, 0.1, scale, 0, 0.06, 0.12),
+    box(0.06, 0.05, 0.06, scale, 0, 0.05, 0.18),
+    box(0.15, 0.02, 0.16, belly, 0, 0.015, 0.01),
+    box(0.03, 0.03, 0.03, mat(0xf2c230, { emissive: 0x6a5000 }), -0.075, 0.12, 0.06),
+    box(0.03, 0.03, 0.03, mat(0xf2c230, { emissive: 0x6a5000 }), 0.075, 0.12, 0.06),
+    box(0.012, 0.012, 0.02, dark, -0.075, 0.12, 0.08),
+    box(0.012, 0.012, 0.02, dark, 0.075, 0.12, 0.08),
+    box(0.012, 0.012, 0.07, mat(0xc0392b), 0, 0.045, 0.24),
+  );
+  group.add(head);
+  segments.push(head);
+  // The body tapers to the tail, in pale bands every other segment.
+  for (let n = 1; n < 8; n++) {
+    const seg = new THREE.Group();
+    const w = 0.15 - n * 0.015;
+    const h = 0.12 - n * 0.008;
+    seg.position.set(0, 0, 0.35 - n * 0.14);
+    seg.add(
+      box(w, h, 0.15, n % 2 ? scale : band, 0, h / 2 + 0.02, 0),
+      box(w * 0.5, 0.02, 0.15, belly, 0, 0.01, 0),
+      box(w * 0.4, 0.02, 0.1, dark, 0, h + 0.03, 0),
+    );
+    group.add(seg);
+    segments.push(seg);
+  }
+  return { group, segments };
+}
+
 export interface BadGuyModel {
   group: THREE.Group;
   armL: THREE.Group;
@@ -864,6 +914,40 @@ export function makeGreatAcacia(seed: number): THREE.Group {
   // Two stubby branches so the trunk reads as climbable, like the other great trees.
   tree.add(box(0.8, 0.18, 0.2, mat(0x4a3526), 0.45, 2.3, 0), box(0.2, 0.18, 0.8, mat(0x4a3526), 0, 3.0, -0.45));
   return tree;
+}
+
+/**
+ * A great banyan for the ruins, exactly 5.0 tall like a great tree: a thick
+ * pale trunk with buttress roots, a wide dark crown, and hanging aerial roots.
+ */
+export function makeGreatBanyan(seed: number): THREE.Group {
+  const group = new THREE.Group();
+  const trunk = mat(0xb9b2a0);
+  const root = mat(0x8f8873);
+  const crowns = [mat(0x1f4a3a), mat(0x24523f), mat(0x1a4033)];
+  group.add(
+    box(0.7, 4.4, 0.7, trunk, 0, 2.2, 0),
+    // Buttress roots flare at the foot.
+    box(1.3, 0.5, 0.25, root, 0, 0.25, 0),
+    box(0.25, 0.5, 1.3, root, 0, 0.25, 0),
+    // Two stubby branches so the trunk reads as climbable.
+    box(1.0, 0.2, 0.24, trunk, 0.55, 2.3, 0),
+    box(0.24, 0.2, 1.0, trunk, 0, 3.0, -0.55),
+    // A wide, low crown in dark layers.
+    box(3.4, 0.7, 3.2, crowns[seed % 3], 0, 4.55, 0),
+    box(2.4, 0.55, 2.4, crowns[(seed + 1) % 3], 0.1, 4.75, 0.1),
+  );
+  // Aerial roots hang from the crown's rim, reaching the ground or not.
+  const hang: [number, number, number][] = [
+    [1.5, 1.4, 1.0],
+    [-1.4, 2.6, 0.7],
+    [1.2, -1.3, 1.8],
+    [-1.3, -1.2, 0.6],
+    [0.2, 1.55, 2.2],
+  ];
+  for (const [x, z, len] of hang) group.add(box(0.07, len, 0.07, root, x, 4.3 - len / 2, z));
+  group.rotation.y = (seed % 4) * 0.4;
+  return group;
 }
 
 /** A pine: a short trunk and stacked tiers with snow on top. Its top is 3.8 to 4.0 up, matching its solid block. */

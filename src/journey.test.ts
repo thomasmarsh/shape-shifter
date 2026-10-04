@@ -183,6 +183,29 @@ describe('the journey through Sunveld', () => {
   });
 });
 
+describe('the journey through Coilstone', () => {
+  const L7: FormId[] = [...L4, 'ant', 'mermaid', 'cheetah'];
+  const L8: FormId[] = [...L7, 'snake'];
+  const from = standSpot('coilstone');
+  // The whole island, with Sunset Rock's margin on the west.
+  const range = cols(925, 1136);
+  const ids = ['cs-court', 'cs-colonnade', 'cs-tooth', 'cs-stair', 'cs-thicket'];
+
+  it('level 7: the eight forms on easy use all five Coilstone speakers and candles, and on max stand nowhere on the mesa top', () => {
+    const r = explore(world, from, L7, 'easy', range);
+    for (const id of ids) {
+      const p = layout.puzzles.find((q) => q.id === id)!;
+      expect(r.canUse(p.speaker), `${id} speaker`).toBe(true);
+      expect(r.canUse(p.candle), `${id} candle`).toBe(true);
+    }
+    expect(explore(world, from, L7, 'max', range).canStand(standSpot('cs-end')), 'the Serpent\'s Head').toBe(false);
+  });
+
+  it('level 8: with the snake the nine forms on easy stand at the Serpent\'s Head', () => {
+    expect(explore(world, from, L8, 'easy', range).canStand(standSpot('cs-end'))).toBe(true);
+  });
+});
+
 describe('the candles', () => {
   /** Puzzles whose speaker stands on the given island. */
   const puzzlesOn = (island: string) => {
@@ -201,6 +224,7 @@ describe('the candles', () => {
     ['underroot', 4],
     ['saltmere', 5],
     ['sunveld', 6],
+    ['coilstone', 7],
   ];
 
   it('gives each island exactly the lights its level needs', () => {

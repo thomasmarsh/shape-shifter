@@ -65,20 +65,31 @@ const cases: Case[] = [
   ['sv-8-max-all', SV, EIGHT, 'max', undefined],
 ];
 
+/** The pins cover columns 0 to 959, the world as it was when they were recorded; later islands are pinned in their own tests. */
+const PINNED_WIDTH = 960;
+
 /** A digest of every reached tile in the searched columns and every usable thing in them. */
 function digest(r: ReturnType<typeof explore>, { x0, x1 }: XRange): string {
   let h = 2166136261;
   const mix = (n: number): void => {
     h = Math.imul(h ^ n, 16777619) >>> 0;
   };
-  for (let j = 0; j < world.depth; j++) for (let i = x0; i < x1; i++) mix(r.has(i, j) ? 1 : 0);
-  const inside = (s: { x: number }): boolean => s.x >= x0 && s.x < x1;
+  // The tile count is taken over the pinned columns too: an explore of the whole world also reaches later islands.
+  let tiles = 0;
+  for (let j = 0; j < world.depth; j++) {
+    for (let i = x0; i < Math.min(x1, PINNED_WIDTH); i++) {
+      const reached = r.has(i, j);
+      if (reached) tiles++;
+      mix(reached ? 1 : 0);
+    }
+  }
+  const inside = (s: { x: number }): boolean => s.x >= x0 && s.x < Math.min(x1, PINNED_WIDTH);
   for (const p of layout.puzzles.filter((q) => inside(q.speaker))) {
     mix(r.canUse(p.speaker) ? 1 : 0);
     mix(r.canUse(p.candle) ? 1 : 0);
   }
   for (const s of [...layout.bread, ...layout.checkpoints].filter(inside)) mix(r.canUse(s) ? 1 : 0);
-  return `${h}:${r.tiles}`;
+  return `${h}:${tiles}`;
 }
 
 describe('the checker, pinned', () => {

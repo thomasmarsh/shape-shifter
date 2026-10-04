@@ -62,7 +62,7 @@ const rockTiles = tiles.filter(([i, j]) => inBox(i, j, 611, 31, 615, 35));
 const roadTiles = tiles.filter(([i, j]) => inBox(i, j, ROAD.i0, ROAD.j0, ROAD.i1, ROAD.j1));
 const coveTiles = tiles.filter(([i, j]) => inBox(i, j, COVE.i0, COVE.j0, COVE.i1, COVE.j1));
 const pearlTiles = tiles.filter(([i]) => i >= 659);
-const kelpTiles = tiles.filter(([i, j]) => world.isKelp(i + 0.5, j + 0.5));
+const kelpTiles = tiles.filter(([i, j]) => i < 700 && world.isKelp(i + 0.5, j + 0.5));
 const lowMats = kelpTiles.filter(([i, j]) => world.kelpDepthAt(i + 0.5, j + 0.5) === KELP_LOW);
 const deepMats = kelpTiles.filter(([i, j]) => world.kelpDepthAt(i + 0.5, j + 0.5) === KELP_DEEP);
 

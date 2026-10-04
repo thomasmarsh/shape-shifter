@@ -49,7 +49,7 @@ export const NO_STAND = 100;
 const BOULDER = 0.9;
 
 /** Tiles from west to east. Background clouds in game.ts follow it. */
-export const WORLD_WIDTH = 960;
+export const WORLD_WIDTH = 1136;
 
 /** Saltmere's water: turquoise, darker and bluer the deeper the bed (2 bright, 4 mid, 7 dark). */
 const SEA_STOPS: [number, THREE.Color][] = [
@@ -227,6 +227,12 @@ export class World {
   isTangle(x: number, z: number): boolean {
     const k = this.index(x, z);
     return k >= 0 && this.tangle[k] > 0;
+  }
+
+  /** The ground kind of a tile (Void off the map), for its look. */
+  kindAt(x: number, z: number): Kind {
+    const k = this.index(x, z);
+    return k < 0 ? Kind.Void : this.kind[k];
   }
 
   /** The gap of the root tangle on a tile, 0 if none. */
@@ -771,6 +777,19 @@ export class World {
         case Kind.Clay:
           c.setHSL(0.04 + v * 0.015, 0.58, 0.46 + v * 0.05);
           break;
+        case Kind.Slate: {
+          // Cold blue-grey flags, laid in a faint check, with the odd worn ochre inlay.
+          const inlay = t.kind === Kind.Slate && hash(t.i, t.j, 2) > 0.94;
+          if (inlay) c.setHSL(0.11, 0.38, 0.5 + v * 0.05);
+          else c.setHSL(0.6, 0.16, 0.4 + v * 0.05 + ((t.i + t.j) & 1) * 0.045);
+          break;
+        }
+        case Kind.Basalt:
+          c.setHSL(0.64, 0.09, 0.2 + v * 0.05);
+          break;
+        case Kind.Lichen:
+          c.setHSL(0.19, 0.36, 0.6 + v * 0.07);
+          break;
         case Kind.Moss:
           c.setHSL(0.43 + v * 0.03, 0.55, 0.3 + v * 0.06);
           break;
@@ -817,6 +836,13 @@ export class World {
           break;
         case Kind.Clay:
           c.setHSL(0.03, 0.5, 0.27 + v * 0.05);
+          break;
+        case Kind.Slate:
+        case Kind.Lichen:
+          c.setHSL(0.6, 0.14, 0.24 + v * 0.04);
+          break;
+        case Kind.Basalt:
+          c.setHSL(0.65, 0.1, 0.11 + v * 0.03);
           break;
         case Kind.Cloud:
           c.setHSL(0.58, 0.35, 0.93);
@@ -891,6 +917,51 @@ export class World {
   }
 
   /**
+   * A Snake hole (a tangle gap above TANGLE_GAP) is a burrow, not a thicket: a
+   * ring of dark stones round a black mouth, with a low lintel arch over it and
+   * nothing rising out of sight. Look only: nothing here collides.
+   */
+  private buildBurrows(tiles: number[]): void {
+    if (tiles.length === 0) return;
+    const RING = 8;
+    const unit = new THREE.BoxGeometry(1, 1, 1);
+    const stones = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial(), tiles.length * (RING + 3));
+    const mouth = new THREE.InstancedMesh(unit, new THREE.MeshBasicMaterial({ color: 0x07090c }), tiles.length);
+    stones.name = 'burrow-stones';
+    mouth.name = 'burrow-mouth';
+    const m = new THREE.Matrix4();
+    const rot = new THREE.Matrix4();
+    const c = new THREE.Color();
+    let s = 0;
+    tiles.forEach((k, n) => {
+      const i = k % this.width;
+      const j = Math.floor(k / this.width);
+      const h = this.height[k];
+      const put = (x: number, y: number, z: number, sx: number, sy: number, sz: number, ry: number, light: number) => {
+        m.makeRotationY(ry).multiply(rot.makeScale(sx, sy, sz));
+        m.setPosition(i + 0.5 + x, h + y, j + 0.5 + z);
+        stones.setMatrixAt(s, m);
+        stones.setColorAt(s, c.setHSL(0.6, 0.1, light));
+        s++;
+      };
+      m.makeScale(0.5, 0.06, 0.5).setPosition(i + 0.5, h + 0.03, j + 0.5);
+      mouth.setMatrixAt(n, m);
+      for (let r = 0; r < RING; r++) {
+        const a = (r / RING) * Math.PI * 2;
+        const v = hash(i, j, 110 + r);
+        put(Math.cos(a) * 0.36, 0.09 + v * 0.05, Math.sin(a) * 0.36, 0.22, 0.18 + v * 0.1, 0.2, -a, 0.26 + v * 0.12);
+      }
+      // The lintel arch on the north side: two posts and a cap.
+      put(-0.2, 0.17, -0.28, 0.12, 0.34, 0.14, 0, 0.3);
+      put(0.2, 0.17, -0.28, 0.12, 0.34, 0.14, 0, 0.3);
+      put(0, 0.37, -0.28, 0.56, 0.1, 0.18, 0, 0.36);
+    });
+    stones.castShadow = true;
+    stones.count = s;
+    this.group.add(stones, mouth);
+  }
+
+  /**
    * One thin pale slab per thin-sheet tile, with no column under it, and a frame
    * and cracks on top so it reads as something you could fall through. What it
    * is depends on who built the tile: Underroot's is a leaf mat (green-amber,
@@ -905,10 +976,12 @@ export class World {
       leaf: { tint: 0xc4c25a, frame: 0x2f5a28 },
       salt: { tint: 0xf0e4e6, frame: 0xaaa5a9 },
       sun: { tint: 0xd9b27a, frame: 0x7a4a22 },
+      slate: { tint: 0x7f93ad, frame: 0x252d3a },
     };
     const lookOf = (k: number): keyof typeof looks => {
       const owner = this.ownerAt(k % this.width, Math.floor(k / this.width));
       if (owner.startsWith('sunveld')) return 'sun';
+      if (owner.startsWith('coilstone')) return 'slate';
       return owner === 'underroot' ? 'leaf' : owner === 'saltmere' ? 'salt' : 'ice';
     };
     const brittle = (k: number) => this.sheet[k] === BRITTLE_SPEED;
@@ -926,14 +999,18 @@ export class World {
       tiles.forEach((k, n) => {
         this.iceSlot.set(k, { slab: mesh, cracks, slot: n });
         this.iceRot.set(k, Math.floor(hash(k % this.width, Math.floor(k / this.width), 21) * 4) * (Math.PI / 2));
-        const look = brittle(k) ? { tint: 0xf6dfae, frame: 0x2e1a08 } : looks[lookOf(k)];
+        const look = brittle(k)
+          ? lookOf(k) === 'slate'
+            ? { tint: 0xe4ddca, frame: 0x3b362d }
+            : { tint: 0xf6dfae, frame: 0x2e1a08 }
+          : looks[lookOf(k)];
         mesh.setColorAt(n, new THREE.Color(look.tint));
         cracks.setColorAt(n, new THREE.Color(look.frame));
       });
       this.group.add(mesh, cracks);
     };
     build(
-      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) !== 'salt' && lookOf(k) !== 'sun'),
+      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) !== 'salt' && lookOf(k) !== 'sun' && lookOf(k) !== 'slate'),
       new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x2c5f86, transparent: true, opacity: 0.6 }),
       'thin-ice',
     );
@@ -948,8 +1025,20 @@ export class World {
       new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }),
       'sun-crust',
     );
+    // Old slate slabs: solid blue-grey stone with a dark cracked frame, no glow.
     build(
-      this.iceTiles.filter(brittle),
+      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) === 'slate'),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.96 }),
+      'slate-slab',
+    );
+    // Cracked pale stone, for Coilstone's Bridge: no amber glow.
+    build(
+      this.iceTiles.filter((k) => brittle(k) && lookOf(k) === 'slate'),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x1c1a16, transparent: true, opacity: 0.94 }),
+      'cracked-stone',
+    );
+    build(
+      this.iceTiles.filter((k) => brittle(k) && lookOf(k) !== 'slate'),
       new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x6b3f10, transparent: true, opacity: 0.85 }),
       'brittle',
     );
@@ -964,7 +1053,12 @@ export class World {
    */
   private buildTangles(): void {
     const tiles: number[] = [];
-    for (let k = 0; k < this.tangle.length; k++) if (this.tangle[k] > 0) tiles.push(k);
+    const holes: number[] = [];
+    for (let k = 0; k < this.tangle.length; k++) {
+      if (this.tangle[k] > TANGLE_GAP) holes.push(k);
+      else if (this.tangle[k] > 0) tiles.push(k);
+    }
+    this.buildBurrows(holes);
     if (tiles.length === 0) return;
     const WEAVE = 4;
     const unit = new THREE.BoxGeometry(1, 1, 1);
@@ -985,6 +1079,7 @@ export class World {
       const j = Math.floor(k / this.width);
       const h = this.height[k];
       const thorn = this.ownerAt(i, j).startsWith('sunveld');
+      const rubble = this.ownerAt(i, j).startsWith('coilstone');
       for (let w = 0; w < WEAVE; w++) {
         const r = hash(i, j, 40 + w);
         // Long thin boxes laid crosswise at slightly different heights and angles.
@@ -993,6 +1088,7 @@ export class World {
         weave.setMatrixAt(n * WEAVE + w, m);
         // Sunveld's tangle is red-brown thorn.
         if (thorn) c.setHSL(0.015 + r * 0.02, 0.6, 0.2 + hash(i, j, 70 + w) * 0.08);
+        else if (rubble) c.setHSL(0.6, 0.1 + r * 0.05, 0.3 + hash(i, j, 70 + w) * 0.14);
         else c.setHSL(0.07 + r * 0.03, 0.45, 0.22 + hash(i, j, 70 + w) * 0.1);
         weave.setColorAt(n * WEAVE + w, c);
       }
@@ -1000,7 +1096,7 @@ export class World {
       m.makeScale(0.035, len, 0.035);
       m.setPosition(i + 0.15 + hash(i, j, 90) * 0.7, h + len / 2, j + 0.15 + hash(i, j, 100) * 0.7);
       strands.setMatrixAt(n, m);
-      strands.setColorAt(n, c.setHex(thorn ? 0xb0654a : 0xd8c7a0));
+      strands.setColorAt(n, c.setHex(thorn ? 0xb0654a : rubble ? 0x9fb0c4 : 0xd8c7a0));
     });
     weave.castShadow = true;
     this.group.add(weave, strands);

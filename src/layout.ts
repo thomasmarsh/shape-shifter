@@ -26,6 +26,12 @@ export const enum Kind {
   Straw,
   /** Ordinary ground with a terracotta top, for the savanna. Behaves like Stone. */
   Clay,
+  /** Ordinary ground with a cold blue-grey slate top, for the ruins. Behaves like Stone. */
+  Slate,
+  /** Ordinary ground with a dark basalt top, for the ruins. Behaves like Stone. */
+  Basalt,
+  /** Ordinary ground with a pale lichen top, for the ruins. Behaves like Stone. */
+  Lichen,
 }
 
 /**
@@ -40,7 +46,8 @@ export interface Spot {
 }
 
 /**
- * 'pine' and 'greatPine', 'palm' and 'greatPalm', 'acacia' and 'greatAcacia'
+ * 'pine' and 'greatPine', 'palm' and 'greatPalm', 'acacia' and 'greatAcacia',
+ * and 'greatBanyan'
  * climb and block exactly like 'regular' and 'great'.
  */
 export type TreeKind =
@@ -51,7 +58,8 @@ export type TreeKind =
   | 'palm'
   | 'greatPalm'
   | 'acacia'
-  | 'greatAcacia';
+  | 'greatAcacia'
+  | 'greatBanyan';
 
 /**
  * How high a tree's solid block stands above the ground. A fairy can rise at
@@ -67,6 +75,7 @@ export const TREE_BLOCK: Record<TreeKind, number> = {
   greatPalm: 5.0,
   acacia: 4.0,
   greatAcacia: 5.0,
+  greatBanyan: 5.0,
 };
 
 export type TreeSpot = Spot & { kind: TreeKind };

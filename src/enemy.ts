@@ -25,7 +25,7 @@ const HEARING = 14;
 
 export type EnemyKind = NonNullable<EnemySpot['kind']>;
 
-type State = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'watch' | 'draw' | 'dead';
+type State = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'watch' | 'draw' | 'faint' | 'dead';
 
 interface Bow {
   /** Seconds the bow is drawn before the arrow is loosed. */
@@ -177,7 +177,7 @@ export class Enemy implements Attackable {
    */
   get alert(): boolean {
     if (!this.awake || !this.alive) return false;
-    return this.state !== 'idle' && this.state !== 'return';
+    return this.state !== 'idle' && this.state !== 'return' && this.state !== 'faint';
   }
 
   /**
@@ -213,6 +213,25 @@ export class Enemy implements Attackable {
     this.knock.set(0, 0, 0);
     this.bar.visible = false;
     this.group.position.copy(this.pos);
+    this.group.rotation.x = 0;
+  }
+
+  /** True while it lies fainted from a bite. */
+  get fainted(): boolean {
+    return this.state === 'faint';
+  }
+
+  /**
+   * Knock it out for `seconds`, whatever its hearts. A blow or shot in progress is
+   * cancelled, a second bite restarts the count, and it wakes where it lies.
+   */
+  faint(seconds: number): void {
+    if (!this.alive || !this.awake) return;
+    this.state = 'faint';
+    this.timer = seconds;
+    this.wantX = 0;
+    this.wantZ = 0;
+    this.particles.burst(new THREE.Vector3(this.pos.x, this.pos.y + 1, this.pos.z), 0x7bd44a, 8, 2, 0.1);
   }
 
   takeHit(damage: number, fromX: number, fromZ: number): void {
@@ -245,6 +264,17 @@ export class Enemy implements Attackable {
         this.group.scale.setScalar(Math.max(0.01, this.timer / 0.35));
         if (this.timer <= 0) this.group.visible = false;
       }
+      return;
+    }
+
+    if (this.state === 'faint') {
+      // Lies still: no thinking at all, only a shove from a sword blow.
+      this.timer -= dt;
+      if (this.timer <= 0) this.state = 'idle';
+      this.walk(this.knock.x * dt, this.knock.z * dt);
+      this.knock.multiplyScalar(Math.max(0, 1 - dt * 8));
+      this.walkPhase = 0;
+      this.animate(dt);
       return;
     }
 
@@ -456,6 +486,10 @@ export class Enemy implements Attackable {
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.facing;
     this.bar.rotation.y = -this.facing;
+    // A fainted bad guy tips over onto its back.
+    const down = this.state === 'faint';
+    this.group.rotation.x = down ? -Math.PI / 2 : 0;
+    if (down) this.group.position.y += 0.25;
     const m = this.model;
     const swing = Math.sin(this.walkPhase) * 0.7;
     m.legL.rotation.x = swing;

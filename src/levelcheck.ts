@@ -17,19 +17,24 @@ import type { Spot, World } from './world';
 // cheetah: the wolf breaks it at once.
 //
 // A timed gate (see `setGate` in layout.ts) is a wall with no top for every form
-// while it is shut, like a tangle for a non-Ant. It opens for a reach when one of
+// while it is shut, like a tangle for a form that does not fit. It opens for a reach when one of
 // its plates is reached and some form in the set can run from the plate to the
 // far side of the gate in time (the straight-line distance, deliberately
 // optimistic: the pilot proves real routes; 'easy' keeps 0.4 s in hand). Open, its
 // tiles are plain ground for the whole set, which can open further gates in turn.
 // Nothing can be used from a gate tile and nobody can stop on one.
 //
-// A root tangle (see `setTangle` in layout.ts) is plain ground for the Ant and a
-// wall as tall as NO_STAND for everyone else: no old form walks, hops, flies or
-// hop-then-flies onto one, and none can pass a flight line over one. The Ant
-// walks on and off a tangle and can land on one, but cannot hop from one. A ring
-// of tangle must be 4-connected (no diagonal-only joins), because the 'max'
+// A root tangle (see `setTangle` in layout.ts) has a gap: plain ground for a body
+// no taller than it (the Ant in a 0.25 tangle; the Ant and the Snake in a 0.35
+// hole), and a wall as tall as NO_STAND for every other form: none walks, hops,
+// flies or hop-then-flies onto one, and none can pass a flight line over one. A
+// form that fits walks on and off, and can land on one, but cannot hop from one.
+// A ring of tangle must be 4-connected (no diagonal-only joins), because the 'max'
 // profile lets a flight line pass through the corner where two tiles touch.
+//
+// A form walks up at most its own step (the Snake's is 1.0, the rest 0.35), on
+// both profiles: that is exact physics, not skill. The Snake moves like a slow
+// Human, floats, does not dive and holds no sheet of thin ice.
 //
 // A kelp mat (see `setKelp` in layout.ts) is a wall like a tangle for every form
 // that does not fit under it (dive - height < depth): no walking, hopping,
@@ -115,7 +120,7 @@ const MARGINS = {
 const CENTRE_EXTRA = Math.SQRT2;
 
 /** Forms that move by jumping; their speed and jump come from FORMS. */
-const JUMPERS = ['human', 'orangutan', 'bunny', 'wolf', 'ant', 'mermaid', 'cheetah'] as const;
+const JUMPERS = ['human', 'orangutan', 'bunny', 'wolf', 'ant', 'mermaid', 'cheetah', 'snake'] as const;
 type Jumper = (typeof JUMPERS)[number];
 
 /** What the checker says about hop-then-fly for a launch from `a` to a target, for tests. */
@@ -262,8 +267,8 @@ function run(
   const ice = new Uint8Array(width * depth);
   /** The tile is a brittle sheet. */
   const brittle = new Uint8Array(width * depth);
-  /** The tile is a root tangle. */
-  const tangle = new Uint8Array(width * depth);
+  /** The gap of the root tangle on the tile (a body no taller fits), 0 if none. */
+  const tangle = new Float64Array(width * depth);
   /** The tile is a water tile (not frozen). */
   const wet = new Uint8Array(width * depth);
   /** How far below the surface the kelp mat on the tile hangs, 0 if none. */
@@ -291,7 +296,7 @@ function run(
       // Surfaces ignore kelp (anyone who can be there stands at the float height);
       // who may be on a mat is decided by `fitsMat` below.
       const tAnt = Math.max(world.solidAt(x, z, antHeight, Infinity), iceTop);
-      tangle[k] = world.isTangle(x, z) ? 1 : 0;
+      tangle[k] = world.tangleGapAt(x, z);
       kelp[k] = world.kelpDepthAt(x, z);
       wet[k] = world.isWater(x, z) ? 1 : 0;
       level[k] = world.waterLevelAt(x, z);
@@ -310,6 +315,9 @@ function run(
       }
     }
   }
+
+  /** Is the tile a tangle too low for this form? A tangle is plain ground for a body that fits its gap. */
+  const shutOut = (form: FormId, k: number): boolean => tangle[k] > 0 && def.get(form)!.height > tangle[k];
 
   /** Can this form be on the tile at all? Kelp only takes a body that fits under it. */
   const fitsMat = (form: FormId, k: number): boolean => {
@@ -546,8 +554,8 @@ function run(
       const onIce = ice[ak] === 1;
       for (const form of can) {
         if (found) break;
-        // Only the Ant fits in a tangle, so nobody else stands or moves from one.
-        if (tangle[ak] && form !== 'ant') continue;
+        // Only a body that fits the gap stands in a tangle, so nobody else moves from one.
+        if (shutOut(form, ak)) continue;
         if (!fitsMat(form, ak)) continue;
         // Nobody can stand on thin ice, so leaving it takes a runner's moves; in
         // 'easy' that is the wolf, plus a fairy who has dropped through and
@@ -559,14 +567,15 @@ function run(
         const a = surface(ak, form);
         const surfaces = form === 'fairy' ? surfaceFairy : surfaceHuman;
 
-        // Walking: every form, to a neighbour that is at most a step higher.
+        // Walking: every form, to a neighbour that is at most its own step higher.
+        const stepUp = def.get(form)!.step ?? MOVER.step;
         for (const [di, dj] of NEIGHBOURS) {
           const bi = ai + di;
           const bj = aj + dj;
           if (!onGrid(bi, bj)) continue;
           const bk = tileIndex(bi, bj);
           if (!exists[bk] || reached[bk] || shut[bk]) continue;
-          if (tangle[bk] && form !== 'ant') continue;
+          if (shutOut(form, bk)) continue;
           if (!fitsMat(form, bk)) continue;
           // Only a runner can step onto thin ice (a brittle sheet takes only the cheetah).
           if (ice[bk] && !holds(form, bk)) continue;
@@ -579,13 +588,13 @@ function run(
               ? Math.abs(level[bk] - level[ak]) <= MOVER.step
               : b <= level[ak] - kelp[ak] - def.get(form)!.height + MOVER.step;
             if (out) reach(bk, b);
-          } else if (b - a <= MOVER.step) reach(bk, b);
+          } else if (b - a <= stepUp) reach(bk, b);
         }
 
         // Nobody hops from under a mat, and the Mermaid hops only from the water.
         if (kelp[ak] > 0 || (form === 'mermaid' && !wet[ak])) continue;
-        // The Ant walks out of a tangle but cannot hop from one.
-        if (form === 'ant' && tangle[ak]) continue;
+        // Whoever fits a tangle walks out of it but cannot hop from one.
+        if (tangle[ak] > 0) continue;
         const tops = topsOf(form);
 
         // Per-form numbers for this tile, worked out once for the whole window.
@@ -622,7 +631,7 @@ function run(
             // The cheapest test first: too high for every move of this form.
             if ((jump ? surfaces[bk] - a > highestHop : surfaces[bk] > canFlyFrom) && !(isOrangutan && tree[bk] > 0)) continue;
             if (ice[bk] && !holds(form, bk)) continue;
-            if (tangle[bk] && form !== 'ant') continue;
+            if (shutOut(form, bk)) continue;
             if (!fitsMat(form, bk)) continue;
             const b = surfaces[bk];
 

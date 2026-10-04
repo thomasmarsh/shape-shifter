@@ -17,8 +17,8 @@ describe('the default world', () => {
   const world = new World();
   const { layout } = world;
 
-  it('is 960 by 64 tiles with the meadow where it always was', () => {
-    expect(world.width).toBe(960);
+  it('is 1136 by 64 tiles with the meadow where it always was', () => {
+    expect(world.width).toBe(1136);
     expect(world.depth).toBe(64);
     expect(layout.spawn).toEqual({ x: 10.5, z: 27.5 });
     expect(world.groundAt(10.5, 27.5)).toBe(2);
@@ -221,9 +221,11 @@ describe('root tangles', () => {
     expect(world.solidAt(6.5, 4.5, 0.6)).toBeGreaterThanOrEqual(NO_STAND);
   });
 
-  it('draws one faint, see-through strand per tangle tile', () => {
+  it('draws one faint, see-through strand per ant tangle tile, and a burrow instead on a wide gap', () => {
     const strands = world.group.getObjectByName('tangle-strands') as THREE.InstancedMesh;
-    expect(strands.count).toBe(2);
+    // Two ant tangles (one cleared later leaves its weave); the 0.5 gap is a burrow, with no strand.
+    expect(strands.count).toBe(1);
+    expect((world.group.getObjectByName('burrow-mouth') as THREE.InstancedMesh).count).toBe(1);
     const mat = strands.material as THREE.MeshLambertMaterial;
     expect(mat.transparent).toBe(true);
     expect(mat.opacity).toBeLessThanOrEqual(0.3);

@@ -223,10 +223,11 @@ describe('thin ice', () => {
     ice.resetIce();
   });
 
-  it('knows the wolf and the cheetah, and still refuses forms it does not know', () => {
+  it('knows the wolf, the cheetah and the snake, and still refuses forms it does not know', () => {
     expect(() => explore(ice, bank, ['wolf'], 'easy')).not.toThrow();
     expect(() => explore(ice, bank, ['cheetah'], 'easy')).not.toThrow();
-    expect(() => explore(ice, bank, ['snake'], 'easy')).toThrow(/snake/);
+    expect(() => explore(ice, bank, ['snake'], 'easy')).not.toThrow();
+    expect(() => explore(ice, bank, ['axolotl'], 'easy')).toThrow(/axolotl/);
   });
 
   it('is crossed by a cheetah as well as by a wolf', () => {

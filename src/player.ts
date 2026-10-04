@@ -16,6 +16,7 @@ import type { Controls } from './input';
 import {
   APE_ARM_REST,
   makeAnt,
+  makeSnake,
   makeBunny,
   makeCheetah,
   makeFairy,
@@ -30,6 +31,7 @@ import {
   FairyModel,
   HumanModel,
   OrangutanModel,
+  SnakeModel,
   WolfModel,
 } from './models';
 import { Particles } from './particles';
@@ -81,6 +83,8 @@ export interface Attackable {
   pos: THREE.Vector3;
   alive: boolean;
   takeHit(damage: number, fromX: number, fromZ: number): void;
+  /** Lie fainted for this many seconds (a venomous bite). Optional: not everything can faint. */
+  faint?(seconds: number): void;
 }
 
 /** A climb up one tree trunk. */
@@ -171,6 +175,7 @@ export class Player {
 
   private lastGroundY = 0;
   private attackTimer = 0;
+  private biteWait = 0;
   private attackHit = false;
   private safeTimer = 0;
   private eatTimer = 0;
@@ -186,6 +191,7 @@ export class Player {
   private wolf: WolfModel;
   private cheetah: WolfModel;
   private ant: AntModel;
+  private snake: SnakeModel;
   private home: THREE.Group;
 
   constructor(
@@ -201,9 +207,10 @@ export class Player {
     this.wolf = makeWolf();
     this.cheetah = makeCheetah();
     this.ant = makeAnt();
+    this.snake = makeSnake();
     this.home = makeFairyHome();
     this.home.visible = false;
-    this.group.add(this.human.group, this.mermaid.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.cheetah.group, this.ant.group);
+    this.group.add(this.human.group, this.mermaid.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.cheetah.group, this.ant.group, this.snake.group);
     this.applyForm();
   }
 
@@ -358,6 +365,7 @@ export class Player {
     this.wolf.group.visible = id === 'wolf';
     this.cheetah.group.visible = id === 'cheetah';
     this.ant.group.visible = id === 'ant';
+    this.snake.group.visible = id === 'snake';
     const color = SWORD_COLOR[swordTier(this.level)];
     for (const blade of [this.human.blade, this.mermaid.blade, this.orangutan.blade]) {
       (blade.material as THREE.MeshLambertMaterial).color.setHex(color);
@@ -507,12 +515,12 @@ export class Player {
     const climber = this.form.id === 'orangutan';
     this.pushed = null;
     const { height, dive } = this.form;
-    if (this.world.solidUnder(this.pos.x + stepX, this.pos.z, RADIUS, height, dive) <= this.pos.y + STEP) {
+    if (this.world.solidUnder(this.pos.x + stepX, this.pos.z, RADIUS, height, dive) <= this.pos.y + (this.form.step ?? STEP)) {
       this.pos.x += stepX;
     } else if (climber && dx !== 0) {
       this.pushed = this.trunkAt(this.pos.x + stepX, this.pos.z);
     }
-    if (this.world.solidUnder(this.pos.x, this.pos.z + stepZ, RADIUS, height, dive) <= this.pos.y + STEP) {
+    if (this.world.solidUnder(this.pos.x, this.pos.z + stepZ, RADIUS, height, dive) <= this.pos.y + (this.form.step ?? STEP)) {
       this.pos.z += stepZ;
     } else if (climber && dz !== 0) {
       this.pushed = this.pushed ?? this.trunkAt(this.pos.x, this.pos.z + stepZ);
@@ -531,7 +539,7 @@ export class Player {
       const cx = i + 0.5;
       const cz = j + 0.5;
       if (this.world.treeAt(cx, cz) <= 0) continue;
-      if (this.world.solidAt(cx, cz, this.form.height, this.form.dive) <= this.pos.y + STEP) continue;
+      if (this.world.solidAt(cx, cz, this.form.height, this.form.dive) <= this.pos.y + (this.form.step ?? STEP)) continue;
       if (this.pos.y < this.world.groundAt(cx, cz) - CLIMB_SLACK) continue;
       const d = Math.hypot(cx - x, cz - z);
       if (d < bestDist) {
@@ -822,6 +830,12 @@ export class Player {
 
   private swingSword(dt: number, input: Controls, enemies: readonly Attackable[]): void {
     const wants = input.hit('KeyJ') || input.hit('Mouse0');
+    this.biteWait -= dt;
+    if (this.form.bite) {
+      if (wants && this.attackTimer <= 0 && this.biteWait <= 0) this.bite(enemies);
+      if (this.attackTimer > 0) this.attackTimer -= dt;
+      return;
+    }
     if (wants && this.attackTimer <= 0) {
       // The Mermaid's sword only works in water.
       if (this.form.sword === 'none' || (this.form.sword === 'underwater' && !this.swimming)) {
@@ -855,6 +869,26 @@ export class Player {
     }
   }
 
+  /** A bite lands at once on whatever is within reach in front, and the next one has to wait. */
+  private bite(enemies: readonly Attackable[]): void {
+    const bite = this.form.bite!;
+    this.attackTimer = ATTACK_TIME;
+    this.biteWait = bite.cooldown;
+    sound.swing();
+    const fx = Math.sin(this.facing);
+    const fz = Math.cos(this.facing);
+    for (const e of enemies) {
+      if (!e.alive || !e.faint) continue;
+      const ex = e.pos.x - this.pos.x;
+      const ez = e.pos.z - this.pos.z;
+      const d = Math.hypot(ex, ez);
+      if (d > bite.reach || Math.abs(e.pos.y - this.pos.y) > 1.3) continue;
+      if (d > 0.4 && (ex * fx + ez * fz) / d < 0.25) continue;
+      if (bite.damage > 0) e.takeHit(bite.damage, this.pos.x, this.pos.z);
+      e.faint(bite.faint);
+    }
+  }
+
   /** Move the models to match the state and play the little animations. */
   private sync(dt: number): void {
     this.group.position.copy(this.pos);
@@ -882,6 +916,9 @@ export class Player {
         break;
       case 'ant':
         this.animateAnt(swing);
+        break;
+      case 'snake':
+        this.animateSnake();
         break;
       default:
         this.animateFairy(dt);
@@ -981,6 +1018,16 @@ export class Player {
     this.ant.legs.forEach((leg, n) => {
       leg.rotation.y = (n % 2 === 0 ? swing : -swing) * 0.5;
     });
+  }
+
+  private animateSnake(): void {
+    // Each segment sways a little later than the one before it; a bite lunges the head.
+    const sway = this.walkPhase > 0 ? 0.35 : 0.05;
+    this.snake.segments.forEach((seg, n) => {
+      seg.position.x = Math.sin(this.walkPhase * 1.5 - n * 0.9) * sway * 0.3;
+      seg.rotation.y = Math.cos(this.walkPhase * 1.5 - n * 0.9) * sway;
+    });
+    this.snake.segments[0].position.z = 0.35 + (this.attackTimer > 0 ? 0.2 : 0);
   }
 
   private animateWolf(): void {

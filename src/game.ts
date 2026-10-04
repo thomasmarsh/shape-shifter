@@ -13,6 +13,7 @@ import {
   makeBoulder,
   makeCloud,
   makeGreatAcacia,
+  makeGreatBanyan,
   makeGreatPalm,
   makeGreatPine,
   makeGreatTree,
@@ -219,6 +220,7 @@ export class Game {
         greatPalm: makeGreatPalm,
         acacia: makeAcacia,
         greatAcacia: makeGreatAcacia,
+        greatBanyan: makeGreatBanyan,
       };
       const tree = makers[t.kind](seed);
       tree.position.set(t.x, this.world.groundAt(t.x, t.z), t.z);

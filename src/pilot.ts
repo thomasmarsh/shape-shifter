@@ -91,7 +91,7 @@ export class Pilot {
     // Tests share one World, so a pilot starts with all the thin ice whole.
     world.resetIce();
     world.resetGates();
-    this.player.level = 7;
+    this.player.level = 8;
     this.shift(form);
     if (world.solidAt(start.x, start.z, this.player.form.height, this.player.form.dive) !== world.groundAt(start.x, start.z)) {
       throw new Error(`cannot start at (${start.x}, ${start.z}): something solid stands there`);
@@ -171,7 +171,7 @@ export class Pilot {
 
   // ---- moves -------------------------------------------------------------
 
-  /** Change shape, which needs the level to be high enough (the pilot is level 7). */
+  /** Change shape, which needs the level to be high enough (the pilot is level 8). */
   shift(form: FormId): void {
     const index = FORMS.findIndex((f) => f.id === form);
     if (index !== this.player.formIndex) {
@@ -223,14 +223,15 @@ export class Pilot {
     const y = this.y;
     // A wall is felt one frame early: the body stops a step short of it.
     const stride = this.player.form.speed * DT;
+    const step = this.player.form.step ?? PHYSICS.step;
     for (let t = 0; t <= 4; t += 0.02) {
       const qx = this.x + ux * t;
       const qz = this.z + uz * t;
       // A wall: the body (a circle) would be stopped by a taller block ahead.
       const { height, dive } = this.player.form;
-      if (this.world.solidUnder(qx + ux * stride, qz + uz * stride, RADIUS, height, dive) > y + PHYSICS.step) return t;
+      if (this.world.solidUnder(qx + ux * stride, qz + uz * stride, RADIUS, height, dive) > y + step) return t;
       // The ground ends under the centre of the body.
-      if (this.world.solidAt(qx, qz, height, dive) < y - PHYSICS.step) return t;
+      if (this.world.solidAt(qx, qz, height, dive) < y - step) return t;
     }
     return Infinity;
   }

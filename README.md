@@ -4,9 +4,9 @@ A web game. You are a shape shifter stuck on a cloud island. Solve music
 puzzles to free candle lights, collect enough lights to level up, and each
 level lets you shift into a new creature.
 
-The design lives in [`PLAN.md`](PLAN.md). This build has **seven islands** to
-play, from level 0 (Human) to level 7 (Cheetah). It stops for now on Sunset
-Rock, at the far end of the seventh island.
+The design lives in [`PLAN.md`](PLAN.md). This build has **eight islands** to
+play, from level 0 (Human) to level 8 (Snake). It stops for now on the
+Serpent's Head, at the far end of the eighth island.
 
 ## Play it
 
@@ -29,11 +29,11 @@ If the game runs slowly, add `?fast` to the address to turn off shadows.
 | --- | --- |
 | `W` `A` `S` `D` or arrows | Walk |
 | `Space` | Jump. Hold it as a fairy to fly, or as a bunny to hop high (tap for a small hop) |
-| Click or `J` | Swing your sword (Human and Orangutan) |
+| Click or `J` | Swing your sword (Human and Orangutan). As a Snake: bite |
 | `E` | Use things: speakers, candles |
 | `F` | Eat a piece of bread (+1 heart) |
 | `Shift` | Dive, as a Human or a Mermaid. Hold it to sink, let go to float back up |
-| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, `6` Mermaid, `7` Cheetah, …) |
+| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, `6` Mermaid, `7` Cheetah, `8` Snake, …) |
 | `Q` | Fairy: make a tiny home to hide in. Mermaid, in the water: shoot water at the nearest bad guy |
 | `R` | Mermaid, in the water: raise a bubble column under the nearest bad guy |
 | `Esc` | Pause |
@@ -84,6 +84,16 @@ for about 3.5 seconds (stand still, or be another shape). Nothing else gives
 breath back, not even a checkpoint. Only the Cheetah is fast enough for brittle
 crust, which breaks under a Wolf, and for timed gates: step on a plate and a
 gate far away opens for a few seconds.
+
+**Snake:** low and quiet, with 6 hearts and no sword. It fits into holes: the
+burrows with a ring of dark stones round a black mouth. A hole is wider than a
+root tangle, so the Ant fits too, but only the Snake can slide up a tall step
+(as high as 1), and inside a hole nobody can jump. So a burrow that climbs is
+the Snake's alone. A tangle is too tight for it. Its bite (click or `J`) does
+no damage, but a bitten bad guy faints for 20 seconds: it lies still, cannot
+hit, and does not stop you using a speaker. It can still be hit while it is
+down, so bite as a Snake and finish as a Human. It wakes with the hearts it
+had.
 
 **Hop, then fly:** a Bunny can turn into a Fairy at the top of a hop and keep
 the height. Hold `Space` as a Bunny, press `1` when the hop is at its top, and
@@ -148,14 +158,30 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   the open sky, each with a gap to jump, with a Bunny hop between them, to
   Sunset Rock, where the game stops for now. One breath covers each run but not
   two in a row, so the Cheetah has to rest in the Yard and on the Terrace.
-- Eight forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
+- **Coilstone** (level 7, then 8): a ruined city of blue-grey slate, split down
+  the middle by the Rift, with a mesa of dark basalt, the Serpent's Head, at its
+  east end. You land low and walk up a ramp. Five candles: the Sunken Court (a
+  Mermaid under a ring of deep kelp, guards behind a wall that she can beat
+  from the water with the bubble column, a Bunny up a terrace), the Colonnade
+  (a fight, an Orangutan along two great banyans, a Fairy across to a pillar),
+  the Tooth (a run down a pier of slate slabs that turns into a Fairy at the
+  end without stopping, then an Ant through a ring of fallen stone), the Stair
+  (a fight, a run up a stair of slabs, then hop, then fly, to a spire) and the
+  Thicket (a sword fight, an Ant through a ring, an Orangutan up a banyan). The
+  last two stand east of the Rift, and the only way over is the Bridge of
+  brittle stone, which takes the Cheetah. The fifth candle gives the Snake, and
+  the Snake is what the way off needs: past two heavy sword bad guys at the
+  Foot and up the Coil, a burrow of ten tall steps in the mesa's west face, to
+  the Serpent's Head, where the game stops for now.
+- Nine forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
   slow flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone
   sword), Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts, the
   fast, no sword, runs on thin ice), Ant (1 heart, slow, no
   sword, fits into root tangles), Mermaid (15 hearts, swims fast, dives
-  without limit, sword and two water powers only in water) and Cheetah (11
+  without limit, sword and two water powers only in water), Cheetah (11
   hearts, the fastest of all while its breath lasts, no sword, runs on brittle
-  crust). Hearts cap at the form's maximum when
+  crust) and Snake (6 hearts, slow, no sword, fits into holes, slides up tall
+  steps, a bite that makes bad guys faint). Hearts cap at the form's maximum when
   you shift and only come back by eating.
 - 100 bread to start, more to find.
 - Four kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
@@ -164,7 +190,7 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   reach level 7: a heavy one (5 hearts, slow, a long wind-up, 4 hearts a blow)
   and a light one (3 hearts, faster than a Human, a short wind-up, 2 hearts a
   blow).
-- Thirty-two music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
+- Thirty-seven music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
   after), each guarding a candle. You cannot use a speaker while a bad guy
   close by is after you: deal with them, lose them or hide first.
 - Checkpoints, falling off the island, fainting and respawning.
@@ -195,14 +221,19 @@ src/
     sunveld.ts        Sunveld's landing and three candles (west half)
     sunveld-east.ts   two candles, the Red Wall and the Cheetah's way off (east
                       half), built by sunveld.ts
+    coilstone.ts      Coilstone's landing, ramp and three candles (west half)
+    coilstone-east.ts the Rift and its Bridge, two candles and the Snake's way
+                      off (east half), built by coilstone.ts
     testkit.ts    the checks every island's tests repeat (closed rings, guard
                   and archer distances, things on real ground, ids, melodies,
                   the camera, a way out from every respawn spot, gate timing)
     scatter.ts    sprinkles ordinary trees over an island's grass
   forms.ts      the ten forms and level rules, as a data table
   player.ts     movement, flying, climbing, hopping, running on ice, fitting into
-                tangles, swimming and diving, breath, sword, hearts, shape-shifting
-  enemy.ts      the regular bad guy, the archer and the two sword bad guys
+                tangles and holes, swimming and diving, breath, sword, bite,
+                hearts, shape-shifting
+  enemy.ts      the regular bad guy, the archer and the two sword bad guys, and
+                how they faint
   arrows.ts     arrows in flight
   waterpowers.ts  the Mermaid's water shot and bubble column
   things.ts     puzzle speakers, candles and sea pickles, checkpoints, bread
@@ -217,7 +248,7 @@ src/
   levelcheck.ts the level checker: which places each set of forms can reach
                 (it knows the Winter Wolf, thin ice, hop-then-fly, the Ant and
                 root tangles, diving, kelp mats, the Mermaid, the Cheetah,
-                brittle crust and timed gates)
+                brittle crust, timed gates, the Snake and holes)
   explorecache.ts  shares the checker's answers inside a test file
   pilot.ts      a scripted player the tests use to walk and fly real routes
   *.test.ts     the tests (next to the code they check)
@@ -239,11 +270,11 @@ bread, trees, hints, arrival cards). To change a form's hearts or speed, edit
    `t.setWater(i, j, wet, level)`, and a sheet of thin ice at any height with
    `t.setThinIce(i, j, height)`, a sheet of brittle crust with
    `t.setBrittle(i, j, height)`, turn a ground tile into a root tangle with
-   `t.setTangle(i, j)`, into part of a timed gate with `t.setGate(i, j, id)`
+   `t.setTangle(i, j)` (or a Snake hole with `t.setTangle(i, j, 0.35)`), into part of a timed gate with `t.setGate(i, j, id)`
    (the island then returns `plates`, each with its gate and its seconds), and
    float a kelp mat on a water tile with `t.setKelp(i, j, depth)`. On a water tile the height you set is the bed. A
    candle placed on a water tile is a sea pickle. An island can also be built
-   in two files, as Frostfang, Underroot, Saltmere and Sunveld are: its file calls a builder from the other and merges the
+   in two files, as Frostfang, Underroot, Saltmere, Sunveld and Coilstone are: its file calls a builder from the other and merges the
    result.
 2. Run `npm run map -- --island=<name>` to look at it, and
    `npm run map -- --island=<name> --reach=human,fairy --from=x,z` to see what
@@ -262,8 +293,8 @@ forms can reach (an easy setting for "a person can do this" and a generous
 one for "nobody can do this"). The route tests in `src/routes.test.ts` back it
 up by really flying and climbing the hard routes with the real physics, using
 the scripted player in `src/pilot.ts`. `npm run map` prints the islands as
-ASCII maps (heights, things, thin ice, root tangles, kelp mats, water depth and
-reachable ground) so you can see a layout before you run the game, for example
+ASCII maps (heights, things, thin ice, root tangles, holes, kelp mats, water
+depth and reachable ground) so you can see a layout before you run the game, for example
 `npm run map -- --island=frostfang --reach=human,fairy,orangutan,bunny --from=208.5,40.5`.
 
 The checker knows these things beyond walking, hopping, flying and climbing:
@@ -282,6 +313,12 @@ The checker knows these things beyond walking, hopping, flying and climbing:
   nobody else walks into one, lands on one or flies over one. For the Ant it is
   plain ground, except that it cannot hop from inside one. A ring of tangle
   must have no diagonal-only joins.
+- **The Snake and holes:** every tangle has a gap, and a form fits when it is
+  no taller than the gap. A root tangle (0.25) takes only the Ant; a hole (0.35)
+  takes the Ant and the Snake. Whoever fits walks in and out and cannot hop from
+  inside. Walking up uses each form's own step: 1 for the Snake, 0.35 for
+  everyone else, on both settings. So a burrow whose hole tiles rise 0.75 each
+  is the Snake's alone.
 - **Diving:** a water tile's surface is where a form floats. A form that can
   dive can also be at any height from there down to its dive depth or the bed,
   whichever comes first, and a thing can be used from any of those heights. So
@@ -310,9 +347,10 @@ The checker knows these things beyond walking, hopping, flying and climbing:
   checkpoint or a respawn spot, not where the player must be an Ant), never
   that a fight is fair.
 
-The route tests for Underroot, Saltmere and Sunveld sit next to the islands,
-in `src/islands/*.routes.test.ts`. The Cheetah's own route tests (brittle
-runs, a timed gate, breath) are in `src/cheetah.routes.test.ts`.
+The route tests for Underroot, Saltmere, Sunveld and Coilstone sit next to the
+islands, in `src/islands/*.routes.test.ts`. The Cheetah's own route tests
+(brittle runs, a timed gate, breath) are in `src/cheetah.routes.test.ts`, and
+the Snake's (a stepped burrow) in `src/snake.routes.test.ts`.
 
 Because of hop-then-fly, every raised thing (a ledge, a wall top, a treetop) is
 a launch pad. Level designs keep raised ground to where it is needed, and
@@ -327,12 +365,12 @@ The game is in `window.game` in the browser console. Handy while building:
 ```js
 game.debug.warp('hc-prow')   // stand on a checkpoint
 game.debug.setLevel(4)       // become level 4 (then press 4 for the Winter Wolf)
-game.debug.takeLight(7)      // take a candle's light at once (0 to 31)
+game.debug.takeLight(7)      // take a candle's light at once (0 to 36)
 ```
 
 Candles are numbered in the order of the islands: 0 to 2 Meadow Island, 3 to 6
 Tanglewood, 7 to 11 Highcrag, 12 to 16 Frostfang, 17 to 21 Underroot, 22 to 26
-Saltmere, 27 to 31 Sunveld.
+Saltmere, 27 to 31 Sunveld, 32 to 36 Coilstone.
 
 Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `tw-south`, `tw-grove`, `hc-prow`, `hc-south`, `hc-north`, `hc-east`,
@@ -340,7 +378,8 @@ Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `ff-brow`, `ff-last`, `underroot`, `ur-mat`, `ur-glade`, `ur-mid`, `ur-grove`,
 `ur-wall`, `ur-yard`, `ur-crown`, `saltmere`, `sm-mid`, `sm-east`, `sm-nest`,
 `sm-salt`, `sm-key`, `sm-pearl`, `sunveld`, `sv-mid`, `sv-table`, `sv-east`,
-`sv-kraal`, `sv-yard`, `sv-kopje`, `sv-end`.
+`sv-kraal`, `sv-yard`, `sv-kopje`, `sv-end`, `coilstone`, `cs-hub`, `cs-court`,
+`cs-rim`, `cs-far`, `cs-foot`, `cs-end`.
 
 ## Decisions the plan did not spell out
 
@@ -405,8 +444,8 @@ These were chosen to get a playable build. Change any of them freely.
   there are no tunnels. A tangle is a flag on a ground tile: a wall 100 high
   for everything taller than its gap (0.25), plain ground for the Ant (0.2
   tall). It gates by who fits, not by height, so no hop-then-fly or glide gets
-  past it. The gap is a number, so the Snake's bigger holes can use the same
-  rule later.
+  past it. The gap is a number, and the Snake's holes use the same rule with a
+  wider gap.
 - **No jumping and no shape-shifting inside a tangle,** so nobody ends up as a
   big form inside a wall.
 - **Keeping it fair for a one-heart Ant:** bad guys cannot enter a tangle and
@@ -500,6 +539,42 @@ These were chosen to get a playable build. Change any of them freely.
   goes out of reach (`src/islands/sunveld-forms.test.ts`). The Human is the
   exception: its work there is the sword fights, and the checker ignores bad
   guys.
+- **A hole is a tangle with a wider gap (0.35),** so the Ant fits every hole
+  the Snake fits. What only the Snake does is climb: it slides up a step of 1,
+  and inside a hole nobody jumps, so the Ant stops at a rise of 0.75. Outside
+  holes the tall step opens nothing, because every walker already jumps 1.2.
+  Steps sit between hole tiles and a burrow's mouth is three flat tiles, so the
+  Ant cannot jump onto the first rise from outside. The Ant can still walk down
+  a burrow.
+- **Venom lasts 20 seconds, not the plan's hour.** One bite makes any bad guy
+  faint, whatever its hearts, with 1.5 seconds between bites. A fainted bad
+  guy is not beaten: it wakes where it lies with the hearts it had. The puzzle
+  screen stops the clock, so 20 seconds only has to cover getting past. No
+  route needs the bite, because the checker ignores bad guys.
+- **The Snake cannot help with Coilstone's own candles,** because it unlocks on
+  the fifth. The way off needs only the Snake.
+- **Coilstone's hub is flat, and its raised places were placed by reach.** All
+  ordinary ground is at 12 on both sides of the Rift; the Landing is at 6, low
+  enough for a hop, then a flight, from Sunset Rock. The Colonnade, the Table
+  and the Spire stand in the open, each farther from the Rift, the Tooth and
+  the mesa than a hop, then a flight, from its top can carry. The Sunken Court,
+  the Tooth's ring and the Thicket are sealed by closed rings.
+- **The Serpent's Head has no wall.** It is a sheer mesa 7.5 above the hub, out
+  of every old form's reach, so nothing hides behind it.
+- **Coilstone has no timed gate.** A gate needs a sealed court, and the only
+  things that seal one (tangle, deep kelp) let the Ant or the Mermaid through.
+  The Cheetah's work there is the Bridge: both east candles need it.
+- **Six of the eight old forms are proved to have work of their own on
+  Coilstone:** take away the Fairy, Orangutan, Bunny, Ant, Mermaid or Cheetah
+  and a candle goes out of reach (`src/islands/coilstone-forms.test.ts`). The Human and the Wolf are the
+  exceptions. The Human's work is the sword fights. The Wolf's work, the pier
+  and the Stair, can also be done by the Cheetah, which runs on thin sheets
+  too; the test proves only that one of the two runners is needed. In play the
+  Wolf has no breath bar to run out.
+- **The Sunken Court's guards are for the bubble column.** They stand in a
+  pocket walled on three sides, 2 to 5 tiles from the inner water. The column
+  rises under the nearest bad guy within 7 tiles on the flat and ignores walls.
+  This is a layout, not a proof.
 - **Tangle strands are faint threads:** one thin, pale, see-through thread per
   tile, so the wall still reads as going up but hides nothing behind it.
 - **Trees are solid:** a Human walks around them and arrows stop at them.
@@ -508,11 +583,11 @@ These were chosen to get a playable build. Change any of them freely.
 
 ## Next
 
-1. The island after Sunset Rock, with the Snake (level 8) and small holes that
-   are bigger than a tangle's gap.
+1. The island after the Serpent's Head, with the Axolotl (level 9).
 2. Bad guys that can be fought in the water, for the Mermaid's powers.
-3. Axolotl.
+3. Work only the Wolf and only the Human can do, that the checker can see.
 4. The two bosses (land, then underwater), level 11 and the end of the game.
 5. Wings (level 10) and character customising.
 6. More for the other forms to do on the ways off Underroot (Human, Ant and
-   Fairy only), Saltmere (Mermaid only) and Sunveld (Cheetah and Bunny only).
+   Fairy only), Saltmere (Mermaid only), Sunveld (Cheetah and Bunny only) and
+   Coilstone (Snake only).

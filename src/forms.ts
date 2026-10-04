@@ -1,7 +1,7 @@
 // Every form from PLAN.md, as data. The number key that selects a form is its
 // index in this list, and it unlocks when the player reaches `level`.
 //
-// Human, Fairy, Orangutan, Bunny, Winter Wolf, Ant, Mermaid and Cheetah are playable; the
+// Human, Fairy, Orangutan, Bunny, Winter Wolf, Ant, Mermaid, Cheetah and Snake are playable; the
 // rest are listed so the form bar can show them as locked and so later islands
 // can fill them in without changing the shape of this table.
 
@@ -15,6 +15,8 @@ export const PHYSICS = {
   step: 0.35,
   /** How far above the last ground she stood on a fairy can climb. */
   flyCeiling: 3,
+  /** Gap of a hole: a tangle the Snake and the Ant fit through (a plain tangle is TANGLE_GAP). */
+  holeGap: 0.35,
 };
 
 // Thin ice holds only under something moving fast. The Winter Wolf (7.0) is
@@ -93,6 +95,17 @@ export type FormId =
 
 export type SwordUse = 'full' | 'weak' | 'underwater' | 'none';
 
+/** A venomous bite: makes a bad guy faint for `faint` seconds, whatever its hearts. */
+export interface BiteDef {
+  /** Tiles. */
+  reach: number;
+  /** Seconds between bites. */
+  cooldown: number;
+  /** Seconds a bitten bad guy lies fainted. */
+  faint: number;
+  damage: number;
+}
+
 export interface FormDef {
   id: FormId;
   name: string;
@@ -124,6 +137,10 @@ export interface FormDef {
   /** How far above the chest the "where am I" arrow floats. */
   arrowLift: number;
   sword: SwordUse;
+  /** Replaces the sword click with a bite when set. */
+  bite?: BiteDef;
+  /** How high a step the form walks up without jumping; PHYSICS.step when not set. */
+  step?: number;
   canFly: boolean;
   /** One-line description shown when the form unlocks. */
   blurb: string;
@@ -295,13 +312,15 @@ export const FORMS: readonly FormDef[] = [
     jumpsFrom: 'anywhere',
     jump: 7.6,
     jumpCut: 0,
-    chest: 0.9,
+    chest: 0.15,
     height: 0.3,
-    arrowLift: 1.5,
+    arrowLift: 0.7,
     sword: 'none',
+    bite: { reach: 1.0, cooldown: 1.5, faint: 20, damage: 0 },
+    step: 1.0,
     canFly: false,
     blurb: 'A venomous bite that makes bad guys faint.',
-    playable: false,
+    playable: true,
   },
   {
     id: 'axolotl',
