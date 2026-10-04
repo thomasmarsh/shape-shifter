@@ -25,6 +25,9 @@ const HEARING = 14;
 
 export type EnemyKind = NonNullable<EnemySpot['kind']>;
 
+/** Facing angles, forward being (sin, cos) in (x, z). */
+const FACING = { n: Math.PI, e: Math.PI / 2, s: 0, w: -Math.PI / 2 };
+
 type State = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'watch' | 'draw' | 'faint' | 'dead';
 
 interface Bow {
@@ -80,6 +83,8 @@ interface Sense {
   /** False while the player is hidden in a fairy home or has fainted. */
   canSee: boolean;
   fromHome: number;
+  /** True while an idle bad guy has a Snake behind it: it cannot notice it. */
+  behind: boolean;
 }
 
 export class Enemy implements Attackable {
@@ -93,7 +98,8 @@ export class Enemy implements Attackable {
   private timer = 0;
   /** Seconds until an archer may draw its bow again. */
   private cooldown = 0;
-  private facing = 0;
+  private facing = FACING.w;
+  private postFacing = FACING.w;
   private walkPhase = 0;
   private flash = 0;
   private knock = new THREE.Vector3();
@@ -116,8 +122,9 @@ export class Enemy implements Attackable {
     private particles: Particles,
     private arrows: Arrows,
     private home: { x: number; z: number },
-    spot: Pick<EnemySpot, 'tester' | 'kind' | 'minLevel'>,
+    spot: Pick<EnemySpot, 'tester' | 'kind' | 'minLevel' | 'facing'>,
   ) {
+    this.postFacing = this.facing = FACING[spot.facing ?? 'w'];
     this.kind = spot.kind ?? 'regular';
     this.tester = spot.tester;
     this.tuning = this.tester ? { ...KINDS[this.kind], ...TESTER } : KINDS[this.kind];
@@ -208,6 +215,7 @@ export class Enemy implements Attackable {
     this.pos.set(this.home.x, this.world.groundAt(this.home.x, this.home.z), this.home.z);
     this.hearts = this.maxHearts;
     this.state = 'idle';
+    this.facing = this.postFacing;
     this.timer = 0;
     this.cooldown = 0;
     this.knock.set(0, 0, 0);
@@ -285,8 +293,11 @@ export class Enemy implements Attackable {
       dist: 0,
       canSee: !player.hidden && !player.dead,
       fromHome: Math.hypot(this.home.x - this.pos.x, this.home.z - this.pos.z),
+      behind: false,
     };
     s.dist = Math.hypot(s.dx, s.dz);
+    // Only the Snake is quiet: an idle bad guy notices it in its front half only.
+    s.behind = this.state === 'idle' && player.form.id === 'snake' && Math.sin(this.facing) * s.dx + Math.cos(this.facing) * s.dz <= 0;
     this.cooldown = Math.max(0, this.cooldown - dt);
 
     this.wantX = 0;
@@ -316,6 +327,11 @@ export class Enemy implements Attackable {
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
       this.facing += diff * Math.min(1, dt * 8);
+    } else if (this.state === 'idle') {
+      let diff = this.postFacing - this.facing;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      this.facing += diff * Math.min(1, dt * 8);
     }
 
     const moving = Math.hypot(moveX, moveZ) > 0.01;
@@ -339,7 +355,7 @@ export class Enemy implements Attackable {
     const t = this.tuning;
     switch (this.state) {
       case 'idle':
-        if (s.canSee && s.dist < t.notice && Math.abs(s.dy) < t.noticeHeight) this.state = 'chase';
+        if (s.canSee && !s.behind && s.dist < t.notice && Math.abs(s.dy) < t.noticeHeight) this.state = 'chase';
         break;
       case 'return':
         if (s.canSee && s.dist < t.notice * 0.8 && s.fromHome < 9) {
@@ -376,7 +392,7 @@ export class Enemy implements Attackable {
     const t = this.tuning;
     const bow = t.bow;
     if (!bow) return;
-    const noticed = s.canSee && s.dist < t.notice && Math.abs(s.dy) < t.noticeHeight;
+    const noticed = s.canSee && !s.behind && s.dist < t.notice && Math.abs(s.dy) < t.noticeHeight;
     // Once it has noticed you it keeps watching a little farther out, so you
     // can't flicker it on and off at the edge of its range.
     const watching = s.canSee && s.dist < t.notice + KEEP_MARGIN && Math.abs(s.dy) < t.noticeHeight + KEEP_MARGIN;

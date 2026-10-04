@@ -93,6 +93,8 @@ export interface EnemySpot extends Spot {
   kind?: 'regular' | 'archer' | 'sword' | 'blade';
   /** Only appears once the player has reached this level. */
   minLevel?: number;
+  /** Which way it faces at its post. Defaults to west. */
+  facing?: 'n' | 'e' | 's' | 'w';
 }
 
 /** A hint that shows while the player is near a place. */

@@ -114,6 +114,7 @@ export function buildCoilstoneEast(t: Terrain): IslandLayout {
     { id: 'cs-e-bridge', x: 1066.5, z: 8.5, r: 4, text: 'The pale stone over the Rift holds only the fastest, and a gap breaks the run.' },
     { id: 'cs-e-stair', x: 1065.5, z: 58.5, r: 4, text: 'Old slabs climb to a table. Run, and do not stop.' },
     { id: 'cs-e-thicket', x: 1078.5, z: 48.5, r: 4, text: 'A weave of fallen stone walls the Thicket in. Something small fits through.' },
+    { id: 'cs-e-foot', x: 1090.5, z: 28.5, r: 4, text: 'They look west. Something low could come up behind them.' },
     { id: 'cs-e-coil', x: 1100.5, z: 30.5, r: 3, text: 'A burrow into the Serpent. Only the low and the sure-footed go in.' },
   ];
 
