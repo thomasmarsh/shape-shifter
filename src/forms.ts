@@ -373,6 +373,117 @@ export const FORMS: readonly FormDef[] = [
 
 export const MAX_LEVEL = 11;
 
+// ---- The bosses (level 10) and the end of the game ---------------------------
+// One arena, two phases. This comment is the contract; world.ts, enemy.ts and
+// ending.ts are built against it.
+//
+// The lid (world.ts). An island roofs water tiles with `t.setLid(i, j, top)`
+// (after setWater). While the lid is shut such a tile is plain solid ground at
+// `top`: not water, anyone stands and walks on it, bad guys too. `dropLid()`
+// turns every lid tile into the water tile it was built as (its bed and its
+// level) and hides the slab; `raiseLid()` puts it back. `lidDown` says which,
+// `isLid(x, z)` is true on a lid tile in both states. The checker reads the
+// world as it is, so it needs no rule for the lid: a test explores before and
+// after `dropLid()`.
+//
+// Both bosses are bad guys (`EnemySpot.kind` 'warden' and 'eel', `boss` true on
+// the Enemy, `hearts` and `maxHearts` readable). A boss never faints from a
+// bite. A boss that is not beaten gets all its hearts back on `reset()` (the
+// player fainted). A beaten boss stays beaten, and that is saved.
+//
+// The Warden (phase 1, on land) is slow and hits hard:
+// - It walks at WARDEN.speed, cannot jump, steps up no more than any bad guy
+//   (0.35) and will not walk off an edge. So it cannot climb the Stairs, whose
+//   steps are 1 high.
+// - The slam: with the player inside WARDEN.slamStart it stops and raises its
+//   arms for WARDEN.windup seconds, and a red ring of radius WARDEN.slamRadius
+//   shows on the ground round it. Then it hits everyone inside the ring that
+//   is within WARDEN.slamHeight of its feet for WARDEN.damage hearts, and
+//   stands still for WARDEN.recover seconds. Walk out of the ring; hit it
+//   while it recovers.
+// - The throw: a player it has noticed but cannot reach (farther than
+//   WARDEN.throwFrom on the flat, or more than WARDEN.slamHeight above or
+//   below it) gets a rock. It lifts the rock for WARDEN.throwWindup seconds
+//   (it glows), then throws it at where the player is at that moment. The
+//   rock flies straight at WARDEN.rockSpeed, does WARDEN.rockDamage hearts and
+//   stops at walls. At least WARDEN.throwGap seconds between throws.
+// When the Warden is beaten the lid drops.
+//
+// The Eel (phase 2, in the lake) is quick:
+// - It is asleep (not drawn, cannot be hit, hits nobody) until the lid is down.
+// - It never leaves the water: its centre stays on water tiles, between
+//   EEL.bedGap above the bed and EEL.topGap under the surface. It swims at
+//   EEL.speed and follows the player's depth.
+// - It notices anyone in its water, and anyone within EEL.notice tiles of it
+//   on the flat, whatever the height.
+// - The lunge: with a swimmer inside EEL.lungeStart it glows for EEL.windup
+//   seconds and fixes its direction when the glow starts. Then it dashes
+//   EEL.lungeLength tiles straight at EEL.lungeSpeed (it stops at the shore)
+//   and hits the player once, within EEL.lungeHit of it, for EEL.damage
+//   hearts. Then it lies still for EEL.recover seconds. Swim sideways.
+// - The spit: a noticed player who is not in the water (on the shore, on the
+//   Stairs, in the air) gets a ball of water. The Eel comes up, glows for
+//   EEL.spitWindup seconds, then spits at where the player is at that moment:
+//   EEL.spitSpeed, EEL.spitDamage hearts, stops at walls, at least
+//   EEL.spitGap seconds between.
+// When the Eel is beaten the player is level 11 (MAX_LEVEL) and the credits
+// roll.
+//
+// The ending (ending.ts, no DOM): it watches the two bosses. Warden beaten:
+// `world.dropLid()`. Eel beaten: level 11, credits. The save keeps
+// `bosses: string[]` ('warden', 'eel'); loading with 'warden' in it starts
+// with the lid down and the Warden gone. The credits are CREDITS, rolled for
+// CREDITS_SECONDS while the camera slowly pulls back until the whole world is
+// in view; any key or a click ends them and the camera comes back, and the
+// player walks on.
+/** The level at which the bosses appear. */
+export const BOSS_LEVEL = 10;
+export const WARDEN = {
+  name: 'The Warden',
+  hearts: 16,
+  speed: 2.0,
+  notice: 14,
+  noticeHeight: 8,
+  damage: 5,
+  slamStart: 1.9,
+  slamRadius: 2.6,
+  slamHeight: 1.5,
+  windup: 1.2,
+  recover: 1.8,
+  throwFrom: 5,
+  throwWindup: 1.0,
+  throwGap: 3,
+  rockSpeed: 9,
+  rockDamage: 3,
+} as const;
+export const EEL = {
+  name: 'The Eel',
+  hearts: 20,
+  speed: 7,
+  notice: 12,
+  damage: 5,
+  bedGap: 0.3,
+  topGap: 0.6,
+  lungeStart: 5,
+  lungeLength: 6,
+  lungeSpeed: 14,
+  lungeHit: 1.0,
+  windup: 0.45,
+  recover: 0.9,
+  spitWindup: 0.7,
+  spitGap: 2.5,
+  spitSpeed: 10,
+  spitDamage: 3,
+} as const;
+/** The credits, in order: what was done, and who did it. */
+export const CREDITS: readonly (readonly [string, string])[] = [
+  ['Game design', 'Laura Elena Marsh-Leguia'],
+  ['Coding', 'Papa & Claude'],
+  ['Play testing', 'Mama'],
+];
+/** How long the credits roll, and the camera pulls back, if nobody stops them. */
+export const CREDITS_SECONDS = 30;
+
 /**
  * Candle lights needed to go from `level` to `level + 1`.
  * 3 for the first level, 4 for the second, then 5 from there on.

@@ -129,6 +129,10 @@ export class World {
   /** Which instance of which slab mesh (and its frame and cracks) draws a thin-sheet tile. */
   private iceSlot = new Map<number, { slab: THREE.InstancedMesh; cracks: THREE.InstancedMesh; slot: number }>();
 
+  /** Every lid tile by tile index: the bed, the top of the slab and the kelp and hollow it hides while shut. */
+  private lidTiles = new Map<number, { bed: number; top: number; kelp: number; hollow: number }>();
+  private lidSlab: THREE.InstancedMesh | null = null;
+
   readonly layout: Layout;
   /** Where each island put its ground, for tools like the map printer. */
   readonly bounds: IslandBounds[] = [];
@@ -159,6 +163,9 @@ export class World {
     this.layout = this.buildIslands(islands);
     this.placeBlocks();
     this.buildMeshes();
+    // The meshes show the lake; now shut the lid over it.
+    this.buildLid();
+    this.raiseLid();
   }
 
   // ---- queries -----------------------------------------------------------
@@ -466,6 +473,65 @@ export class World {
     this.gateDraw.forEach((_, g) => this.showGate(g));
   }
 
+  // ---- the lid (see the bosses' contract in forms.ts) --------------------
+
+  /** True once the lid has dropped. */
+  lidDown = false;
+
+  /** Drop the lid: every lid tile becomes the water it was built as. */
+  dropLid(): void {
+    this.lidDown = true;
+    for (const [k, l] of this.lidTiles) {
+      this.height[k] = l.bed;
+      this.water[k] = 1;
+      this.kelp[k] = l.kelp;
+      this.hollow[k] = l.hollow;
+    }
+    if (this.lidSlab) this.lidSlab.visible = false;
+  }
+
+  /** Put the lid back. */
+  raiseLid(): void {
+    this.lidDown = false;
+    for (const [k, l] of this.lidTiles) {
+      this.height[k] = l.top;
+      this.water[k] = 0;
+      this.kelp[k] = 0;
+      this.hollow[k] = 0;
+    }
+    if (this.lidSlab) this.lidSlab.visible = true;
+  }
+
+  /** True on a lid tile, shut or not. */
+  isLid(x: number, z: number): boolean {
+    const k = this.index(x, z);
+    return k >= 0 && this.lidTiles.has(k);
+  }
+
+  /** One dark stone slab per lid tile, from its top down to a little under the water. */
+  private buildLid(): void {
+    if (this.lidTiles.size === 0) return;
+    const slab = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshLambertMaterial(),
+      this.lidTiles.size,
+    );
+    slab.name = 'lid';
+    const m = new THREE.Matrix4();
+    const c = new THREE.Color();
+    let n = 0;
+    for (const [k, l] of this.lidTiles) {
+      const low = this.waterTop[k] - 0.3;
+      const at = this.tileMiddle(k);
+      m.makeScale(1, l.top - low, 1).setPosition(at.x, (l.top + low) / 2, at.z);
+      slab.setMatrixAt(n, m);
+      slab.setColorAt(n, c.setHSL(0.74, 0.2, 0.16 + hash(k % this.width, Math.floor(k / this.width), 3) * 0.03));
+      n++;
+    }
+    this.lidSlab = slab;
+    this.group.add(slab);
+  }
+
   private overlaps(k: number, x: number, z: number, r: number): boolean {
     const i = k % this.width;
     const j = Math.floor(k / this.width);
@@ -619,6 +685,12 @@ export class World {
         if (!inside(i, j)) return;
         this.hollow[at(i, j)] = 1;
         this.kelp[at(i, j)] = this.waterTop[at(i, j)] - this.height[at(i, j)] - HOLLOW_ROOM;
+      },
+      setLid: (i, j, top) => {
+        if (!inside(i, j)) return;
+        const k = at(i, j);
+        if (this.water[k] !== 1) throw new Error(`Lid at ${i},${j} is not on a water tile`);
+        this.lidTiles.set(k, { bed: this.height[k], top, kelp: this.kelp[k], hollow: this.hollow[k] });
       },
       rect: (i0, j0, i1, j1, fn) => {
         for (let j = j0; j <= j1; j++) {
