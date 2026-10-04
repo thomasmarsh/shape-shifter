@@ -119,6 +119,7 @@ function thingsGrid(): Map<string, string> {
       if (world.isKelp(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, world.isHollow(i + 0.5, j + 0.5) ? 'u' : '&');
       if (world.isThinIce(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, world.isBrittle(i + 0.5, j + 0.5) ? '+' : '=');
       if (world.isGate(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, 'G');
+      if (world.isLid(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, 'L');
     }
   }
   for (const p of layout.plates) put(p, 'P');
@@ -187,7 +188,7 @@ for (const b of islands) {
   heightBase = baseFor(b);
   const minus = heightBase > 0 ? `, heights minus ${heightBase}` : '';
   printGrid(`heights: digit = height (0-9, a-z for 10-35)${minus}, ~ water`, b, heightChar);
-  printGrid('things: = thin ice, + brittle sheet, G timed gate, P plate, % root tangle, o hole (also a boulder), & kelp mat, u hollow, T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
+  printGrid('things: = thin ice, + brittle sheet, G timed gate, P plate, % root tangle, o hole (also a boulder), & kelp mat, u hollow, L lid, T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
   if (hasWater(b)) printGrid('water depth: digit = depth of the bed below the surface, rounded down (0-9), . dry', b, depthChar);
   if (reach) printGrid(`${reachTitle}; # reached, . not reached`, b, reachChar);
 }
