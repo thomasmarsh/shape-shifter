@@ -4,9 +4,9 @@ A web game. You are a shape shifter stuck on a cloud island. Solve music
 puzzles to free candle lights, collect enough lights to level up, and each
 level lets you shift into a new creature.
 
-The design lives in [`PLAN.md`](PLAN.md). This build has **eight islands** to
-play, from level 0 (Human) to level 8 (Snake). It stops for now on the
-Serpent's Head, at the far end of the eighth island.
+The design lives in [`PLAN.md`](PLAN.md). This build has **nine islands** to
+play, from level 0 (Human) to level 9 (Axolotl). It stops for now on the Last
+Stone, in the Well at the far end of the ninth island.
 
 ## Play it
 
@@ -33,7 +33,7 @@ If the game runs slowly, add `?fast` to the address to turn off shadows.
 | `E` | Use things: speakers, candles |
 | `F` | Eat a piece of bread (+1 heart) |
 | `Shift` | Dive, as a Human or a Mermaid. Hold it to sink, let go to float back up |
-| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, `6` Mermaid, `7` Cheetah, `8` Snake, …) |
+| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, `6` Mermaid, `7` Cheetah, `8` Snake, `9` Axolotl) |
 | `Q` | Fairy: make a tiny home to hide in. Mermaid, in the water: shoot water at the nearest bad guy |
 | `R` | Mermaid, in the water: raise a bubble column under the nearest bad guy |
 | `Esc` | Pause |
@@ -70,7 +70,7 @@ under: just swim in, and you are pulled under it. A Human fits under a low mat.
 Under a mat you cannot come up, jump or change shape.
 
 **Mermaid:** 15 hearts. She swims faster than anything runs, dives as deep as
-the water goes, and fits under the deep kelp that nothing else can pass. Her
+the water goes, and fits under the deep kelp that no earlier form can pass. Her
 sword only works while she is in the water. On land she is very slow and cannot
 jump, but she can leap out of the water onto a low shore. While she swims she
 has two water powers. `Q` shoots a ball of water at the nearest bad guy within
@@ -100,6 +100,15 @@ had. Only the Snake is quiet: a bad guy standing at its post looks one way
 behind it or level with it, however close. Come round behind and bite. Every
 other shape is noticed from any side, and a bad guy that is already after you
 is not fooled.
+
+**Axolotl:** small, pink and slow on land, with 5 hearts and no sword. It grows
+a heart back every 3 seconds, and the hearts stay when you change shape. It
+swims fast and dives as deep as the water goes, and it is as low as the Snake,
+so it fits into holes too. Only the Axolotl gets into a hollow: a stone roof
+lying on the water, with a crack of water left over the bed. Swim at it and you
+are pulled under; under the roof you cannot come up, jump or change shape. In a
+hollow or a hole the Axolotl is hidden, and a bad guy that was after it gives
+up.
 
 **Hop, then fly:** a Bunny can turn into a Fairy at the top of a hop and keep
 the height. Hold `Space` as a Bunny, press `1` when the hop is at its top, and
@@ -162,7 +171,7 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   way off needs: a plate that opens the gate in the Red Wall for 3.8 seconds,
   31 tiles away, past the sword bad guys; then two runs of brittle crust over
   the open sky, each with a gap to jump, with a Bunny hop between them, to
-  Sunset Rock, where the game stops for now. One breath covers each run but not
+  Sunset Rock, and on to the next island. One breath covers each run but not
   two in a row, so the Cheetah has to rest in the Yard and on the Terrace.
 - **Coilstone** (level 7, then 8): a ruined city of blue-grey slate, split down
   the middle by the Rift, with a mesa of dark basalt, the Serpent's Head, at its
@@ -178,16 +187,31 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   brittle stone, which takes the Cheetah. The fifth candle gives the Snake, and
   the Snake is what the way off needs: past two heavy sword bad guys at the
   Foot and up the Coil, a burrow of ten tall steps in the mesa's west face, to
-  the Serpent's Head, where the game stops for now.
-- Nine forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
+  the Serpent's Head, and from there a hop, then a flight, east and down to the
+  next island.
+- **Hollowfen** (level 8, then 9): a fen of sedge, peat and still water, cut in
+  two by the Gap. You land low and walk up a ramp. Five candles: the Reed Pool
+  (a fight, then a pickle 8 deep that only the Mermaid reaches), the Reed Ring
+  (an Ant through a ring of woven reeds, a Bunny up a terrace), the Heron Road
+  (a fight, an Orangutan along two great trees, a Fairy across to a pillar), the
+  Stair (a fight, a run up a stair of reed mats, then hop, then fly, to a
+  spire) and the Mound (past two heavy sword bad guys who look west, then a
+  Snake up a burrow of ten tall steps). The last two stand east of the Gap, and
+  the only way over is the Bridge of brittle reed, which takes the Cheetah. The
+  fifth candle gives the Axolotl, and the Axolotl is what the way off needs:
+  the Well, a lake with a ring of hollows round the Last Stone, where the game
+  stops for now.
+- Ten forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
   slow flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone
   sword), Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts,
   fast, no sword, a bite of 2 hearts, runs on thin ice), Ant (1 heart, slow, no
   sword, fits into root tangles), Mermaid (15 hearts, swims fast, dives
   without limit, sword and two water powers only in water), Cheetah (11
   hearts, the fastest of all while its breath lasts, no sword, runs on brittle
-  crust) and Snake (6 hearts, slow, no sword, fits into holes, slides up tall
-  steps, a bite that makes bad guys faint, not noticed from behind). Hearts cap at the form's maximum when
+  crust), Snake (6 hearts, slow, no sword, fits into holes, slides up tall
+  steps, a bite that makes bad guys faint, not noticed from behind) and Axolotl
+  (5 hearts that grow back, no sword, swims fast, dives without limit, fits
+  into holes and hollows, and hides in them). Hearts cap at the form's maximum when
   you shift and only come back by eating.
 - 100 bread to start, more to find.
 - Four kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
@@ -196,7 +220,7 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   reach level 7: a heavy one (5 hearts, slow, a long wind-up, 4 hearts a blow)
   and a light one (3 hearts, faster than a Human, a short wind-up, 2 hearts a
   blow).
-- Thirty-seven music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
+- Forty-two music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
   after), each guarding a candle. You cannot use a speaker while a bad guy
   close by is after you: deal with them, lose them or hide first.
 - Checkpoints, falling off the island, fainting and respawning.
@@ -210,7 +234,7 @@ src/
   main.ts       starts the game
   game.ts       the loop, camera, saving, hints, and what happens when
   world.ts      builds the whole world from the islands: terrain, heights, water,
-                thin ice, root tangles, kelp mats, meshes
+                thin ice, root tangles, kelp mats, hollows, meshes
   layout.ts     the shared words of a level: tile kinds, spots, hints, arrivals
   islands/      one file per island, plus the tests for the island
     index.ts      the list of islands, in build order
@@ -230,14 +254,17 @@ src/
     coilstone.ts      Coilstone's landing, ramp and three candles (west half)
     coilstone-east.ts the Rift and its Bridge, two candles and the Snake's way
                       off (east half), built by coilstone.ts
+    hollowfen.ts      Hollowfen's landing, ramp and three candles (west half)
+    hollowfen-east.ts the Gap and its Bridge, two candles and the Axolotl's way
+                      off (east half), built by hollowfen.ts
     testkit.ts    the checks every island's tests repeat (closed rings, guard
                   and archer distances, things on real ground, ids, melodies,
                   the camera, a way out from every respawn spot, gate timing)
     scatter.ts    sprinkles ordinary trees over an island's grass
   forms.ts      the ten forms and level rules, as a data table
   player.ts     movement, flying, climbing, hopping, running on ice, fitting into
-                tangles and holes, swimming and diving, breath, sword, bite,
-                hearts, shape-shifting
+                tangles, holes and hollows, swimming and diving, breath, sword,
+                bite, hearts and their regrowth, hiding, shape-shifting
   enemy.ts      the regular bad guy, the archer and the two sword bad guys, how
                 they faint, and which way they look at their posts
   arrows.ts     arrows in flight
@@ -254,7 +281,8 @@ src/
   levelcheck.ts the level checker: which places each set of forms can reach
                 (it knows the Winter Wolf, thin ice, hop-then-fly, the Ant and
                 root tangles, diving, kelp mats, the Mermaid, the Cheetah,
-                brittle crust, timed gates, the Snake and holes)
+                brittle crust, timed gates, the Snake and holes, the Axolotl
+                and hollows)
   explorecache.ts  shares the checker's answers inside a test file
   pilot.ts      a scripted player the tests use to walk and fly real routes
   *.test.ts     the tests (next to the code they check)
@@ -278,9 +306,9 @@ bread, trees, hints, arrival cards). To change a form's hearts or speed, edit
    `t.setBrittle(i, j, height)`, turn a ground tile into a root tangle with
    `t.setTangle(i, j)` (or a Snake hole with `t.setTangle(i, j, 0.35)`), into part of a timed gate with `t.setGate(i, j, id)`
    (the island then returns `plates`, each with its gate and its seconds), and
-   float a kelp mat on a water tile with `t.setKelp(i, j, depth)`. On a water tile the height you set is the bed. A
+   float a kelp mat on a water tile with `t.setKelp(i, j, depth)`, or roof it with a hollow with `t.setHollow(i, j)`. On a water tile the height you set is the bed. A
    candle placed on a water tile is a sea pickle. An island can also be built
-   in two files, as Frostfang, Underroot, Saltmere, Sunveld and Coilstone are: its file calls a builder from the other and merges the
+   in two files, as Frostfang, Underroot, Saltmere, Sunveld, Coilstone and Hollowfen are: its file calls a builder from the other and merges the
    result.
 2. Run `npm run map -- --island=<name>` to look at it, and
    `npm run map -- --island=<name> --reach=human,fairy --from=x,z` to see what
@@ -299,7 +327,7 @@ forms can reach (an easy setting for "a person can do this" and a generous
 one for "nobody can do this"). The route tests in `src/routes.test.ts` back it
 up by really flying and climbing the hard routes with the real physics, using
 the scripted player in `src/pilot.ts`. `npm run map` prints the islands as
-ASCII maps (heights, things, thin ice, root tangles, holes, kelp mats, water
+ASCII maps (heights, things, thin ice, root tangles, holes, kelp mats, hollows, water
 depth and reachable ground) so you can see a layout before you run the game, for example
 `npm run map -- --island=frostfang --reach=human,fairy,orangutan,bunny --from=208.5,40.5`.
 
@@ -336,6 +364,14 @@ The checker knows these things beyond walking, hopping, flying and climbing:
   closed ring of mats seals a place the way a ring of tangle does.
 - **The Mermaid:** she walks on land, floats and dives like the Human with no
   depth limit, and hops only out of water.
+- **The Axolotl and hollows:** the Axolotl moves like a slow Human that dives
+  without limit, and at 0.3 tall it fits every hole. A hollow is a kelp mat
+  that hangs down to 0.35 above the bed, and the mat rule has a second half: a
+  body must also fit in the water between the mat and the bed. Under a hollow
+  that leaves the Axolotl alone: the Human and the Mermaid are too tall, the
+  Snake and the Ant cannot dive. Ordinary mats keep 2 of water under them, so
+  nothing changes for them. A closed ring of hollows seals a place for
+  everyone else.
 - **The Cheetah:** it moves like a faster Human and jumps a gap of 6 tiles at a
   run (7 at the limit). The checker treats it as always rested; breath is
   proved by the route tests, which run with the real breath bar.
@@ -353,13 +389,15 @@ The checker knows these things beyond walking, hopping, flying and climbing:
   checkpoint or a respawn spot, not where the player must be an Ant), never
   that a fight is fair.
 
-The route tests for Underroot, Saltmere, Sunveld and Coilstone sit next to the
-islands, in `src/islands/*.routes.test.ts`. The Cheetah's own route tests
+The route tests for Underroot, Saltmere, Sunveld, Coilstone and Hollowfen sit
+next to the islands, in `src/islands/*.routes.test.ts`. The Cheetah's own route tests
 (brittle runs, a timed gate, breath) are in `src/cheetah.routes.test.ts`, and
-the Snake's (a stepped burrow) in `src/snake.routes.test.ts`.
+the Snake's (a stepped burrow) in `src/snake.routes.test.ts`, and the Axolotl's
+(a row of hollows) in `src/axolotl.routes.test.ts`.
 
-The suite is 777 tests in 47 files and runs in 8 to 9 seconds on a busy
-8-core laptop (10 to 11 before). Test files run in forked workers without
+The suite is 872 tests in 60 files and runs in about 10 seconds on an 8-core
+laptop (the 777 tests before Hollowfen took 8.5; with isolation they took 10
+to 11). Test files run in forked workers without
 isolation (`pool: 'forks'`, `isolate: false` in `vite.config.ts`), so the
 engine is imported once per worker, not once per file. Each file still builds
 its own world; a test must not leave module-level state changed for the next
@@ -378,12 +416,12 @@ The game is in `window.game` in the browser console. Handy while building:
 ```js
 game.debug.warp('hc-prow')   // stand on a checkpoint
 game.debug.setLevel(4)       // become level 4 (then press 4 for the Winter Wolf)
-game.debug.takeLight(7)      // take a candle's light at once (0 to 36)
+game.debug.takeLight(7)      // take a candle's light at once (0 to 41)
 ```
 
 Candles are numbered in the order of the islands: 0 to 2 Meadow Island, 3 to 6
 Tanglewood, 7 to 11 Highcrag, 12 to 16 Frostfang, 17 to 21 Underroot, 22 to 26
-Saltmere, 27 to 31 Sunveld, 32 to 36 Coilstone.
+Saltmere, 27 to 31 Sunveld, 32 to 36 Coilstone, 37 to 41 Hollowfen.
 
 Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `tw-south`, `tw-grove`, `hc-prow`, `hc-south`, `hc-north`, `hc-east`,
@@ -392,7 +430,8 @@ Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `ur-wall`, `ur-yard`, `ur-crown`, `saltmere`, `sm-mid`, `sm-east`, `sm-nest`,
 `sm-salt`, `sm-key`, `sm-pearl`, `sunveld`, `sv-mid`, `sv-table`, `sv-east`,
 `sv-kraal`, `sv-yard`, `sv-kopje`, `sv-end`, `coilstone`, `cs-hub`, `cs-court`,
-`cs-rim`, `cs-far`, `cs-foot`, `cs-end`.
+`cs-rim`, `cs-far`, `cs-foot`, `cs-end`, `hollowfen`, `hf-hub`, `hf-ring`,
+`hf-rim`, `hf-far`, `hf-foot`, `hf-well`, `hf-end`.
 
 ## Decisions the plan did not spell out
 
@@ -607,6 +646,42 @@ These were chosen to get a playable build. Change any of them freely.
   walls do hide the guards themselves from the camera; the hint at the Court
   says they are there. A guard that has noticed you still stops the speaker, so
   the fight matters.
+- **What sets the Axolotl apart:** it has no dive limit, it moves through
+  small spaces, and it hides in hollows. The plan gives it 5 hearts, a heart
+  back every 3 seconds and a fast swim; those are built too. Regrowth runs
+  only while you are the Axolotl, and the hearts stay when you shift, up to
+  the new form's maximum.
+- **A hollow is the small space under water.** It is a stone roof on a water
+  tile that leaves 0.35 of water over the bed, the gap of a Snake hole. Getting
+  in takes a body no taller than that which can also dive to the bed, and only
+  the Axolotl is both. In the code a hollow is a kelp mat with almost no room
+  under it, so being pulled under, not surfacing and not shifting all come
+  from the kelp rules. With no dive limit the Axolotl also passes deep kelp,
+  so from level 9 deep kelp is no longer the Mermaid's alone.
+- **Hiding:** the Axolotl is hidden, as a Fairy is in her home, while it is
+  under a hollow or inside a hole. A hidden Axolotl can still be hurt by a bad
+  guy that is already next to it. No bad guy stands near the Well, so on
+  Hollowfen hiding is not needed yet.
+- **The Axolotl cannot help with Hollowfen's own candles,** because it unlocks
+  on the fifth. The way off needs only the Axolotl. It floats 0.8 under the
+  water, so getting out of the Well onto the Last Stone is a jump.
+- **Hollowfen's Landing reaches west to x 1154,** not 1160 as first planned: on
+  the easy setting a hop, then a flight, from the Serpent's Head comes down
+  about 25 tiles out, less than the reach sum for a long drop promised. That
+  leaves 24 tiles of sky between the islands.
+- **Hollowfen's east half is Coilstone's, moved and renamed:** the Bridge, the
+  Stair and a Snake burrow in a mesa stand as they do there, 205 columns
+  farther east, because those shapes were already proved. What is new is the
+  Well, and the west half's pool, ring and road.
+- **Seven of the nine old forms are proved to have work of their own on
+  Hollowfen:** take away the Fairy, Orangutan, Bunny, Ant, Mermaid, Cheetah or
+  Snake and a candle goes out of reach
+  (`src/islands/hollowfen-forms.test.ts`). The Human and the Wolf are the
+  exceptions again, for the same reasons as on Coilstone.
+- **Hollowfen has its own ground:** sedge, peat and chalk, used on no other
+  island, and its thin sheets and brittle crust are reed mats. The look of the
+  island and of the Axolotl (pink, with six gill stalks in rainbow colours) was
+  built without being seen on a screen.
 - **Tangle strands are faint threads:** one thin, pale, see-through thread per
   tile, so the wall still reads as going up but hides nothing behind it.
 - **Trees are solid:** a Human walks around them and arrows stop at them.
@@ -615,11 +690,12 @@ These were chosen to get a playable build. Change any of them freely.
 
 ## Next
 
-1. The island after the Serpent's Head, with the Axolotl (level 9).
+1. The island after the Last Stone, with wings (level 10).
 2. Bad guys that can be fought in the water, for the Mermaid's powers.
 3. Work only the Wolf and only the Human can do, that the checker can see.
 4. The two bosses (land, then underwater), level 11 and the end of the game.
-5. Wings (level 10) and character customising.
+5. Character customising.
 6. More for the other forms to do on the ways off Underroot (Human, Ant and
-   Fairy only), Saltmere (Mermaid only), Sunveld (Cheetah and Bunny only) and
-   Coilstone (Snake only).
+   Fairy only), Saltmere (Mermaid only), Sunveld (Cheetah and Bunny only),
+   Coilstone (Snake only) and Hollowfen (Axolotl only).
+7. A use in play for the Axolotl's hiding: no bad guy stands near the Well.
