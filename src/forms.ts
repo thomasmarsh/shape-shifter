@@ -73,12 +73,19 @@ export const KELP_LOW = 2;
 /** The depth of a mat only the Mermaid fits under. */
 export const KELP_DEEP = 5;
 
+/** The room between a hollow's roof and its bed: the gap of a Snake hole, under water. */
+export const HOLLOW_ROOM = 0.35;
+
+/** Seconds for the Axolotl to regrow one heart. */
+export const AXOLOTL_REGROW = 3;
+
 /**
  * Does a body of height `body` that can dive `dive` fit under a kelp mat that
- * hangs `depth` below the surface? Its whole body must get below the mat.
+ * hangs `depth` below the surface? Its whole body must get below the mat, and
+ * fit in the `room` of water between the mat and the bed.
  */
-export function fitsUnderKelp(body: number, dive: number, depth: number): boolean {
-  return dive - body >= depth;
+export function fitsUnderKelp(body: number, dive: number, depth: number, room = Infinity): boolean {
+  return dive - body >= depth && body <= room;
 }
 
 export type FormId =
@@ -330,7 +337,7 @@ export const FORMS: readonly FormDef[] = [
     maxHearts: 5,
     speed: 1.5,
     swim: 6,
-    dive: 0,
+    dive: Infinity,
     jumpsFrom: 'anywhere',
     jump: 7.6,
     jumpCut: 0,
@@ -339,8 +346,8 @@ export const FORMS: readonly FormDef[] = [
     arrowLift: 1.5,
     sword: 'none',
     canFly: false,
-    blurb: 'Regrows a heart every three seconds.',
-    playable: false,
+    blurb: 'Regrows a heart every three seconds, swims without limit and hides in hollows and holes.',
+    playable: true,
   },
 ];
 

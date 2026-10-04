@@ -185,6 +185,13 @@ export interface Terrain {
    * depth + 2 of water above its bed. `clear` removes the mat again.
    */
   setKelp(i: number, j: number, depth: number): void;
+  /**
+   * Roof a water tile with a hollow: stone from above the surface down to
+   * HOLLOW_ROOM (forms.ts) over the bed. It is a kelp mat that hangs that deep,
+   * with so little room under it that only a body no taller than the room, that
+   * can dive to the bed, gets in: the Axolotl. Set the water first.
+   */
+  setHollow(i: number, j: number): void;
   /** Call `fn` for every tile in the box, bounds inclusive. */
   rect(i0: number, j0: number, i1: number, j1: number, fn: (i: number, j: number) => void): void;
   /** Call `fn` for every tile whose centre lies inside an ellipse. */

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {
+  AXOLOTL_REGROW,
   FORMS,
   FormDef,
   ICE_STUMBLE,
@@ -17,6 +18,7 @@ import {
   APE_ARM_REST,
   makeAnt,
   makeSnake,
+  makeAxolotl,
   makeBunny,
   makeCheetah,
   makeFairy,
@@ -140,9 +142,11 @@ export class Player {
   breath = RUN_BREATH;
   /** True from running out of breath until it is completely full again, in any form. */
   winded = false;
-  /** True while tucked inside a fairy home: bad guys can't see you. */
-  hidden = false;
+  /** True while tucked inside a fairy home. */
+  homed = false;
   private hiddenTime = 0;
+  /** Seconds the Axolotl has been in its form since it last regrew a heart. */
+  private regrowTimer = 0;
   /** Total seconds spent flapping, for the tutorial. */
   flownTime = 0;
   walked = 0;
@@ -192,6 +196,7 @@ export class Player {
   private cheetah: WolfModel;
   private ant: AntModel;
   private snake: SnakeModel;
+  private axolotl: THREE.Group;
   private home: THREE.Group;
 
   constructor(
@@ -208,9 +213,10 @@ export class Player {
     this.cheetah = makeCheetah();
     this.ant = makeAnt();
     this.snake = makeSnake();
+    this.axolotl = makeAxolotl();
     this.home = makeFairyHome();
     this.home.visible = false;
-    this.group.add(this.human.group, this.mermaid.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.cheetah.group, this.ant.group, this.snake.group);
+    this.group.add(this.human.group, this.mermaid.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.cheetah.group, this.ant.group, this.snake.group, this.axolotl);
     this.applyForm();
   }
 
@@ -304,6 +310,13 @@ export class Player {
     );
   }
 
+  /** True while bad guys can't see you: in a fairy home, or the Axolotl under a hollow's roof or inside a hole. */
+  get hidden(): boolean {
+    if (this.homed) return true;
+    if (this.form.id !== 'axolotl' || this.dead) return false;
+    return this.inTangle || this.world.isHollow(this.pos.x, this.pos.z);
+  }
+
   /** Height of the feet when floating at the surface of the water here. */
   private floatHeight(): number {
     return this.world.waterLevelAt(this.pos.x, this.pos.z) - (this.form.canFly ? 0.25 : 0.8);
@@ -348,6 +361,7 @@ export class Player {
     // Hearts never go above what the new form can hold. Shifting back to a
     // bigger form does not give them back: you have to eat.
     this.hearts = Math.min(this.hearts, this.form.maxHearts);
+    this.regrowTimer = 0;
     this.applyForm();
     this.particles.burst(this.chest, 0xc9a7ff, 18, 3.2, 0.14, 2);
     this.particles.sparkle(this.chest, 0xffffff, 10, 0.6);
@@ -366,6 +380,7 @@ export class Player {
     this.cheetah.group.visible = id === 'cheetah';
     this.ant.group.visible = id === 'ant';
     this.snake.group.visible = id === 'snake';
+    this.axolotl.visible = id === 'axolotl';
     const color = SWORD_COLOR[swordTier(this.level)];
     for (const blade of [this.human.blade, this.mermaid.blade, this.orangutan.blade]) {
       (blade.material as THREE.MeshLambertMaterial).color.setHex(color);
@@ -380,7 +395,7 @@ export class Player {
   // ---- hearts ------------------------------------------------------------
 
   damage(amount: number, fromX: number, fromZ: number): void {
-    if (this.dead || this.safeTimer > 0 || this.hidden) return;
+    if (this.dead || this.safeTimer > 0 || this.homed) return;
     this.hearts = Math.max(0, this.hearts - amount);
     this.letGo();
     this.safeTimer = HURT_SAFE_TIME;
@@ -414,7 +429,7 @@ export class Player {
   // ---- fairy home --------------------------------------------------------
 
   private enterHome(): void {
-    this.hidden = true;
+    this.homed = true;
     this.hiddenTime = 0;
     this.home.position.copy(this.pos);
     this.home.visible = true;
@@ -426,8 +441,8 @@ export class Player {
   }
 
   private leaveHome(): void {
-    if (!this.hidden) return;
-    this.hidden = false;
+    if (!this.homed) return;
+    this.homed = false;
     this.home.visible = false;
     this.particles.sparkle(this.home.position, 0xffe98a, 10, 0.5);
     this.applyForm();
@@ -444,7 +459,15 @@ export class Player {
 
     if (input.hit('KeyF')) this.eat();
 
-    if (this.hidden) {
+    if (this.form.id === 'axolotl' && this.hearts < this.form.maxHearts) {
+      this.regrowTimer += dt;
+      if (this.regrowTimer >= AXOLOTL_REGROW) {
+        this.regrowTimer -= AXOLOTL_REGROW;
+        this.hearts += 1;
+      }
+    }
+
+    if (this.homed) {
       this.hiddenTime += dt;
       this.home.scale.setScalar(Math.min(1, this.home.scale.x + dt * 6));
       const wantsOut = input.hit('KeyQ') || input.hit('Space') || input.anyMoveHit();
@@ -919,6 +942,8 @@ export class Player {
         break;
       case 'snake':
         this.animateSnake();
+        break;
+      case 'axolotl':
         break;
       default:
         this.animateFairy(dt);

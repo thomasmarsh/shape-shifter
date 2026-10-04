@@ -561,7 +561,7 @@ export class Game {
       {
         id: 'home',
         text: 'On the ground, press <kbd>Q</kbd> to magic up a tiny home. Bad guys cannot find you inside.',
-        when: () => p.form.id === 'fairy' && !p.hidden,
+        when: () => p.form.id === 'fairy' && !p.homed,
         done: () => this.flags.has('home'),
       },
       {
@@ -781,8 +781,8 @@ export class Game {
         use = () => this.takeLight(z);
       }
     }
-    this.hud.setAction(p.hidden ? 'Hidden in your fairy home. Press <kbd>Q</kbd> to come out.' : action);
-    if (use && !p.hidden && this.input.hit('KeyE')) use();
+    this.hud.setAction(p.homed ? 'Hidden in your fairy home. Press <kbd>Q</kbd> to come out.' : action);
+    if (use && !p.homed && this.input.hit('KeyE')) use();
   }
 
   /** Move the shared lights onto the burning candles nearest the player. */
@@ -812,7 +812,7 @@ export class Game {
       const a = this.time * 1.8 + (n * Math.PI * 2) / Math.max(1, this.orbs.length);
       orb.position.set(c.x + Math.cos(a) * 0.6, c.y + 0.35 + Math.sin(this.time * 3 + n) * 0.08, c.z + Math.sin(a) * 0.6);
       orb.rotation.y = this.time * 3;
-      orb.visible = !p.hidden;
+      orb.visible = !p.homed;
     });
 
     for (let n = this.flying.length - 1; n >= 0; n--) {
@@ -835,7 +835,7 @@ export class Game {
       this.world.solidAt(p.pos.x, p.pos.z),
       this.world.isWater(p.pos.x, p.pos.z) ? this.world.waterLevelAt(p.pos.x, p.pos.z) : -Infinity,
     );
-    const show = !p.hidden && !p.dead && Number.isFinite(below) && p.pos.y - below > 0.25;
+    const show = !p.homed && !p.dead && Number.isFinite(below) && p.pos.y - below > 0.25;
     this.landing.visible = show;
     if (show) this.landing.position.set(p.pos.x, below + 0.04, p.pos.z);
   }

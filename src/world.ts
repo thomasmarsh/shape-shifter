@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ISLANDS } from './islands';
-import { BRITTLE_SPEED, fitsUnderKelp, ICE_REGROW, ICE_SPEED, KELP_DEEP } from './forms';
+import { BRITTLE_SPEED, fitsUnderKelp, HOLLOW_ROOM, ICE_REGROW, ICE_SPEED, KELP_DEEP } from './forms';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildFrostDecor, SNOW_CAP } from './frost';
 import { hash, Island, Kind, Layout, PlateSpot, Spot, TANGLE_GAP, Terrain, TREE_BLOCK } from './layout';
@@ -120,6 +120,8 @@ export class World {
   private tangle: Float32Array;
   /** How far below the water surface the kelp mat on each tile hangs, 0 where there is none. */
   private kelp: Float32Array;
+  /** 1 where the kelp mat is a hollow's roof (see `setHollow` in layout.ts). */
+  private hollow: Uint8Array;
   /** Which island last shaped each tile: an index into `ownerIds` plus one, 0 where none did. */
   private owner: Uint8Array;
   private ownerIds: string[] = [];
@@ -151,6 +153,7 @@ export class World {
     this.gate = new Uint8Array(n);
     this.tangle = new Float32Array(n);
     this.kelp = new Float32Array(n);
+    this.hollow = new Uint8Array(n);
     this.owner = new Uint8Array(n);
 
     this.layout = this.buildIslands(islands);
@@ -181,7 +184,7 @@ export class World {
     if (k < 0) return x >= 0 && x < this.width && (z < 0 || z >= this.depth) ? NO_STAND : -Infinity;
     const walled =
       (body > this.tangle[k] && this.tangle[k] > 0) ||
-      (this.kelp[k] > 0 && !fitsUnderKelp(body, dive, this.kelp[k])) ||
+      (this.kelp[k] > 0 && !fitsUnderKelp(body, dive, this.kelp[k], this.waterTop[k] - this.height[k] - this.kelp[k])) ||
       this.closedGate(k);
     const ground = this.height[k] + this.block[k] + (walled ? NO_STAND : 0);
     return this.iceOn[k] ? Math.max(ground, this.iceTop[k]) : ground;
@@ -251,6 +254,18 @@ export class World {
   kelpDepthAt(x: number, z: number): number {
     const k = this.index(x, z);
     return k < 0 ? 0 : this.kelp[k];
+  }
+
+  /** The water between a tile's kelp mat and its bed; Infinity where there is no mat. */
+  kelpRoomAt(x: number, z: number): number {
+    const k = this.index(x, z);
+    return k < 0 || this.kelp[k] <= 0 ? Infinity : this.waterTop[k] - this.height[k] - this.kelp[k];
+  }
+
+  /** True on a hollow tile. */
+  isHollow(x: number, z: number): boolean {
+    const k = this.index(x, z);
+    return k >= 0 && this.hollow[k] === 1;
   }
 
   isWater(x: number, z: number): boolean {
@@ -563,6 +578,7 @@ export class World {
         this.gate[at(i, j)] = 0;
         this.tangle[at(i, j)] = 0;
         this.kelp[at(i, j)] = 0;
+        this.hollow[at(i, j)] = 0;
       },
       setWater: (i, j, wet, level = this.waterLevel) => {
         if (!inside(i, j)) return;
@@ -597,6 +613,12 @@ export class World {
       setKelp: (i, j, depth) => {
         if (!inside(i, j)) return;
         this.kelp[at(i, j)] = depth;
+        this.hollow[at(i, j)] = 0;
+      },
+      setHollow: (i, j) => {
+        if (!inside(i, j)) return;
+        this.hollow[at(i, j)] = 1;
+        this.kelp[at(i, j)] = this.waterTop[at(i, j)] - this.height[at(i, j)] - HOLLOW_ROOM;
       },
       rect: (i0, j0, i1, j1, fn) => {
         for (let j = j0; j <= j1; j++) {
@@ -681,12 +703,18 @@ export class World {
     return layout;
   }
 
-  /** A mat must hang over water at least `depth + 2` deep, so there is room for a body under it. */
+  /** A mat must hang over water at least `depth + 2` deep, so there is room for a body under it. A hollow keeps HOLLOW_ROOM. */
   private checkKelp(): void {
     for (let k = 0; k < this.kelp.length; k++) {
-      if (this.kelp[k] <= 0) continue;
+      if (this.kelp[k] <= 0 && this.hollow[k] !== 1) continue;
       const at = `(${k % this.width}, ${Math.floor(k / this.width)})`;
-      if (this.water[k] !== 1) throw new Error(`Kelp at ${at} is not on a water tile`);
+      if (this.water[k] !== 1) throw new Error(`${this.hollow[k] === 1 ? 'Hollow' : 'Kelp'} at ${at} is not on a water tile`);
+      if (this.hollow[k] === 1) {
+        if (this.waterTop[k] - this.height[k] < HOLLOW_ROOM + 0.3) {
+          throw new Error(`Hollow at ${at} needs water at least ${HOLLOW_ROOM + 0.3} deep`);
+        }
+        continue;
+      }
       if (this.waterTop[k] - this.height[k] < this.kelp[k] + 2) {
         throw new Error(`Kelp at ${at} hangs ${this.kelp[k]} below the surface, but the water is too shallow`);
       }

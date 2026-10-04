@@ -91,7 +91,7 @@ export class Pilot {
     // Tests share one World, so a pilot starts with all the thin ice whole.
     world.resetIce();
     world.resetGates();
-    this.player.level = 8;
+    this.player.level = 9;
     this.shift(form);
     if (world.solidAt(start.x, start.z, this.player.form.height, this.player.form.dive) !== world.groundAt(start.x, start.z)) {
       throw new Error(`cannot start at (${start.x}, ${start.z}): something solid stands there`);
@@ -171,7 +171,7 @@ export class Pilot {
 
   // ---- moves -------------------------------------------------------------
 
-  /** Change shape, which needs the level to be high enough (the pilot is level 8). */
+  /** Change shape, which needs the level to be high enough (the pilot is level 9). */
   shift(form: FormId): void {
     const index = FORMS.findIndex((f) => f.id === form);
     if (index !== this.player.formIndex) {

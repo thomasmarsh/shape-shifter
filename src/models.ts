@@ -589,6 +589,18 @@ export interface BadGuyModel {
   bodyMat: THREE.MeshLambertMaterial;
 }
 
+/** A placeholder Axolotl: a low pink body with a flat head and three gill stalks a side. Faces +z. */
+export function makeAxolotl(): THREE.Group {
+  const group = new THREE.Group();
+  const skin = mat(0xf2a6b8);
+  const gill = mat(0xd9577a);
+  group.add(box(0.3, 0.14, 0.5, skin, 0, 0.1, 0), box(0.26, 0.12, 0.2, skin, 0, 0.1, 0.3), box(0.08, 0.1, 0.4, skin, 0, 0.08, -0.4));
+  for (const side of [-1, 1]) {
+    for (let n = 0; n < 3; n++) group.add(box(0.03, 0.03, 0.12, gill, side * 0.17, 0.12 + n * 0.04, 0.3));
+  }
+  return group;
+}
+
 export function makeBadGuy(tester: boolean): BadGuyModel {
   const group = new THREE.Group();
   // Each bad guy owns its body material so it can flash when hit.
