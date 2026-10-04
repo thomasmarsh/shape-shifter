@@ -195,9 +195,9 @@ export function buildSunveldEast(t: Terrain): IslandLayout {
       x: 931.5,
       z: 4.5,
       radius: 3,
-      eyebrow: 'To be continued',
+      eyebrow: 'The way on',
       title: 'Sunset Rock',
-      html: '<p>Seven shapes learned, and the fastest of them all.</p><p class="soft">The way on from here is still being built.</p>',
+      html: '<p>Seven shapes learned, and the fastest of them all.</p><p class="soft">The next island lies east and far below: hop, then fly.</p>',
     },
   ];
 

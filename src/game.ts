@@ -375,7 +375,30 @@ export class Game {
   }
 
   private showPause(): void {
-    this.card.show(`<h2>Paused</h2>${this.controlsHtml()}`, [{ label: 'Keep playing', onClick: () => {} }]);
+    this.card.show(`<h2>Paused</h2>${this.controlsHtml()}`, [
+      { label: 'Keep playing', onClick: () => {} },
+      { label: 'New game', primary: false, onClick: () => this.confirmNewGame() },
+    ]);
+  }
+
+  /** A new game from the pause menu: asked twice, because it throws the save away. */
+  private confirmNewGame(): void {
+    this.card.show(
+      `<h2>Start a new game?</h2>
+       <p>Your levels, lights and bread will be gone, and you start again on Meadow Island.</p>`,
+      [
+        { label: 'Keep playing', onClick: () => {} },
+        {
+          label: 'Yes, new game',
+          primary: false,
+          onClick: () => {
+            // Loading the page again is the one sure way to put every bad guy, sheet, gate and the lid back.
+            clearSave();
+            window.location.reload();
+          },
+        },
+      ],
+    );
   }
 
   private showLevelUp(): void {
