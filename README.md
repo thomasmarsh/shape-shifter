@@ -4,9 +4,9 @@ A web game. You are a shape shifter stuck on a cloud island. Solve music
 puzzles to free candle lights, collect enough lights to level up, and each
 level lets you shift into a new creature.
 
-The design lives in [`PLAN.md`](PLAN.md). This build has **nine islands** to
-play, from level 0 (Human) to level 9 (Axolotl). It stops for now on the Last
-Stone, in the Well at the far end of the ninth island.
+The design lives in [`PLAN.md`](PLAN.md). This build has **ten islands** to
+play, from level 0 (Human) to level 10 (wings). It stops for now on Kestrel
+Rock, far out in the sky past the tenth island.
 
 ## Play it
 
@@ -28,7 +28,7 @@ If the game runs slowly, add `?fast` to the address to turn off shadows.
 | Key | What it does |
 | --- | --- |
 | `W` `A` `S` `D` or arrows | Walk |
-| `Space` | Jump. Hold it as a fairy to fly, or as a bunny to hop high (tap for a small hop) |
+| `Space` | Jump. Hold it as a fairy to fly, or as a bunny to hop high (tap for a small hop). As a Human with wings: press it again in the air and hold it to glide |
 | Click or `J` | Swing your sword (Human and Orangutan). As a Winter Wolf or a Snake: bite |
 | `E` | Use things: speakers, candles |
 | `F` | Eat a piece of bread (+1 heart) |
@@ -109,6 +109,17 @@ lying on the water, with a crack of water left over the bed. Swim at it and you
 are pulled under; under the roof you cannot come up, jump or change shape. In a
 hollow or a hole the Axolotl is hidden, and a bad guy that was after it gives
 up.
+
+**Wings:** level 10 gives no new shape. It gives the Human wings, and they only
+glide. Jump as a Human, press `Space` again in the air and hold it: the wings
+open at the top of the jump. They never climb. They sink slowly (1.5 a second)
+and carry you fast (9 tiles a second), so about 6 tiles for every step of
+height you give up, and from high ground that is a very long way. Let go and
+they close; press again and they open again. Steer with the walking keys; with
+no key held you drop straight down, slowly. Only the Human has wings, and only
+a Human that left the ground as a Human: after a change of shape in the air
+there are no wings until you land, and once they have opened you cannot change
+shape until you land.
 
 **Hop, then fly:** a Bunny can turn into a Fairy at the top of a hop and keep
 the height. Hold `Space` as a Bunny, press `1` when the hop is at its top, and
@@ -199,8 +210,26 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   Snake up a burrow of ten tall steps). The last two stand east of the Gap, and
   the only way over is the Bridge of brittle reed, which takes the Cheetah. The
   fifth candle gives the Axolotl, and the Axolotl is what the way off needs:
-  the Well, a lake with a ring of hollows round the Last Stone, where the game
-  stops for now.
+  the Well, a lake with a ring of hollows round the Last Stone. The Last Stone
+  is a dead end. The way on is from the fen's east bank: a hop, then a flight,
+  east and down.
+- **Galecrest** (level 9, then 10): a windy heath of heather, scree and quartz,
+  cut in two by the Gap. You land low in the Court, in front of the Windbreak,
+  a wall across the whole island that is too tall for anything that hops or
+  flies. Water runs under it through the Sluice, beneath a low stone roof, and
+  only the Axolotl gets through; under the roof it is hidden from the two
+  guards on the bank. Past the wall a ramp of scree climbs to the heath. Five
+  candles: the Tarn (a fight, then a pickle 8 deep, too deep for a Human), the
+  Gorse Ring (an Ant through a ring of gorse, a Bunny up a terrace), the Pine
+  Road (a fight, an Orangutan along two great pines, a Fairy across to a
+  pillar), the Stair (a fight, a run up a stair of quartz flakes, then hop,
+  then fly, to a spire) and the Crag (past two heavy sword bad guys who look
+  west, then a Snake up a burrow of ten tall steps). The last two stand east of
+  the Gap, and the only way over is the Bridge of brittle quartz, which takes
+  the Cheetah. The fifth candle gives the wings, and the wings are what the way
+  off needs: the heath ends at the open sky, and Kestrel Rock lies 43 tiles out
+  and 11 down, too far for a hop and a flight. Jump off the edge and glide.
+  The game stops there for now.
 - Ten forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
   slow flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone
   sword), Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts,
@@ -213,6 +242,7 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   (5 hearts that grow back, no sword, swims fast, dives without limit, fits
   into holes and hollows, and hides in them). Hearts cap at the form's maximum when
   you shift and only come back by eating.
+- Wings for the Human at level 10: a glide, never a climb.
 - 100 bread to start, more to find.
 - Four kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
   two slower "testers" on the training ground, archers (8 hearts) who
@@ -220,7 +250,7 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   reach level 7: a heavy one (5 hearts, slow, a long wind-up, 4 hearts a blow)
   and a light one (3 hearts, faster than a Human, a short wind-up, 2 hearts a
   blow).
-- Forty-two music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
+- Forty-seven music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
   after), each guarding a candle. You cannot use a speaker while a bad guy
   close by is after you: deal with them, lose them or hide first.
 - Checkpoints, falling off the island, fainting and respawning.
@@ -257,6 +287,10 @@ src/
     hollowfen.ts      Hollowfen's landing, ramp and three candles (west half)
     hollowfen-east.ts the Gap and its Bridge, two candles and the Axolotl's way
                       off (east half), built by hollowfen.ts
+    galecrest.ts      Galecrest's Court, Windbreak, Sluice, ramp and three candles
+                      (west half)
+    galecrest-east.ts the Gap and its Bridge, two candles and Kestrel Rock, the
+                      wings' way off (east half), built by galecrest.ts
     testkit.ts    the checks every island's tests repeat (closed rings, guard
                   and archer distances, things on real ground, ids, melodies,
                   the camera, a way out from every respawn spot, gate timing)
@@ -264,7 +298,8 @@ src/
   forms.ts      the ten forms and level rules, as a data table
   player.ts     movement, flying, climbing, hopping, running on ice, fitting into
                 tangles, holes and hollows, swimming and diving, breath, sword,
-                bite, hearts and their regrowth, hiding, shape-shifting
+                bite, hearts and their regrowth, hiding, gliding on wings,
+                shape-shifting
   enemy.ts      the regular bad guy, the archer and the two sword bad guys, how
                 they faint, and which way they look at their posts
   arrows.ts     arrows in flight
@@ -282,7 +317,7 @@ src/
                 (it knows the Winter Wolf, thin ice, hop-then-fly, the Ant and
                 root tangles, diving, kelp mats, the Mermaid, the Cheetah,
                 brittle crust, timed gates, the Snake and holes, the Axolotl
-                and hollows)
+                and hollows, the wings)
   explorecache.ts  shares the checker's answers inside a test file
   pilot.ts      a scripted player the tests use to walk and fly real routes
   *.test.ts     the tests (next to the code they check)
@@ -308,7 +343,7 @@ bread, trees, hints, arrival cards). To change a form's hearts or speed, edit
    (the island then returns `plates`, each with its gate and its seconds), and
    float a kelp mat on a water tile with `t.setKelp(i, j, depth)`, or roof it with a hollow with `t.setHollow(i, j)`. On a water tile the height you set is the bed. A
    candle placed on a water tile is a sea pickle. An island can also be built
-   in two files, as Frostfang, Underroot, Saltmere, Sunveld, Coilstone and Hollowfen are: its file calls a builder from the other and merges the
+   in two files, as Frostfang, Underroot, Saltmere, Sunveld, Coilstone, Hollowfen and Galecrest are: its file calls a builder from the other and merges the
    result.
 2. Run `npm run map -- --island=<name>` to look at it, and
    `npm run map -- --island=<name> --reach=human,fairy --from=x,z` to see what
@@ -372,6 +407,17 @@ The checker knows these things beyond walking, hopping, flying and climbing:
   Snake and the Ant cannot dive. Ordinary mats keep 2 of water under them, so
   nothing changes for them. A closed ring of hollows seals a place for
   everyone else.
+- **The wings:** off unless a search asks for them (`explore(..., wings)`, or
+  `--wings` on the map), and then only the Human has them. A glide starts from
+  any ground the Human stands on, a jump's height above it, and loses height
+  for every tile it travels: 1 for every 5.1 tiles on the easy setting, 1 for
+  every 6.3 on the generous one (the real physics gives 6). It never rises. It
+  steers, so it goes round a tall wall if the way round is short enough, and it
+  cannot pass anything that has no top (a tangle, a kelp mat, a hollow, a shut
+  gate). Where it comes down the Human stands and can change shape. Because
+  nobody changes shape between opening the wings and landing, and wings do not
+  open after a change of shape in the air, the checker needs no glide that
+  starts in mid-air.
 - **The Cheetah:** it moves like a faster Human and jumps a gap of 6 tiles at a
   run (7 at the limit). The checker treats it as always rested; breath is
   proved by the route tests, which run with the real breath bar.
@@ -389,15 +435,18 @@ The checker knows these things beyond walking, hopping, flying and climbing:
   checkpoint or a respawn spot, not where the player must be an Ant), never
   that a fight is fair.
 
-The route tests for Underroot, Saltmere, Sunveld, Coilstone and Hollowfen sit
+The route tests for Underroot, Saltmere, Sunveld, Coilstone, Hollowfen and Galecrest sit
 next to the islands, in `src/islands/*.routes.test.ts`. The Cheetah's own route tests
 (brittle runs, a timed gate, breath) are in `src/cheetah.routes.test.ts`, and
 the Snake's (a stepped burrow) in `src/snake.routes.test.ts`, and the Axolotl's
-(a row of hollows) in `src/axolotl.routes.test.ts`.
+(a row of hollows) in `src/axolotl.routes.test.ts`. The wings are tested with
+the real physics in `src/wings.test.ts`, which also measures how far a glide
+carries (76 tiles from ground at 12 down to ground at 1), and in the checker
+in `src/levelcheck.wings.test.ts`.
 
-The suite is 872 tests in 60 files and runs in about 10 seconds on an 8-core
-laptop (the 777 tests before Hollowfen took 8.5; with isolation they took 10
-to 11). Test files run in forked workers without
+The suite is 977 tests in 71 files and runs in about 12 seconds on an 8-core
+laptop (the 872 tests before Galecrest took about 11, the 777 before Hollowfen
+8.5; with isolation those took 10 to 11). Test files run in forked workers without
 isolation (`pool: 'forks'`, `isolate: false` in `vite.config.ts`), so the
 engine is imported once per worker, not once per file. Each file still builds
 its own world; a test must not leave module-level state changed for the next
@@ -416,12 +465,13 @@ The game is in `window.game` in the browser console. Handy while building:
 ```js
 game.debug.warp('hc-prow')   // stand on a checkpoint
 game.debug.setLevel(4)       // become level 4 (then press 4 for the Winter Wolf)
-game.debug.takeLight(7)      // take a candle's light at once (0 to 41)
+game.debug.takeLight(7)      // take a candle's light at once (0 to 46)
 ```
 
 Candles are numbered in the order of the islands: 0 to 2 Meadow Island, 3 to 6
 Tanglewood, 7 to 11 Highcrag, 12 to 16 Frostfang, 17 to 21 Underroot, 22 to 26
-Saltmere, 27 to 31 Sunveld, 32 to 36 Coilstone, 37 to 41 Hollowfen.
+Saltmere, 27 to 31 Sunveld, 32 to 36 Coilstone, 37 to 41 Hollowfen, 42 to 46
+Galecrest.
 
 Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `tw-south`, `tw-grove`, `hc-prow`, `hc-south`, `hc-north`, `hc-east`,
@@ -431,7 +481,8 @@ Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `sm-salt`, `sm-key`, `sm-pearl`, `sunveld`, `sv-mid`, `sv-table`, `sv-east`,
 `sv-kraal`, `sv-yard`, `sv-kopje`, `sv-end`, `coilstone`, `cs-hub`, `cs-court`,
 `cs-rim`, `cs-far`, `cs-foot`, `cs-end`, `hollowfen`, `hf-hub`, `hf-ring`,
-`hf-rim`, `hf-far`, `hf-foot`, `hf-well`, `hf-end`.
+`hf-rim`, `hf-far`, `hf-foot`, `hf-well`, `hf-end`, `galecrest`, `gc-hub`,
+`gc-ring`, `gc-rim`, `gc-far`, `gc-foot`, `gc-edge`, `gc-end`.
 
 ## Decisions the plan did not spell out
 
@@ -682,6 +733,51 @@ These were chosen to get a playable build. Change any of them freely.
   island, and its thin sheets and brittle crust are reed mats. The look of the
   island and of the Axolotl (pink, with six gill stalks in rainbow colours) was
   built without being seen on a screen.
+- **Wings glide, and only the Human has them.** The plan says level 10 gives
+  wings that fly far, fast and without tiring. Here they are a glide, like a
+  paraglider: far and fast, never up, and with nothing to run out. They are
+  not an eleventh form and not for every form, so the Human, which the checker
+  could never tell from the others, now has work that is its own: no hop and
+  no flight carries 43 tiles.
+- **A glide needs height, not a run.** A hop, then a flight, gains about one
+  tile for each step of drop; a glide gains six. So what only wings reach is a
+  low place far from high ground. Kestrel Rock is 11 under the heath and 43
+  tiles out; a glide from the edge has about 30 tiles to spare, and the Crag
+  (19.5) is a higher place to start from.
+- **No shape-shifting on the wing.** Wings do not open after a change of shape
+  in the air, and once they have opened there is no changing until you land.
+  Without those two rules a Bunny's hop or a Fairy's flight could start a
+  glide in mid-air and the checker would have to know every such mix.
+- **The wings cannot help with Galecrest's own candles,** because they come
+  with the fifth. The way off needs only the Human.
+- **The Last Stone is a dead end.** The ring of hollows round it has no top,
+  so nothing flies off it. The way to Galecrest starts from Hollowfen's east
+  bank, which every form reaches. So that a player still needs the Axolotl to
+  go on, the gate stands on Galecrest: the Windbreak.
+- **The Windbreak is 18 high and crosses the whole island.** That is above a
+  hop, then a flight, from the heath (12 + 4.93), so nothing gets onto it or
+  over it, and the Sluice's hollows close the one opening. A wall hides what
+  stands close behind it, so the Yard behind the wall is empty but for bread.
+- **Galecrest's Court is 17 tiles from Hollowfen,** not the 24 to 30 first
+  planned. Hollowfen's bank is at 12, and on the easy setting a hop, then a
+  flight, from it comes down on ground at 5 no more than 19 tiles out.
+- **A use for hiding:** two guards stand on the Court's bank by the Sluice.
+  An Axolotl under the roof is hidden, and they give up; the whole-island test
+  runs it with a real guard.
+- **Seven of the ten forms are proved to have work of their own on
+  Galecrest's candles:** take away the Fairy, Orangutan, Bunny, Ant, Cheetah,
+  Snake or Axolotl and a candle goes out of reach
+  (`src/islands/galecrest-whole.test.ts`). The Human and the Wolf are
+  the exceptions as before, and now the Mermaid too: the Axolotl dives as deep
+  as she does, so the checker cannot tell her work in the Tarn from its.
+- **Galecrest's rooms are Hollowfen's, moved and renamed,** 207 columns
+  farther east, because those shapes were already proved. What is new is the
+  arrival (the Court, the Windbreak, the Sluice) and the way off.
+- **Kestrel Rock has a checkpoint though the only way off it is a fall.** The
+  game stops there for now, and the next island will start from it.
+- **Galecrest has its own ground:** heather, scree and quartz, used on no
+  other island. Its look, and the wings', were built without being seen on a
+  screen.
 - **Tangle strands are faint threads:** one thin, pale, see-through thread per
   tile, so the wall still reads as going up but hides nothing behind it.
 - **Trees are solid:** a Human walks around them and arrows stop at them.
@@ -690,12 +786,13 @@ These were chosen to get a playable build. Change any of them freely.
 
 ## Next
 
-1. The island after the Last Stone, with wings (level 10).
+1. The two bosses (land, then underwater), level 11 and the end of the game.
 2. Bad guys that can be fought in the water, for the Mermaid's powers.
-3. Work only the Wolf and only the Human can do, that the checker can see.
-4. The two bosses (land, then underwater), level 11 and the end of the game.
-5. Character customising.
-6. More for the other forms to do on the ways off Underroot (Human, Ant and
+3. Work only the Wolf and only the Mermaid can do, that the checker can see.
+4. Character customising.
+5. More for the other forms to do on the ways off Underroot (Human, Ant and
    Fairy only), Saltmere (Mermaid only), Sunveld (Cheetah and Bunny only),
-   Coilstone (Snake only) and Hollowfen (Axolotl only).
-7. A use in play for the Axolotl's hiding: no bad guy stands near the Well.
+   Coilstone (Snake only), Hollowfen (Axolotl only) and Galecrest (Human
+   only).
+6. Rooms of its own for Galecrest, which repeats Hollowfen's.
+7. A way back from Kestrel Rock.
