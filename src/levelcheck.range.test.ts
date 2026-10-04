@@ -87,11 +87,11 @@ describe('a bounded explore', () => {
 
   // A glide carries far more than 21 tiles, so with wings a range must hold the
   // whole glide. Galecrest's does: its tests search from Hollowfen's east hub to
-  // the end of the world.
+  // the end of the island (x 1590).
   const full = process.env.RANGE_PROOF === 'full' ? it : () => {};
   full('reaches inside Galecrest with wings what the whole world reaches', () => {
-    const own = { x0: 1347, x1: world.width };
-    const range = { x0: 1260, x1: world.width };
+    const own = { x0: 1347, x1: 1590 };
+    const range = { x0: 1260, x1: 1590 };
     const from = { x: 1349.5, z: 31.5 };
     const ten: FormId[] = [...SEVEN, 'cheetah', 'snake', 'axolotl'];
     for (const profile of ['easy', 'max'] as const) {

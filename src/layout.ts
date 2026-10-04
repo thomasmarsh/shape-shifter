@@ -44,6 +44,12 @@ export const enum Kind {
   Scree,
   /** Ordinary ground with a pale pink-white quartz top, for the crest's stones. Behaves like Stone. */
   Quartz,
+  /** Ordinary ground with a dark grey ash top, for the last island. Behaves like Dirt. */
+  Ash,
+  /** Ordinary ground with a black glassy top, for the last island's walls. Behaves like Stone. */
+  Obsidian,
+  /** Ordinary ground with a warm pink coral top, for the bed of the last lake. Behaves like Sand. */
+  Coral,
 }
 
 /**

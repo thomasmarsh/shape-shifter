@@ -49,7 +49,7 @@ export const NO_STAND = 100;
 const BOULDER = 0.9;
 
 /** Tiles from west to east. Background clouds in game.ts follow it. */
-export const WORLD_WIDTH = 1590;
+export const WORLD_WIDTH = 1700;
 
 /** Saltmere's water: turquoise, darker and bluer the deeper the bed (2 bright, 4 mid, 7 dark). */
 const SEA_STOPS: [number, THREE.Color][] = [
@@ -836,6 +836,15 @@ export class World {
         case Kind.Quartz:
           c.setHSL(0.95, 0.3, 0.86 + v * 0.05);
           break;
+        case Kind.Ash:
+          c.setHSL(0.06, 0.06, 0.34 + v * 0.05);
+          break;
+        case Kind.Obsidian:
+          c.setHSL(0.74, 0.22, 0.14 + v * 0.04);
+          break;
+        case Kind.Coral:
+          c.setHSL(0.03 + v * 0.02, 0.62, 0.66 + v * 0.05);
+          break;
         case Kind.Moss:
           c.setHSL(0.43 + v * 0.03, 0.55, 0.3 + v * 0.06);
           break;
@@ -907,6 +916,15 @@ export class World {
           break;
         case Kind.Quartz:
           c.setHSL(0.95, 0.14, 0.64 + v * 0.05);
+          break;
+        case Kind.Ash:
+          c.setHSL(0.06, 0.05, 0.22 + v * 0.04);
+          break;
+        case Kind.Obsidian:
+          c.setHSL(0.74, 0.18, 0.08 + v * 0.03);
+          break;
+        case Kind.Coral:
+          c.setHSL(0.03, 0.4, 0.46 + v * 0.05);
           break;
         case Kind.Cloud:
           c.setHSL(0.58, 0.35, 0.93);
