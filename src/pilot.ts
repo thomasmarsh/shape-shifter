@@ -1,4 +1,4 @@
-import { FORMS, FormId, PHYSICS } from './forms';
+import { FORMS, FormId, PHYSICS, RUN_BREATH } from './forms';
 import type { Controls } from './input';
 import { Particles } from './particles';
 import { Player } from './player';
@@ -68,6 +68,10 @@ export class Pilot {
   lowestEnergy = Infinity;
   /** The slowest ground speed (tiles per second) seen on thin ice during `sprint`, for ice tests. */
   minIceSpeed = Infinity;
+  /** Why the last move gave up, when the pilot knows (a Cheetah gone winded); otherwise null. */
+  reason: string | null = null;
+  /** `breathe` is under way: a winded Cheetah is then no reason to stop. */
+  private breathing = false;
   /** A hop is under way, so Space stays down until we land. */
   private jumping = false;
 
@@ -86,7 +90,8 @@ export class Pilot {
     });
     // Tests share one World, so a pilot starts with all the thin ice whole.
     world.resetIce();
-    this.player.level = 6;
+    world.resetGates();
+    this.player.level = 7;
     this.shift(form);
     if (world.solidAt(start.x, start.z, this.player.form.height, this.player.form.dive) !== world.groundAt(start.x, start.z)) {
       throw new Error(`cannot start at (${start.x}, ${start.z}): something solid stands there`);
@@ -138,6 +143,11 @@ export class Pilot {
     const frames = Math.round(seconds / DT);
     for (let n = 0; n < frames && !this.fell; n++) {
       if (done()) return true;
+      // A Cheetah out of breath is slowed and breaks every sheet: the move has failed.
+      if (!this.breathing && this.player.form.id === 'cheetah' && this.player.winded) {
+        this.reason = `the Cheetah went winded at ${this.describe()}`;
+        return false;
+      }
       each();
       this.frame();
     }
@@ -161,7 +171,7 @@ export class Pilot {
 
   // ---- moves -------------------------------------------------------------
 
-  /** Change shape, which needs the level to be high enough (the pilot is level 6). */
+  /** Change shape, which needs the level to be high enough (the pilot is level 7). */
   shift(form: FormId): void {
     const index = FORMS.findIndex((f) => f.id === form);
     if (index !== this.player.formIndex) {
@@ -174,6 +184,18 @@ export class Pilot {
   wait(seconds: number): void {
     this.stopSteering();
     this.run(() => false, seconds);
+  }
+
+  /**
+   * Stand still, in any form, until the Cheetah's breath is full again (and it
+   * is no longer winded). Fails if that takes longer than `seconds`.
+   */
+  breathe(seconds = RUN_BREATH): boolean {
+    this.stopSteering();
+    this.breathing = true;
+    const ok = this.run(() => this.player.breath >= RUN_BREATH - 1e-6 && !this.player.winded, seconds);
+    this.breathing = false;
+    return ok;
   }
 
   /** Walk on the ground to a point. Fails if something blocks the way. */
@@ -425,6 +447,22 @@ export class Pilot {
     });
     this.stopSteering();
     return ok;
+  }
+
+  /**
+   * Press a timed gate's plate and run through the gate: walk onto the plate
+   * tile (in whatever form we are), shift to `form` (the Cheetah by default) and
+   * sprint to `through` without stopping. The plate is pressed while we stand on
+   * it and the gate's clock starts the moment we leave it. Fails if the walk to
+   * the plate fails, or the sprint does (a gate that closes first is a wall).
+   */
+  runGate(plate: Spot, through: Spot, opts: MoveOptions & { form?: FormId } = {}): boolean {
+    const { form = 'cheetah', seconds = 8 } = opts;
+    const centre = { x: Math.floor(plate.x) + 0.5, z: Math.floor(plate.z) + 0.5 };
+    if (!this.walk(centre)) return false;
+    if (!this.world.plateAtPoint(this.x, this.z)) throw new Error(`no plate under (${centre.x}, ${centre.z})`);
+    this.shift(form);
+    return this.sprint(through, { seconds });
   }
 
   /**

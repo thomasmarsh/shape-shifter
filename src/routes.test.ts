@@ -363,9 +363,8 @@ function hopFlies(gap: number, rise: number, edge: number): boolean {
 
 /** The widest gap (in tiles of sky) she crosses at this rise. */
 function widestGap(rise: number, edge: number): number {
-  let best = 0;
-  for (let gap = 1; gap <= 40; gap++) if (hopFlies(gap, rise, edge)) best = gap;
-  return best;
+  for (let gap = 40; gap >= 1; gap--) if (hopFlies(gap, rise, edge)) return gap;
+  return 0;
 }
 
 describe('Route 12: hop-then-fly, with the real physics', () => {

@@ -10,10 +10,12 @@ const { layout } = world;
 const MEADOW_PUZZLES = ['grove', 'hilltop', 'islet'];
 const MEADOW_CHECKPOINTS = ['meadow', 'middle', 'bluff'];
 const MEADOW_BREAD = ['meadow', 'north', 'south'];
+/** The meadow (x 0-62) and the next island's first columns: see levelcheck.range.test.ts. */
+const NEAR = { x0: 0, x1: 125 };
 
 describe('the real world', () => {
   it('lets a human on easy reach everything on the meadow island', () => {
-    const r = explore(world, layout.spawn, ['human'], 'easy');
+    const r = explore(world, layout.spawn, ['human'], 'easy', NEAR);
     for (const p of layout.puzzles.filter((k) => MEADOW_PUZZLES.includes(k.id))) {
       expect(r.canUse(p.speaker), `${p.id} speaker`).toBe(true);
       expect(r.canUse(p.candle), `${p.id} candle`).toBe(true);
@@ -29,14 +31,14 @@ describe('the real world', () => {
   });
 
   it('keeps a human, even at the limit, off the resting cloud and the next island', () => {
-    const r = explore(world, layout.spawn, ['human'], 'max');
+    const r = explore(world, layout.spawn, ['human'], 'max', NEAR);
     expect(r.canStand({ x: 52.5, z: 22.5 })).toBe(false);
     const arrival = layout.arrivals.find((a) => a.id === 'tanglewood')!;
     expect(r.canStand(arrival)).toBe(false);
   });
 
   it('lets a human who can turn into a fairy cross the gap', () => {
-    const r = explore(world, layout.spawn, ['human', 'fairy'], 'easy');
+    const r = explore(world, layout.spawn, ['human', 'fairy'], 'easy', NEAR);
     expect(r.canStand({ x: 52.5, z: 22.5 })).toBe(true);
     const arrival = layout.arrivals.find((a) => a.id === 'tanglewood')!;
     expect(r.canStand(arrival)).toBe(true);
@@ -221,9 +223,139 @@ describe('thin ice', () => {
     ice.resetIce();
   });
 
-  it('knows the wolf, and still refuses forms it does not know', () => {
+  it('knows the wolf and the cheetah, and still refuses forms it does not know', () => {
     expect(() => explore(ice, bank, ['wolf'], 'easy')).not.toThrow();
-    expect(() => explore(ice, bank, ['cheetah'], 'easy')).toThrow(/cheetah/);
+    expect(() => explore(ice, bank, ['cheetah'], 'easy')).not.toThrow();
+    expect(() => explore(ice, bank, ['snake'], 'easy')).toThrow(/snake/);
+  });
+
+  it('is crossed by a cheetah as well as by a wolf', () => {
+    for (const profile of ['easy', 'max'] as const) {
+      expect(explore(ice, bank, ['cheetah'], profile).canStand(farBank), profile).toBe(true);
+    }
+  });
+});
+
+// ---- the cheetah: gaps, brittle sheets and timed gates -----------------------
+
+/** A strip of ground in row 15 with `build` shaping it, and a spawn at its west end. */
+function strip(build: (t: Parameters<Island['build']>[0]) => Partial<ReturnType<Island['build']>>): World {
+  return new World([{ id: 'strip', name: 'Strip', build: (t) => ({ spawn: { x: 2.5, z: 15.5 }, ...build(t) }) }]);
+}
+const stripAt = (i: number) => ({ x: i + 0.5, z: 15.5 });
+const ALL = ['human', 'fairy', 'orangutan', 'bunny', 'wolf', 'ant', 'mermaid', 'cheetah'] as const;
+
+describe('the cheetah on the flat', () => {
+  /** Ground in tiles 0-19, then `gapTiles` of sky, then ground to tile 60. */
+  const gapped = (gapTiles: number): World =>
+    strip((t) => {
+      t.rect(0, 14, 19, 16, (i, j) => t.set(i, j, FLOOR, Kind.Stone));
+      t.rect(20 + gapTiles, 14, 60, 16, (i, j) => t.set(i, j, FLOOR, Kind.Stone));
+      return {};
+    });
+
+  it('clears a gap of 6 on easy, and a gap of 7 only at the limit', () => {
+    const six = gapped(6);
+    const seven = gapped(7);
+    const eight = gapped(8);
+    expect(explore(six, stripAt(2), ['cheetah'], 'easy').canStand(stripAt(40))).toBe(true);
+    expect(explore(seven, stripAt(2), ['cheetah'], 'easy').canStand(stripAt(40))).toBe(false);
+    expect(explore(seven, stripAt(2), ['cheetah'], 'max').canStand(stripAt(40))).toBe(true);
+    expect(explore(eight, stripAt(2), ['cheetah'], 'max').canStand(stripAt(40))).toBe(false);
+  });
+
+  it('is faster than the wolf and the human over the same gap', () => {
+    for (const form of ['human', 'wolf'] as const) {
+      expect(explore(gapped(6), stripAt(2), [form], 'max').canStand(stripAt(40)), form).toBe(false);
+    }
+  });
+});
+
+describe('brittle sheets', () => {
+  /** A bank (0-9), a brittle bridge (10-39) and a far bank (40-50). */
+  const brittleBridge = strip((t) => {
+    t.rect(0, 14, 9, 16, (i, j) => t.set(i, j, FLOOR, Kind.Snow));
+    t.rect(40, 14, 50, 16, (i, j) => t.set(i, j, FLOOR, Kind.Snow));
+    t.rect(10, 14, 39, 16, (i, j) => t.setBrittle(i, j, FLOOR));
+    return {};
+  });
+
+  it('cannot be entered by a wolf, even at the limit, but a cheetah crosses it', () => {
+    for (const profile of ['easy', 'max'] as const) {
+      expect(explore(brittleBridge, stripAt(2), ['human', 'wolf'], profile).has(10, 15), profile).toBe(false);
+      const r = explore(brittleBridge, stripAt(2), ['wolf', 'cheetah'], profile);
+      expect(r.canStand(stripAt(20)), profile).toBe(true);
+      expect(r.canStand(stripAt(45)), profile).toBe(true);
+    }
+  });
+
+  it('is not a place to use something from', () => {
+    expect(explore(brittleBridge, stripAt(2), ['cheetah'], 'easy').canUse(stripAt(20))).toBe(false);
+  });
+});
+
+describe('timed gates', () => {
+  /**
+   * Ground in tiles 0-`len`; a plate at tile 5 that opens `seconds` of gate at
+   * tile `gateAt`. The strip is one tile wide, so the gate is the only way on.
+   */
+  const gated = (gateAt: number, seconds: number, len = 60): World =>
+    strip((t) => {
+      t.rect(0, 15, len, 15, (i, j) => t.set(i, j, FLOOR, Kind.Stone));
+      t.setGate(gateAt, 15, 'g');
+      return { plates: [{ x: 5.5, z: 15.5, gate: 'g', seconds }] };
+    });
+
+  it('opens for a cheetah 30 tiles from its plate with 3.6 s, and for nothing without it', () => {
+    const w = gated(34, 3.6);
+    expect(explore(w, stripAt(2), ['cheetah'], 'easy').canStand(stripAt(50))).toBe(true);
+    const slow = ALL.filter((f) => f !== 'cheetah');
+    for (const profile of ['easy', 'max'] as const) {
+      // The wolf needs 4.3 s for it.
+      expect(explore(w, stripAt(2), slow, profile).canStand(stripAt(50)), profile).toBe(false);
+      expect(explore(w, stripAt(2), slow, profile).canStand(stripAt(20)), `${profile} before the gate`).toBe(true);
+    }
+  });
+
+  it('keeps 0.4 s in hand on easy', () => {
+    const w = gated(34, 3.3);
+    expect(explore(w, stripAt(2), ['cheetah'], 'easy').canStand(stripAt(50))).toBe(false);
+    expect(explore(w, stripAt(2), ['cheetah'], 'max').canStand(stripAt(50))).toBe(true);
+  });
+
+  it('opens for every form when the plate is 2 tiles from the gate and gives 3 s', () => {
+    const w = gated(7, 3);
+    for (const form of ALL) {
+      for (const profile of ['easy', 'max'] as const) {
+        expect(explore(w, stripAt(2), [form], profile).canStand(stripAt(50)), `${form} ${profile}`).toBe(true);
+      }
+    }
+  });
+
+  it('is a wall nothing flies, hops or walks over while no form can beat the clock', () => {
+    const w = gated(7, 0.1);
+    for (const profile of ['easy', 'max'] as const) {
+      expect(explore(w, stripAt(2), ALL, profile).canStand(stripAt(8)), profile).toBe(false);
+      expect(explore(w, stripAt(2), ALL, profile).canStand(stripAt(50)), profile).toBe(false);
+    }
+  });
+
+  it('is a fixed point: opening one gate can reach the plate of the next', () => {
+    const chain = strip((t) => {
+      t.rect(0, 15, 60, 15, (i, j) => t.set(i, j, FLOOR, Kind.Stone));
+      t.setGate(10, 15, 'a');
+      t.setGate(40, 15, 'b');
+      return {
+        plates: [
+          { x: 5.5, z: 15.5, gate: 'a', seconds: 3 },
+          { x: 20.5, z: 15.5, gate: 'b', seconds: 3 },
+        ],
+      };
+    });
+    expect(explore(chain, stripAt(2), ['cheetah'], 'easy').canStand(stripAt(55))).toBe(true);
+    // An ant opens the first gate (6 tiles in 3 s) and reaches the second plate, but not the second gate.
+    expect(explore(chain, stripAt(2), ['ant'], 'max').canStand(stripAt(20))).toBe(true);
+    expect(explore(chain, stripAt(2), ['ant'], 'max').canStand(stripAt(50))).toBe(false);
   });
 });
 

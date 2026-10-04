@@ -457,6 +457,45 @@ export function makeWolf(): WolfModel {
   return { group, body, tail, legFL, legFR, legBL, legBR };
 }
 
+/**
+ * A sandy, spotted copy of the wolf: slim, long-legged and long-tailed, with a
+ * small head and dark tear lines. Same handles, so the wolf's gait animation
+ * drives it.
+ */
+export function makeCheetah(): WolfModel {
+  const m = makeWolf();
+  const swap = new Map<THREE.Material, THREE.Material>([
+    [mat(0xf4f7fb), mat(0xd9a441)],
+    [mat(0xdfe6ee), mat(0xf0d9a0)],
+    [mat(0x8e9bad), mat(0xb07a2a)],
+    [mat(0x5d6a7c), mat(0x6b4a1e)],
+  ]);
+  m.group.traverse((o) => {
+    if (o instanceof THREE.Mesh) o.material = swap.get(o.material as THREE.Material) ?? o.material;
+  });
+  const spot = mat(0x2b1d0e);
+  for (let n = 0; n < 9; n++) {
+    const z = -0.5 + (n % 3) * 0.4;
+    const side = n < 5 ? -1 : 1;
+    m.body.add(box(0.06, 0.1, 0.1, spot, side * 0.29, 1.0 + 0.18 + (n % 2) * 0.12, z));
+  }
+  // A small head: every head part (and the ears) shrinks toward the middle of the face.
+  const face = new THREE.Vector3(0, 1.5, 1.0);
+  for (const o of m.body.children) {
+    if (o instanceof THREE.Mesh && o.position.z > 0.8) {
+      o.position.sub(face).multiplyScalar(0.75).add(face);
+      o.scale.multiplyScalar(0.75);
+    }
+  }
+  // Spots along the back, then the dark tear lines from the eyes down the muzzle.
+  for (let n = 0; n < 6; n++) m.body.add(box(0.07, 0.04, 0.09, spot, (n % 2 ? 1 : -1) * 0.12, 1.45, -0.55 + Math.floor(n / 2) * 0.35));
+  for (const side of [-1, 1]) m.body.add(box(0.035, 0.2, 0.04, spot, side * 0.11, 1.33, 1.09));
+  // A long thin tail, and legs longer than the wolf's on a slimmer frame.
+  m.tail.scale.set(0.6, 0.6, 1.5);
+  m.group.scale.set(0.74, 0.96, 1.12);
+  return m;
+}
+
 export interface AntModel {
   group: THREE.Group;
   /** Three on each side, front to back, left side first. Each pivots at the body. */
@@ -529,6 +568,95 @@ export function makeBadGuy(tester: boolean): BadGuyModel {
     group.add(box(0.3, 0.3, 0.03, mat(0xffffff), 0, 0.85, 0.23), box(0.14, 0.14, 0.03, mat(0xe24a4a), 0, 0.85, 0.245));
   }
   return { group, armL, armR, legL, legR, bodyMat };
+}
+
+export interface SwordGuyModel extends BadGuyModel {
+  /** The blade's own iron, so it can glow while the sword is raised. */
+  bladeMat: THREE.MeshLambertMaterial;
+}
+
+/**
+ * The sword bad guy: the bad guy's heavy cousin. Broader, in dark slate armour
+ * with pauldrons and a helm, and an iron-grey sword in the right hand. The
+ * blade points forward from the fist, so a raised arm raises the sword.
+ */
+export function makeSwordGuy(): SwordGuyModel {
+  const group = new THREE.Group();
+  // The body material is shared by torso, arms and helm so it can flash and glow.
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0x3a4150 });
+  const plate = mat(0x242831);
+  const dark = mat(0x16181e);
+  const bladeMat = new THREE.MeshLambertMaterial({ color: 0xb4bcc6 });
+  const legL = limb(0.28, 0.45, 0.3, plate, -0.18, 0.45);
+  const legR = limb(0.28, 0.45, 0.3, plate, 0.18, 0.45);
+  const armL = limb(0.26, 0.6, 0.28, bodyMat, -0.52, 1.1);
+  const armR = limb(0.26, 0.6, 0.28, bodyMat, 0.52, 1.1);
+  armL.add(box(0.3, 0.24, 0.32, dark, 0, -0.62, 0));
+  armR.add(box(0.3, 0.24, 0.32, dark, 0, -0.62, 0));
+  // Crossguard, grip and a blade a little longer than the arm.
+  armR.add(
+    box(0.07, 0.07, 0.2, dark, 0, -0.62, 0.2),
+    box(0.3, 0.06, 0.07, plate, 0, -0.62, 0.3),
+    box(0.09, 0.05, 0.95, bladeMat, 0, -0.62, 0.82),
+  );
+  const eye = mat(0xff4d4d, { emissive: 0xaa1111 });
+  group.add(
+    legL,
+    legR,
+    armL,
+    armR,
+    box(0.8, 0.74, 0.5, bodyMat, 0, 0.82, 0),
+    box(0.84, 0.12, 0.54, plate, 0, 0.5, 0),
+    box(0.3, 0.3, 0.04, plate, 0, 0.9, 0.26),
+    // Pauldrons, helm, visor slit and a low crest.
+    box(0.36, 0.14, 0.4, plate, -0.5, 1.5, 0),
+    box(0.36, 0.14, 0.4, plate, 0.5, 1.5, 0),
+    box(0.54, 0.46, 0.5, bodyMat, 0, 1.4, 0),
+    box(0.4, 0.08, 0.05, dark, 0, 1.4, 0.26),
+    box(0.09, 0.05, 0.03, eye, -0.1, 1.4, 0.285),
+    box(0.09, 0.05, 0.03, eye, 0.1, 1.4, 0.285),
+    box(0.08, 0.16, 0.4, plate, 0, 1.7, 0),
+  );
+  return { group, armL, armR, legL, legR, bodyMat, bladeMat };
+}
+
+/**
+ * The blade bad guy: the sword guy's light cousin. Slim, in a pale sand wrap
+ * with a red sash and no armour, holding a short thin curved blade. Same
+ * model shape as the sword guy, so the enemy raises and glows it the same way.
+ */
+export function makeBladeGuy(): SwordGuyModel {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0xd8c08a });
+  const wrap = mat(0xb39a66);
+  const sash = mat(0xc23b3b);
+  const dark = mat(0x4a3a24);
+  const bladeMat = new THREE.MeshLambertMaterial({ color: 0xd4dae0 });
+  const legL = limb(0.18, 0.45, 0.2, wrap, -0.12, 0.45);
+  const legR = limb(0.18, 0.45, 0.2, wrap, 0.12, 0.45);
+  const armL = limb(0.15, 0.6, 0.17, bodyMat, -0.36, 1.1);
+  const armR = limb(0.15, 0.6, 0.17, bodyMat, 0.36, 1.1);
+  armL.add(box(0.18, 0.18, 0.2, dark, 0, -0.62, 0));
+  armR.add(box(0.18, 0.18, 0.2, dark, 0, -0.62, 0));
+  // A short grip and a blade that curves up toward the tip.
+  const tip = box(0.05, 0.04, 0.3, bladeMat, 0, -0.57, 0.88);
+  tip.rotation.x = -0.35;
+  armR.add(box(0.05, 0.05, 0.16, dark, 0, -0.62, 0.12), box(0.06, 0.04, 0.5, bladeMat, 0, -0.62, 0.46), tip);
+  const eye = mat(0xff4d4d, { emissive: 0xaa1111 });
+  group.add(
+    legL,
+    legR,
+    armL,
+    armR,
+    box(0.5, 0.7, 0.34, bodyMat, 0, 0.8, 0),
+    box(0.54, 0.14, 0.38, sash, 0, 0.62, 0),
+    box(0.1, 0.3, 0.05, sash, 0.2, 0.42, 0.18),
+    box(0.4, 0.38, 0.4, bodyMat, 0, 1.34, 0),
+    box(0.44, 0.1, 0.44, sash, 0, 1.5, 0),
+    box(0.08, 0.05, 0.03, eye, -0.1, 1.36, 0.205),
+    box(0.08, 0.05, 0.03, eye, 0.1, 1.36, 0.205),
+  );
+  return { group, armL, armR, legL, legR, bodyMat, bladeMat };
 }
 
 export interface ArcherModel extends BadGuyModel {
@@ -702,6 +830,42 @@ export function makeGreatPalm(seed: number): THREE.Group {
   return makePalmOf(seed, 5.0, 0.36, 1.3);
 }
 
+/**
+ * An acacia: a thin dark trunk with a wide, flat, layered umbrella canopy in
+ * olive green. `top` is the height of the solid block, `span` the canopy width.
+ */
+function makeAcaciaOf(seed: number, top: number, trunk: number, span: number): THREE.Group {
+  const group = new THREE.Group();
+  const bark = mat(0x4a3526);
+  const leaves = [mat(0x6b7a2f), mat(0x75842f), mat(0x61722c)];
+  const leaf = leaves[seed % 3];
+  const lower = top - 0.55;
+  group.add(
+    box(trunk, lower, trunk, bark, 0, lower / 2, 0),
+    // Two forks carry the layers, so the tree reads as an umbrella on a stalk.
+    box(trunk * 0.7, 0.5, trunk * 0.7, bark, trunk * 0.9, lower + 0.05, 0),
+    box(trunk * 0.7, 0.5, trunk * 0.7, bark, -trunk * 0.9, lower - 0.1, 0),
+    box(span, 0.22, span * 0.9, leaf, 0, top - 0.5, 0),
+    box(span * 0.72, 0.22, span * 0.65, leaves[(seed + 1) % 3], span * 0.05, top - 0.3, 0),
+    box(span * 0.4, 0.18, span * 0.4, leaves[(seed + 2) % 3], 0, top - 0.09, 0),
+  );
+  group.rotation.y = (seed % 4) * 0.4;
+  return group;
+}
+
+/** An acacia, 4.0 up exactly like a regular tree's solid block. */
+export function makeAcacia(seed: number): THREE.Group {
+  return makeAcaciaOf(seed, 4.0, 0.22, 2.1);
+}
+
+/** A great acacia, exactly 5.0 tall like a great tree, with a stouter trunk and a broader flat top. */
+export function makeGreatAcacia(seed: number): THREE.Group {
+  const tree = makeAcaciaOf(seed, 5.0, 0.4, 2.7);
+  // Two stubby branches so the trunk reads as climbable, like the other great trees.
+  tree.add(box(0.8, 0.18, 0.2, mat(0x4a3526), 0.45, 2.3, 0), box(0.2, 0.18, 0.8, mat(0x4a3526), 0, 3.0, -0.45));
+  return tree;
+}
+
 /** A pine: a short trunk and stacked tiers with snow on top. Its top is 3.8 to 4.0 up, matching its solid block. */
 export function makePine(seed: number): THREE.Group {
   const group = new THREE.Group();
@@ -820,10 +984,11 @@ export function makeCandle(): CandleModel {
  * yellow-green gherkin about 1.1 tall with darker bumps, and a soft glow above
  * it where the flame would be. It hands back the same parts as a candle.
  */
-export function makePickle(): CandleModel {
+export function makePickle(rise = 0): CandleModel {
   const group = new THREE.Group();
-  const body = mat(0xa8c93c);
-  const bump = mat(0x6f8f26);
+  // Unlit materials, so the pickle glows at the bottom of a dark pit.
+  const body = new THREE.MeshBasicMaterial({ color: 0xc4e84a });
+  const bump = new THREE.MeshBasicMaterial({ color: 0x86b02c });
   group.add(
     box(0.4, 0.14, 0.4, body, 0, 0.07, 0),
     box(0.54, 0.8, 0.54, body, 0, 0.54, 0),
@@ -860,6 +1025,23 @@ export function makePickle(): CandleModel {
   );
   cage.position.y = 0.85;
   group.add(flame, cage);
+  // A pale glow column from the pickle up to the water surface, so it reads
+  // through the sea from the fixed camera. Looks only.
+  if (rise > 1.5) {
+    const beam = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, rise, 0.7),
+      new THREE.MeshBasicMaterial({
+        color: 0xd8ff5a,
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    beam.name = 'pickle-glow';
+    beam.position.y = rise / 2;
+    group.add(beam);
+  }
   return { group, flame, cage };
 }
 

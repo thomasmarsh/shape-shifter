@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { sound } from './audio';
+import { WaterPowers } from './waterpowers';
 import { Arrows } from './arrows';
 import { Enemy } from './enemy';
 import { FORMS, lightsNeeded, swordTier } from './forms';
@@ -7,7 +8,18 @@ import { Card, Hud } from './hud';
 import { Input } from './input';
 import { coldAt, Snowfall } from './frost';
 import { hash } from './layout';
-import { makeBoulder, makeCloud, makeGreatPalm, makeGreatPine, makeGreatTree, makePalm, makePine, makeTree } from './models';
+import {
+  makeAcacia,
+  makeBoulder,
+  makeCloud,
+  makeGreatAcacia,
+  makeGreatPalm,
+  makeGreatPine,
+  makeGreatTree,
+  makePalm,
+  makePine,
+  makeTree,
+} from './models';
 import { Particles } from './particles';
 import { Player } from './player';
 import { PuzzleUi } from './puzzleUi';
@@ -60,6 +72,7 @@ export class Game {
   private breads: BreadPickup[] = [];
   private particles = new Particles();
   private arrows: Arrows;
+  private waterPowers: WaterPowers;
   private clouds: THREE.Group[] = [];
   private orbs: THREE.Mesh[] = [];
   private flying: FlyingLight[] = [];
@@ -118,7 +131,8 @@ export class Game {
 
     this.world = new World();
     this.arrows = new Arrows(this.world, this.particles);
-    this.scene.add(this.world.group, this.particles.group, this.arrows.group);
+    this.waterPowers = new WaterPowers(this.world, this.particles, this.enemies);
+    this.scene.add(this.world.group, this.particles.group, this.arrows.group, this.waterPowers.group);
     for (let n = 0; n < CANDLE_LIGHTS; n++) {
       const light = new THREE.PointLight(0xffb84d, 0, 7, 2);
       this.candleLights.push(light);
@@ -203,6 +217,8 @@ export class Game {
         greatPine: makeGreatPine,
         palm: makePalm,
         greatPalm: makeGreatPalm,
+        acacia: makeAcacia,
+        greatAcacia: makeGreatAcacia,
       };
       const tree = makers[t.kind](seed);
       tree.position.set(t.x, this.world.groundAt(t.x, t.z), t.z);
@@ -287,6 +303,7 @@ export class Game {
     const c = this.checkpoints.find((k) => k.id === this.activeCheckpoint);
     const spot = c ? c.standSpot : this.world.layout.spawn;
     this.world.resetIce();
+    this.world.resetGates();
     this.player.place(spot.x, spot.z);
   }
 
@@ -301,8 +318,9 @@ export class Game {
         <li><kbd>E</kbd> use things</li>
         <li><kbd>F</kbd> eat bread</li>
         <li><kbd>Shift</kbd> Dive, as a Human or a Mermaid (hold it; let go to float up)</li>
-        <li><kbd>0</kbd>–<kbd>6</kbd> shape-shift: <kbd>1</kbd> Fairy, <kbd>2</kbd> Orangutan, <kbd>3</kbd> Bunny, <kbd>4</kbd> Winter Wolf, <kbd>5</kbd> Ant, <kbd>6</kbd> Mermaid, <kbd>0</kbd> Human</li>
-        <li><kbd>Q</kbd> fairy home</li>
+        <li><kbd>0</kbd>–<kbd>7</kbd> shape-shift: <kbd>1</kbd> Fairy, <kbd>2</kbd> Orangutan, <kbd>3</kbd> Bunny, <kbd>4</kbd> Winter Wolf, <kbd>5</kbd> Ant, <kbd>6</kbd> Mermaid, <kbd>7</kbd> Cheetah, <kbd>0</kbd> Human</li>
+        <li><kbd>Q</kbd> fairy home, or the Mermaid's water shot (swimming)</li>
+        <li><kbd>R</kbd> Mermaid's bubble column (swimming)</li>
         <li><kbd>Esc</kbd> pause</li>
       </ul>`;
   }
@@ -427,6 +445,7 @@ export class Game {
       this.toCheckpoint();
       for (const e of this.enemies) e.reset();
       this.arrows.clear();
+      this.waterPowers.clear();
       this.snapCamera();
       this.transition = false;
       this.save();
@@ -586,6 +605,12 @@ export class Game {
         done: () => this.flags.has('used:mermaid'),
       },
       {
+        id: 'cheetah',
+        text: 'New shape! Press <kbd>7</kbd> to become a Cheetah. Run, and the fastest gates will open for you.',
+        when: () => p.level >= 7 && p.form.id === 'human',
+        done: () => this.flags.has('used:cheetah'),
+      },
+      {
         id: 'ice',
         text: 'Thin ice only holds for a runner. Keep running and do not stop.',
         when: () => p.form.id === 'wolf',
@@ -671,6 +696,7 @@ export class Game {
     this.wakeEnemies();
     for (const e of this.enemies) e.update(dt, p, this.enemies);
     this.arrows.update(dt, p);
+    this.waterPowers.update(dt, p, this.input);
     if (p.hearts < heartsBefore) this.hud.hurt();
 
     // Checkpoints light up when you walk near them.

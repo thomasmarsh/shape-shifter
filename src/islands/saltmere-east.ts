@@ -153,9 +153,9 @@ export function buildEast(t: Terrain): IslandLayout {
       x: 666.5,
       z: 55.5,
       radius: 3,
-      eyebrow: 'To be continued',
+      eyebrow: 'Onward',
       title: 'Pearl Rock',
-      html: '<p>Six islands crossed, seven shapes learned.</p><p class="soft">The way on from here is still being built.</p>',
+      html: '<p>Six islands crossed, seven shapes learned.</p><p class="soft">The way on is east and down: hop, then fly.</p>',
     },
   ];
 

@@ -350,7 +350,7 @@ const east = { x: 1, z: 0 };
 describe('Winter Wolf', () => {
   it('is the fastest form so far, and unlocks at level 4', () => {
     expect(FORMS.find((f) => f.id === 'wolf')!.speed).toBe(7);
-    expect(FORMS.filter((f) => f.playable && f.id !== 'wolf').every((f) => f.speed < ICE_SPEED)).toBe(true);
+    expect(FORMS.filter((f) => f.playable && f.id !== 'wolf' && f.id !== 'cheetah').every((f) => f.speed < ICE_SPEED)).toBe(true);
     const world = new World([island()]);
     const player = new Player(world, new Particles(), { onFell: () => {}, onDied: () => {}, onAte: () => {}, onHome: () => {} });
     player.level = 3;
@@ -944,5 +944,41 @@ describe('Pilot in water', () => {
     expect(pilot.swim(far, { seconds: 20 })).toBe(false);
     expect(pilot.swim(far, { seconds: 20, under: true })).toBe(false);
     expect(pilot.x).toBeLessThan(20);
+  });
+});
+
+// ---- the north and south edges of the grid ------------------------------
+
+describe('the edges of the grid', () => {
+  /** Ground only on the west end of a full-depth strip, so the rest is void. */
+  const strip = (z0: number, z1: number): Island => ({
+    id: 'strip',
+    name: 'Strip',
+    build(t) {
+      t.rect(0, z0, 20, z1, (i, j) => t.set(i, j, FLOOR, Kind.Grass));
+      return { spawn: { x: 2.5, z: z0 + 0.5 } };
+    },
+  });
+
+  it('stops a Fairy flying north at z 0.5 or south at z 63.5, inside the grid', () => {
+    for (const [z, dir] of [
+      [0.5, -1],
+      [63.5, 1],
+    ] as const) {
+      const rig = new Rig('fairy', strip(0, 63), { x: 6.5, z });
+      rig.pad.down.add('Space');
+      rig.pad.dir = { x: 0, z: dir };
+      rig.frames(120);
+      expect(rig.player.pos.z, `z ${z}`).toBeGreaterThanOrEqual(0);
+      expect(rig.player.pos.z, `z ${z}`).toBeLessThan(64);
+    }
+  });
+
+  it('still lets a Human walk off ground at z 60 into void at z 61 and fall', () => {
+    const rig = new Rig('human', strip(0, 60), { x: 6.5, z: 60.5 });
+    rig.pad.dir = { x: 0, z: 1 };
+    expect(rig.until(() => rig.player.pos.y < FLOOR - 3, 240)).toBe(true);
+    expect(rig.player.pos.z).toBeGreaterThan(61);
+    expect(rig.player.pos.z).toBeLessThan(64);
   });
 });

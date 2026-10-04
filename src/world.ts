@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { ISLANDS } from './islands';
-import { fitsUnderKelp, ICE_REGROW, KELP_DEEP } from './forms';
+import { BRITTLE_SPEED, fitsUnderKelp, ICE_REGROW, ICE_SPEED, KELP_DEEP } from './forms';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildFrostDecor, SNOW_CAP } from './frost';
-import { hash, Island, Kind, Layout, Spot, TANGLE_GAP, Terrain, TREE_BLOCK } from './layout';
+import { hash, Island, Kind, Layout, PlateSpot, Spot, TANGLE_GAP, Terrain, TREE_BLOCK } from './layout';
 
 export { Kind, TANGLE_GAP, TREE_BLOCK } from './layout';
 export type {
@@ -49,7 +49,7 @@ export const NO_STAND = 100;
 const BOULDER = 0.9;
 
 /** Tiles from west to east. Background clouds in game.ts follow it. */
-export const WORLD_WIDTH = 700;
+export const WORLD_WIDTH = 960;
 
 /** Saltmere's water: turquoise, darker and bluer the deeper the bed (2 bright, 4 mid, 7 dark). */
 const SEA_STOPS: [number, THREE.Color][] = [
@@ -63,8 +63,16 @@ export function seaWater(depth: number): number {
   return a[1].clone().lerp(b[1], t).getHex();
 }
 
+/** Sunveld's water holes: muddy green-brown in the shallows, dark green in the deep middle. */
+export function sunWater(depth: number): number {
+  return depth < 2 ? 0x8a7b43 : depth < 4 ? 0x66652f : 0x3a4524;
+}
+
 /** How thick the slab of thin ice is drawn. */
 const ICE_SLAB = 0.14;
+/** Gate bars: how tall, and where the four stand on a tile. */
+const BAR_HEIGHT = 40;
+const BAR_SPOTS = [[-0.4, -0.4], [0.4, -0.4], [-0.4, 0.4], [0.4, 0.4]];
 
 export class World {
   readonly width = WORLD_WIDTH;
@@ -94,6 +102,20 @@ export class World {
   private iceAge: Float32Array;
   /** Every tile that has thin ice, intact or not. */
   private iceTiles: number[] = [];
+  /** Real ground speed a thin sheet needs to hold, per tile: ICE_SPEED, BRITTLE_SPEED or 0 for none. */
+  private sheet: Float32Array;
+  /** Which timed gate a tile belongs to: an index into `gateIds` plus one, 0 where none. */
+  private gate: Uint8Array;
+  private gateIds: string[] = [];
+  /** Seconds each gate stays open, by gate index. A gate is open while this is above 0. */
+  private gateTimer: number[] = [];
+  /** What the gate bars were last drawn as, by gate index, so only a change redraws them. */
+  private gateShown: boolean[] = [];
+  private gateDraw: { bars: THREE.InstancedMesh; tiles: number[] }[] = [];
+  /** The round plate slabs: which tile and gate each instance is, so a pressed plate can sink. */
+  private plateDraw: { slabs: THREE.InstancedMesh; spots: { k: number; gate: number }[] } | null = null;
+  /** The plate on each tile, by tile index. */
+  private plateAt = new Map<number, PlateSpot>();
   /** The gap of the root tangle on each tile, 0 where there is none. */
   private tangle: Float32Array;
   /** How far below the water surface the kelp mat on each tile hangs, 0 where there is none. */
@@ -125,6 +147,8 @@ export class World {
     this.iceTop = new Float32Array(n).fill(-Infinity);
     this.iceOn = new Uint8Array(n);
     this.iceAge = new Float32Array(n);
+    this.sheet = new Float32Array(n);
+    this.gate = new Uint8Array(n);
     this.tangle = new Float32Array(n);
     this.kelp = new Float32Array(n);
     this.owner = new Uint8Array(n);
@@ -152,9 +176,13 @@ export class World {
    */
   solidAt(x: number, z: number, body = Infinity, dive = 0): number {
     const k = this.index(x, z);
-    if (k < 0) return -Infinity;
+    // Beyond the north and south edges is a wall with no top, so nobody flies around
+    // the end of a wall that spans the whole depth. East and west stay open.
+    if (k < 0) return x >= 0 && x < this.width && (z < 0 || z >= this.depth) ? NO_STAND : -Infinity;
     const walled =
-      (body > this.tangle[k] && this.tangle[k] > 0) || (this.kelp[k] > 0 && !fitsUnderKelp(body, dive, this.kelp[k]));
+      (body > this.tangle[k] && this.tangle[k] > 0) ||
+      (this.kelp[k] > 0 && !fitsUnderKelp(body, dive, this.kelp[k])) ||
+      this.closedGate(k);
     const ground = this.height[k] + this.block[k] + (walled ? NO_STAND : 0);
     return this.iceOn[k] ? Math.max(ground, this.iceTop[k]) : ground;
   }
@@ -241,6 +269,17 @@ export class World {
   isThinIce(x: number, z: number): boolean {
     const k = this.index(x, z);
     return k >= 0 && this.iceTop[k] > -Infinity;
+  }
+
+  /** True for a brittle sheet tile, whole or broken. */
+  isBrittle(x: number, z: number): boolean {
+    return this.sheetSpeedAt(x, z) === BRITTLE_SPEED;
+  }
+
+  /** Real ground speed the sheet on a tile needs to hold: ICE_SPEED, BRITTLE_SPEED, or 0 for none. */
+  sheetSpeedAt(x: number, z: number): number {
+    const k = this.index(x, z);
+    return k < 0 ? 0 : this.sheet[k];
   }
 
   /** Top of the thin-ice sheet on a tile whether whole or broken; -Infinity if none. */
@@ -340,6 +379,142 @@ export class World {
     draw.cracks.instanceMatrix.needsUpdate = true;
   }
 
+  // ---- timed gates -------------------------------------------------------
+
+  private closedGate(k: number): boolean {
+    const g = this.gate[k];
+    return g > 0 && !(this.gateTimer[g - 1] > 0);
+  }
+
+  /** True on a tile of any timed gate, open or closed. */
+  isGate(x: number, z: number): boolean {
+    const k = this.index(x, z);
+    return k >= 0 && this.gate[k] > 0;
+  }
+
+  /** True on a tile of a timed gate that is shut right now. */
+  isClosedGate(x: number, z: number): boolean {
+    const k = this.index(x, z);
+    return k >= 0 && this.closedGate(k);
+  }
+
+  /** True while gate `id` is open. An unknown gate counts as shut. */
+  gateOpen(id: string): boolean {
+    const g = this.gateIds.indexOf(id);
+    return g >= 0 && this.gateTimer[g] > 0;
+  }
+
+  /** Open gate `id` for at least `seconds` more. */
+  pressPlate(id: string, seconds: number): void {
+    const g = this.gateIds.indexOf(id);
+    if (g >= 0) this.gateTimer[g] = Math.max(this.gateTimer[g], seconds);
+  }
+
+  /** The plate whose tile holds this point, if any. */
+  plateAtPoint(x: number, z: number): PlateSpot | null {
+    const k = this.index(x, z);
+    return k < 0 ? null : (this.plateAt.get(k) ?? null);
+  }
+
+  /**
+   * Run the gates for one frame. A body on the ground with its centre on a
+   * plate holds that plate's gate open at the plate's `seconds`; every other
+   * gate counts down. A gate never closes on the circle (x, z, r): while it
+   * overlaps a tile of the gate, the gate stays open.
+   */
+  stepGates(dt: number, x: number, z: number, r: number, grounded: boolean): void {
+    if (this.gateIds.length === 0) return;
+    const pressed = new Set<number>();
+    const plate = grounded ? this.plateAtPoint(x, z) : null;
+    if (plate) {
+      this.pressPlate(plate.gate, plate.seconds);
+      pressed.add(this.gateIds.indexOf(plate.gate));
+    }
+    for (let g = 0; g < this.gateTimer.length; g++) {
+      if (!pressed.has(g)) this.gateTimer[g] = Math.max(0, this.gateTimer[g] - dt);
+    }
+    for (const [at, d] of this.gateDraw.entries()) {
+      if (this.gateTimer[at] <= 0 && d.tiles.some((k) => this.overlaps(k, x, z, r))) this.gateTimer[at] = 1e-6;
+      this.showGate(at);
+    }
+  }
+
+  /** Every gate shut again, as at the start. */
+  resetGates(): void {
+    this.gateTimer.fill(0);
+    this.gateDraw.forEach((_, g) => this.showGate(g));
+  }
+
+  private overlaps(k: number, x: number, z: number, r: number): boolean {
+    const i = k % this.width;
+    const j = Math.floor(k / this.width);
+    return x + r > i && x - r < i + 1 && z + r > j && z - r < j + 1;
+  }
+
+  /** Raise the bars of a gate when it shuts, sink them when it opens. */
+  private showGate(g: number): void {
+    const draw = this.gateDraw[g];
+    if (!draw) return;
+    const open = this.gateTimer[g] > 0;
+    if (this.gateShown[g] === open) return;
+    this.gateShown[g] = open;
+    const m = new THREE.Matrix4();
+    let n = 0;
+    for (const k of draw.tiles) {
+      const at = this.tileMiddle(k);
+      const top = this.height[k];
+      for (const [ox, oz] of BAR_SPOTS) {
+        if (open) m.makeScale(0, 0, 0);
+        else m.makeScale(0.12, BAR_HEIGHT, 0.12).setPosition(at.x + ox, top + BAR_HEIGHT / 2, at.z + oz);
+        draw.bars.setMatrixAt(n++, m);
+      }
+    }
+    draw.bars.instanceMatrix.needsUpdate = true;
+    this.showPlates(g, open);
+  }
+
+  /** A plate sits slightly proud of the ground; while its gate is open it is pressed flat. */
+  private showPlates(g: number, pressed: boolean): void {
+    const draw = this.plateDraw;
+    if (!draw) return;
+    const m = new THREE.Matrix4();
+    draw.spots.forEach((s, n) => {
+      if (s.gate !== g) return;
+      const thick = pressed ? 0.03 : 0.1;
+      m.makeScale(0.8, thick, 0.8).setPosition(this.tileMiddle(s.k).x, this.height[s.k] + thick / 2, this.tileMiddle(s.k).z);
+      draw.slabs.setMatrixAt(n, m);
+    });
+    draw.slabs.instanceMatrix.needsUpdate = true;
+  }
+
+  private buildGates(): void {
+    this.gateIds.forEach((_, g) => {
+      const tiles: number[] = [];
+      for (let k = 0; k < this.gate.length; k++) if (this.gate[k] === g + 1) tiles.push(k);
+      const bars = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshLambertMaterial({ color: 0x2a2623 }), // dark iron bars
+        tiles.length * BAR_SPOTS.length,
+      );
+      bars.name = 'gate';
+      this.gateDraw[g] = { bars, tiles };
+      this.group.add(bars);
+      this.showGate(g);
+    });
+    if (this.plateAt.size === 0) return;
+    // A round bronze plate.
+    const slabs = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.5, 0.5, 1, 20),
+      new THREE.MeshLambertMaterial({ color: 0xb5742f }),
+      this.plateAt.size,
+    );
+    slabs.name = 'plate';
+    const spots = [...this.plateAt.entries()].map(([k, p]) => ({ k, gate: this.gateIds.indexOf(p.gate) }));
+    this.plateDraw = { slabs, spots };
+    spots.forEach((s) => this.showPlates(s.gate, this.gateTimer[s.gate] > 0));
+    this.group.add(slabs);
+  }
+
   /** Mark a tile as solid up to `extra` above the ground (a tree, a speaker). */
   addBlock(x: number, z: number, extra: number): void {
     const k = this.index(x, z);
@@ -378,6 +553,8 @@ export class World {
         this.water[at(i, j)] = 0;
         this.iceTop[at(i, j)] = -Infinity;
         this.iceOn[at(i, j)] = 0;
+        this.sheet[at(i, j)] = 0;
+        this.gate[at(i, j)] = 0;
         this.tangle[at(i, j)] = 0;
         this.kelp[at(i, j)] = 0;
       },
@@ -390,6 +567,22 @@ export class World {
         if (!inside(i, j)) return;
         this.iceTop[at(i, j)] = h;
         this.iceOn[at(i, j)] = 1;
+        this.sheet[at(i, j)] = ICE_SPEED;
+      },
+      setBrittle: (i, j, h) => {
+        if (!inside(i, j)) return;
+        this.iceTop[at(i, j)] = h;
+        this.iceOn[at(i, j)] = 1;
+        this.sheet[at(i, j)] = BRITTLE_SPEED;
+      },
+      setGate: (i, j, id) => {
+        if (!inside(i, j)) return;
+        let g = this.gateIds.indexOf(id);
+        if (g < 0) {
+          g = this.gateIds.push(id) - 1;
+          this.gateTimer[g] = 0;
+        }
+        this.gate[at(i, j)] = g + 1;
       },
       setTangle: (i, j, gap = TANGLE_GAP) => {
         if (!inside(i, j)) return;
@@ -432,6 +625,7 @@ export class World {
       boulders: [],
       hints: [],
       arrivals: [],
+      plates: [],
     };
     let hasSpawn = false;
     for (const island of islands) {
@@ -453,9 +647,14 @@ export class World {
       layout.boulders.push(...(part.boulders ?? []));
       layout.hints.push(...(part.hints ?? []));
       layout.arrivals.push(...(part.arrivals ?? []));
+      layout.plates.push(...(part.plates ?? []));
     }
     if (!hasSpawn) throw new Error('No island has a spawn point');
     this.checkKelp();
+    for (const p of layout.plates) {
+      if (!this.gateIds.includes(p.gate)) throw new Error(`A plate opens gate "${p.gate}", which has no tiles`);
+      this.plateAt.set(this.index(p.x, p.z), p);
+    }
     for (let k = 0; k < this.iceTop.length; k++) {
       if (this.iceTop[k] > -Infinity) this.iceTiles.push(k);
     }
@@ -566,6 +765,12 @@ export class World {
         case Kind.Salt:
           c.setHSL(0.03, 0.3, 0.9 + v * 0.05);
           break;
+        case Kind.Straw:
+          c.setHSL(0.13 + v * 0.02, 0.62, 0.55 + v * 0.06);
+          break;
+        case Kind.Clay:
+          c.setHSL(0.04 + v * 0.015, 0.58, 0.46 + v * 0.05);
+          break;
         case Kind.Moss:
           c.setHSL(0.43 + v * 0.03, 0.55, 0.3 + v * 0.06);
           break;
@@ -607,6 +812,12 @@ export class World {
         case Kind.Sand:
           c.setHSL(0.11, 0.4, 0.6 + v * 0.04);
           break;
+        case Kind.Straw:
+          c.setHSL(0.1, 0.38, 0.5 + v * 0.04);
+          break;
+        case Kind.Clay:
+          c.setHSL(0.03, 0.5, 0.27 + v * 0.05);
+          break;
         case Kind.Cloud:
           c.setHSL(0.58, 0.35, 0.93);
           break;
@@ -633,7 +844,8 @@ export class World {
     const wet = tiles.filter((t) => this.water[t.j * this.width + t.i] === 1);
     const makeWater = (list: typeof wet, opacity: number, name: string, paint: (t: (typeof wet)[0], d: number) => number) => {
       if (list.length === 0) return null;
-      const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity });
+      // No depth write: the water must not hide the translucent glow of what lies under it.
+      const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity, depthWrite: false });
       const water = new THREE.InstancedMesh(unit, mat, list.length);
       water.name = name;
       list.forEach((t, n) => {
@@ -654,12 +866,14 @@ export class World {
       (t) => {
         const k = t.j * this.width + t.i;
         if (this.iceTop[k] > -Infinity) return 0x2f7fb5;
+        if (this.ownerAt(t.i, t.j).startsWith('sunveld')) return sunWater(this.waterTop[k] - t.h);
         return this.isFrostTile(t.i, t.j) ? 0x3aa0d0 : 0x4cc3f0;
       },
     );
     this.seaMesh = makeWater(wet.filter(isSea), 0.6, 'sea-water', (_t, d) => seaWater(d));
 
     this.buildThinIce();
+    this.buildGates();
     this.buildTangles();
     this.buildKelp();
     this.buildCloudSkirt(tiles);
@@ -690,12 +904,14 @@ export class World {
       ice: { tint: 0xa8dcff, frame: 0xffffff },
       leaf: { tint: 0xc4c25a, frame: 0x2f5a28 },
       salt: { tint: 0xf0e4e6, frame: 0xaaa5a9 },
+      sun: { tint: 0xd9b27a, frame: 0x7a4a22 },
     };
     const lookOf = (k: number): keyof typeof looks => {
       const owner = this.ownerAt(k % this.width, Math.floor(k / this.width));
+      if (owner.startsWith('sunveld')) return 'sun';
       return owner === 'underroot' ? 'leaf' : owner === 'saltmere' ? 'salt' : 'ice';
     };
-    const group = (salt: boolean) => this.iceTiles.filter((k) => (lookOf(k) === 'salt') === salt);
+    const brittle = (k: number) => this.sheet[k] === BRITTLE_SPEED;
     const slab = new THREE.BoxGeometry(1, 1, 1);
     const build = (tiles: number[], mat: THREE.Material, name: string) => {
       if (tiles.length === 0) return;
@@ -710,18 +926,33 @@ export class World {
       tiles.forEach((k, n) => {
         this.iceSlot.set(k, { slab: mesh, cracks, slot: n });
         this.iceRot.set(k, Math.floor(hash(k % this.width, Math.floor(k / this.width), 21) * 4) * (Math.PI / 2));
-        const look = looks[lookOf(k)];
+        const look = brittle(k) ? { tint: 0xf6dfae, frame: 0x2e1a08 } : looks[lookOf(k)];
         mesh.setColorAt(n, new THREE.Color(look.tint));
         cracks.setColorAt(n, new THREE.Color(look.frame));
       });
       this.group.add(mesh, cracks);
     };
     build(
-      group(false),
+      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) !== 'salt' && lookOf(k) !== 'sun'),
       new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x2c5f86, transparent: true, opacity: 0.6 }),
       'thin-ice',
     );
-    build(group(true), new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 }), 'salt-crust');
+    build(
+      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) === 'salt'),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 }),
+      'salt-crust',
+    );
+    // Sun crust: solid baked ochre with a dark cracked frame, no glow.
+    build(
+      this.iceTiles.filter((k) => !brittle(k) && lookOf(k) === 'sun'),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }),
+      'sun-crust',
+    );
+    build(
+      this.iceTiles.filter(brittle),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x6b3f10, transparent: true, opacity: 0.85 }),
+      'brittle',
+    );
     for (const k of this.iceTiles) this.showIce(k);
   }
 
@@ -738,9 +969,10 @@ export class World {
     const WEAVE = 4;
     const unit = new THREE.BoxGeometry(1, 1, 1);
     const weave = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial(), tiles.length * WEAVE);
+    // Thorn threads are faint red-brown instead of pale straw.
     const strands = new THREE.InstancedMesh(
       unit,
-      new THREE.MeshLambertMaterial({ color: 0xd8c7a0, transparent: true, opacity: 0.22, depthWrite: false }),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false }),
       tiles.length,
     );
     weave.name = 'tangle-weave';
@@ -752,19 +984,23 @@ export class World {
       const i = k % this.width;
       const j = Math.floor(k / this.width);
       const h = this.height[k];
+      const thorn = this.ownerAt(i, j).startsWith('sunveld');
       for (let w = 0; w < WEAVE; w++) {
         const r = hash(i, j, 40 + w);
         // Long thin boxes laid crosswise at slightly different heights and angles.
         m.makeRotationY(r * Math.PI).multiply(rot.makeScale(0.95, 0.12, 0.14));
         m.setPosition(i + 0.5 + (hash(i, j, 50 + w) - 0.5) * 0.3, h + 0.1 + w * 0.12, j + 0.5 + (hash(i, j, 60 + w) - 0.5) * 0.3);
         weave.setMatrixAt(n * WEAVE + w, m);
-        c.setHSL(0.07 + r * 0.03, 0.45, 0.22 + hash(i, j, 70 + w) * 0.1);
+        // Sunveld's tangle is red-brown thorn.
+        if (thorn) c.setHSL(0.015 + r * 0.02, 0.6, 0.2 + hash(i, j, 70 + w) * 0.08);
+        else c.setHSL(0.07 + r * 0.03, 0.45, 0.22 + hash(i, j, 70 + w) * 0.1);
         weave.setColorAt(n * WEAVE + w, c);
       }
       const len = 8 + hash(i, j, 80) * 2;
       m.makeScale(0.035, len, 0.035);
       m.setPosition(i + 0.15 + hash(i, j, 90) * 0.7, h + len / 2, j + 0.15 + hash(i, j, 100) * 0.7);
       strands.setMatrixAt(n, m);
+      strands.setColorAt(n, c.setHex(thorn ? 0xb0654a : 0xd8c7a0));
     });
     weave.castShadow = true;
     this.group.add(weave, strands);

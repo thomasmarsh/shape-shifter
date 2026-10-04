@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { explore } from '../levelcheck';
+import { exploreIn } from './testkit';
 import { World } from '../world';
 
 const world = new World();
+// Highcrag's columns and a margin for its neighbours; the explores see only these.
+const explore = exploreIn(world, { x0: 83, x1: 240 });
 const { layout } = world;
 
 const PROW = { x: 129.5, z: 28.5 };
@@ -24,7 +26,7 @@ function boxReached(r: ReturnType<typeof explore>, i0: number, j0: number, i1: n
 }
 
 describe('Highcrag with the three forms of level 2', () => {
-  const r = explore(world, PROW, THREE, 'easy');
+  const r = explore(PROW, THREE, 'easy');
 
   it('lets all five puzzles be solved', () => {
     for (const id of IDS) {
@@ -69,7 +71,7 @@ describe('Highcrag things', () => {
 
 describe('Highcrag needs every shape', () => {
   it('keeps a human and fairy off the candles that need the orangutan, at the limit', () => {
-    const r = explore(world, PROW, ['human', 'fairy'], 'max');
+    const r = explore(PROW, ['human', 'fairy'], 'max');
     for (const id of IDS) {
       expect(r.canUse(puzzle(id).speaker), `${id} speaker`).toBe(false);
       expect(r.canUse(puzzle(id).candle), `${id} candle`).toBe(false);
@@ -77,7 +79,7 @@ describe('Highcrag needs every shape', () => {
   });
 
   it('keeps a human and orangutan from the fairy-only places', () => {
-    const r = explore(world, PROW, ['human', 'orangutan'], 'max');
+    const r = explore(PROW, ['human', 'orangutan'], 'max');
     expect(r.canUse(puzzle('hc-mesa').candle)).toBe(false);
     expect(boxReached(r, 125, 44, 131, 50), 'Lonely Rock islet').toBe(0);
     expect(r.canUse(puzzle('hc-cap').speaker)).toBe(false);
@@ -85,7 +87,7 @@ describe('Highcrag needs every shape', () => {
   });
 
   it('keeps the three forms off the giant steps and Frostfang', () => {
-    const r = explore(world, PROW, THREE, 'max');
+    const r = explore(PROW, THREE, 'max');
     expect(r.canStand({ x: 192.5, z: 40.5 }), 'second step').toBe(false);
     expect(r.canStand({ x: 196.5, z: 40.5 }), 'third step').toBe(false);
     const arrival = layout.arrivals.find((a) => a.id === 'frostfang')!;
@@ -93,7 +95,7 @@ describe('Highcrag needs every shape', () => {
   });
 
   it('lets the bunny up the giant steps, onto the archer pillars and over to Frostfang', () => {
-    const r = explore(world, PROW, FOUR, 'easy');
+    const r = explore(PROW, FOUR, 'easy');
     expect(r.canStand(NORTH_PILLAR), 'north archer pillar').toBe(true);
     expect(r.canStand(SOUTH_PILLAR), 'south archer pillar').toBe(true);
     expect(r.canStand({ x: 188.5, z: 40.5 }), 'first step').toBe(true);
@@ -104,7 +106,7 @@ describe('Highcrag needs every shape', () => {
   });
 
   it('keeps a lone fairy on the valley floor off every high place', () => {
-    const r = explore(world, { x: 136.5, z: 33.5 }, ['fairy'], 'max');
+    const r = explore({ x: 136.5, z: 33.5 }, ['fairy'], 'max');
     expect(r.canStand({ x: 155.5, z: 29.5 }), 'Camp Rock').toBe(false);
     expect(r.canStand({ x: 146.5, z: 43.5 }), 'mesa').toBe(false);
     expect(r.canStand({ x: 152.5, z: 9.5 }), 'cap').toBe(false);
@@ -118,7 +120,7 @@ describe('Highcrag needs every shape', () => {
     // that tile is not ordinary low ground.
     const shore = { x: 111.5, z: 27.5 };
     const flat = Number.isFinite(world.solidAt(shore.x, shore.z)) && world.solidAt(shore.x, shore.z) <= 4;
-    const r = explore(world, flat ? shore : { x: 63.5, z: 24.5 }, ['human', 'fairy'], 'max');
+    const r = explore(flat ? shore : { x: 63.5, z: 24.5 }, ['human', 'fairy'], 'max');
     expect(boxReached(r, 123, 0, 219, 63), 'anything on Highcrag').toBe(0);
   });
 });

@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { FormId, KELP_DEEP, KELP_LOW } from '../forms';
-import { exploreCached as explore } from '../explorecache';
 import { Kind } from '../layout';
 import { World } from '../world';
 import { buildEast, COVE, DEEP_BED, HUB, LEVEL, RING, ROAD } from './saltmere-east';
+import {
+  expectArchersAwayFromRespawns,
+  expectCheckpointsAwayFromGuards,
+  expectClosedRing,
+  expectMelodies,
+  expectNoneOn,
+  expectOnRealGround,
+  expectSeenFromCamera,
+  expectUniqueIds,
+  expectWayOut,
+  exploreIn,
+  inBox,
+  reachedAny,
+  respawnOf as respawn,
+  solidTiles,
+} from './testkit';
 
 // The east half of Saltmere (x >= 584): the Mere, Palm Key behind its ring of low
 // kelp, and the Deep Road to Pearl Rock under deep kelp.
@@ -16,7 +31,9 @@ const world = new World();
 const { layout } = world;
 
 const east = (s: { x: number }) => s.x >= 584 && s.x < 700;
-const respawn = (c: { x: number; z: number }) => ({ x: c.x - 1, z: c.z + 1 });
+// Saltmere's columns and a margin for its neighbours; the explores see only these.
+const RANGE = { x0: 446, x1: 740 };
+const explore = exploreIn(world, RANGE);
 const BEACH = { x: 582.5, z: 52.5 };
 const LOOKOUT = { x: 598.5, z: 33.5 };
 const RIM = { x: 611.5, z: 33.5 };
@@ -36,12 +53,7 @@ const eastTrees = layout.trees.filter(east);
 const checkpoint = (id: string) => layout.checkpoints.find((c) => c.id === id)!;
 
 /** Every tile of the east half that is not void. */
-const tiles: [number, number][] = [];
-for (let j = 0; j < world.depth; j++) {
-  for (let i = 584; i < world.width; i++) if (!isVoid(i, j)) tiles.push([i, j]);
-}
-const inBox = (i: number, j: number, i0: number, j0: number, i1: number, j1: number) =>
-  i >= i0 && i <= i1 && j >= j0 && j <= j1;
+const tiles = solidTiles(world, { x0: 584, x1: world.width });
 const inRing = (i: number, j: number) => inBox(i, j, RING.i0, RING.j0, RING.i1, RING.j1);
 const insideTiles = tiles.filter(([i, j]) => inRing(i, j));
 const outsideTiles = tiles.filter(([i, j]) => !inRing(i, j));
@@ -54,11 +66,10 @@ const kelpTiles = tiles.filter(([i, j]) => world.isKelp(i + 0.5, j + 0.5));
 const lowMats = kelpTiles.filter(([i, j]) => world.kelpDepthAt(i + 0.5, j + 0.5) === KELP_LOW);
 const deepMats = kelpTiles.filter(([i, j]) => world.kelpDepthAt(i + 0.5, j + 0.5) === KELP_DEEP);
 
-const reachedAny = (r: ReturnType<typeof explore>, list: [number, number][]) => list.filter(([i, j]) => r.has(i, j));
 const bedDepth = (i: number, j: number) => world.waterLevelAt(i + 0.5, j + 0.5) - ground(i, j);
 
 describe('Saltmere east with six shapes', () => {
-  const six = explore(world, BEACH, SIX, 'easy');
+  const six = explore(BEACH, SIX, 'easy');
 
   it('lets six forms use the speaker and the pickle and reach the Key and the Lookout', () => {
     expect(six.canUse(puzzle.speaker), 'speaker').toBe(true);
@@ -79,25 +90,25 @@ describe('Saltmere east with six shapes', () => {
 
 describe('Saltmere east needs the Human, the Orangutan and the Fairy', () => {
   it('keeps everything inside the ring out of reach without the human', () => {
-    const r = explore(world, BEACH, without(SIX, 'human'), 'max');
+    const r = explore(BEACH, without(SIX, 'human'), 'max');
     expect(reachedAny(r, insideTiles).slice(0, 3)).toEqual([]);
   });
 
   it('keeps the Lookout, Pickle Rock and the speaker out of reach without the orangutan', () => {
-    const r = explore(world, BEACH, without(SIX, 'orangutan'), 'max');
+    const r = explore(BEACH, without(SIX, 'orangutan'), 'max');
     expect(reachedAny(r, lookoutTiles).slice(0, 3), 'Lookout').toEqual([]);
     expect(reachedAny(r, rockTiles).slice(0, 3), 'Pickle Rock').toEqual([]);
     expect(r.canUse(puzzle.speaker), 'speaker').toBe(false);
   });
 
   it('keeps Pickle Rock out of reach without the fairy', () => {
-    const r = explore(world, BEACH, without(SIX, 'fairy'), 'max');
+    const r = explore(BEACH, without(SIX, 'fairy'), 'max');
     expect(reachedAny(r, rockTiles).slice(0, 3)).toEqual([]);
     expect(r.canUse(puzzle.candle)).toBe(false);
   });
 
   it('cannot use the pickle when floating only (no human), even from the rim', () => {
-    const r = explore(world, RIM, without(SIX, 'human'), 'max');
+    const r = explore(RIM, without(SIX, 'human'), 'max');
     expect(r.canUse(puzzle.candle)).toBe(false);
   });
 });
@@ -106,13 +117,13 @@ describe('Saltmere east is sealed', () => {
   const noHuman = without(SIX, 'human');
 
   it('keeps five forms without the human inside the ring, from the Lookout', () => {
-    const r = explore(world, LOOKOUT, noHuman, 'max');
+    const r = explore(LOOKOUT, noHuman, 'max');
     expect(reachedAny(r, lookoutTiles).length).toBeGreaterThan(30);
     expect(reachedAny(r, outsideTiles).slice(0, 3)).toEqual([]);
   });
 
   it('keeps five forms without the human inside the ring, from Pickle Rock', () => {
-    const r = explore(world, RIM, noHuman, 'max');
+    const r = explore(RIM, noHuman, 'max');
     expect(reachedAny(r, rockTiles).length).toBeGreaterThan(10);
     expect(reachedAny(r, outsideTiles).slice(0, 3)).toEqual([]);
   });
@@ -120,22 +131,12 @@ describe('Saltmere east is sealed', () => {
   it('closes the ring of kelp, joined edge to edge', () => {
     // Flood from inside over every tile that is not kelp, diagonals included: a
     // diagonal-only join would let the flood leak out.
-    const seen = new Set<string>(['594,46']);
-    const todo: [number, number][] = [[594, 46]];
-    while (todo.length > 0) {
-      const [i, j] = todo.pop()!;
-      for (let di = -1; di <= 1; di++) {
-        for (let dj = -1; dj <= 1; dj++) {
-          const a = i + di;
-          const b = j + dj;
-          if (seen.has(`${a},${b}`) || world.isKelp(a + 0.5, b + 0.5)) continue;
-          expect(inRing(a, b), `the flood leaked to (${a}, ${b})`).toBe(true);
-          seen.add(`${a},${b}`);
-          todo.push([a, b]);
-        }
-      }
-    }
-    expect(seen.size).toBe((RING.i1 - RING.i0 - 1) * (RING.j1 - RING.j0 - 1));
+    expectClosedRing(
+      (i, j) => world.isKelp(i + 0.5, j + 0.5),
+      [594, 46],
+      [RING.i0, RING.j0, RING.i1, RING.j1],
+      (RING.i1 - RING.i0 - 1) * (RING.j1 - RING.j0 - 1),
+    );
     expect(lowMats).toHaveLength(2 * (RING.i1 - RING.i0 + 1) + 2 * (RING.j1 - RING.j0 - 1));
     for (const [i, j] of lowMats) {
       expect(i === RING.i0 || i === RING.i1 || j === RING.j0 || j === RING.j1, `(${i}, ${j}) is on the ring`).toBe(true);
@@ -150,19 +151,19 @@ describe('Saltmere east needs the Mermaid to leave', () => {
     expect(reachedAny(r, pearlTiles).slice(0, 3), 'Pearl Rock').toEqual([]);
   };
 
-  it('keeps six forms off the road, from the beach, at the limit', () => nothingOfTheRoad(explore(world, BEACH, SIX, 'max')));
-  it('keeps six forms off the road, from the Lookout, at the limit', () => nothingOfTheRoad(explore(world, LOOKOUT, SIX, 'max')));
-  it('keeps six forms off the road, from Pickle Rock, at the limit', () => nothingOfTheRoad(explore(world, RIM, SIX, 'max')));
+  it('keeps six forms off the road, from the beach, at the limit', () => nothingOfTheRoad(explore(BEACH, SIX, 'max')));
+  it('keeps six forms off the road, from the Lookout, at the limit', () => nothingOfTheRoad(explore(LOOKOUT, SIX, 'max')));
+  it('keeps six forms off the road, from Pickle Rock, at the limit', () => nothingOfTheRoad(explore(RIM, SIX, 'max')));
 
   it('lets seven forms stand on Pearl Rock', () => {
-    const r = explore(world, BEACH, SEVEN, 'easy');
+    const r = explore(BEACH, SEVEN, 'easy');
     expect(r.canStand(respawn(checkpoint('sm-pearl'))), 'respawn spot').toBe(true);
     expect(r.canStand(PEARL_ARRIVAL), 'arrival').toBe(true);
   });
 
   it('needs only her: seven forms minus any one of the others still get there', () => {
     for (const f of SIX) {
-      const r = explore(world, BEACH, without(SEVEN, f), 'easy');
+      const r = explore(BEACH, without(SEVEN, f), 'easy');
       expect(r.canStand(respawn(checkpoint('sm-pearl'))), `without ${f}`).toBe(true);
       expect(r.canStand(PEARL_ARRIVAL), `without ${f}`).toBe(true);
     }
@@ -197,24 +198,13 @@ describe('Saltmere east beds', () => {
 describe('Saltmere east fairness', () => {
   it('keeps every east checkpoint 7 tiles from a guard post at about its height', () => {
     expect(eastEnemies).toHaveLength(2);
-    for (const c of eastCheckpoints) {
-      for (const e of eastEnemies) {
-        if (Math.abs(world.groundAt(e.x, e.z) - world.groundAt(c.x, c.z)) > 3) continue;
-        expect(Math.hypot(e.x - c.x, e.z - c.z), `${c.id} vs guard (${e.x}, ${e.z})`).toBeGreaterThanOrEqual(7);
-      }
-    }
+    expectCheckpointsAwayFromGuards(world, eastCheckpoints, eastEnemies);
   });
 
   it('keeps every archer 11.5 tiles from a respawn spot, unless it is 7.5 higher or lower', () => {
     const archers = layout.enemies.filter((e) => e.kind === 'archer');
     expect(archers.filter(east)).toHaveLength(1);
-    for (const c of layout.checkpoints.filter((q) => q.x >= 540)) {
-      const spot = respawn(c);
-      for (const a of archers) {
-        if (Math.abs(world.groundAt(a.x, a.z) - world.groundAt(spot.x, spot.z)) >= 7.5) continue;
-        expect(Math.hypot(a.x - spot.x, a.z - spot.z), `${c.id} vs archer (${a.x}, ${a.z})`).toBeGreaterThanOrEqual(11.5);
-      }
-    }
+    expectArchersAwayFromRespawns(world, layout.checkpoints.filter((q) => q.x >= 540), archers);
   });
 
   it('puts no thing, enemy, checkpoint stand or respawn spot on a kelp mat', () => {
@@ -228,19 +218,17 @@ describe('Saltmere east fairness', () => {
       ...layout.arrivals,
     ].filter(east);
     expect(things.length).toBeGreaterThan(20);
-    for (const s of things) expect(world.isKelp(s.x, s.z), `(${s.x}, ${s.z})`).toBe(false);
+    expectNoneOn('kelp', things, (s) => world.isKelp(s.x, s.z));
   });
 });
 
 describe('Saltmere east way out', () => {
   it('lets six forms on easy get from the Key\'s respawn spot to the beach', () => {
-    const r = explore(world, respawn(checkpoint('sm-key')), SIX, 'easy');
-    expect(r.canStand(BEACH)).toBe(true);
+    expectWayOut(explore, [checkpoint('sm-key')], BEACH, SIX, 'easy');
   });
 
   it('lets seven forms on easy get from Pearl Rock\'s respawn spot to the beach', () => {
-    const r = explore(world, respawn(checkpoint('sm-pearl')), SEVEN, 'easy');
-    expect(r.canStand(BEACH)).toBe(true);
+    expectWayOut(explore, [checkpoint('sm-pearl')], BEACH, SEVEN, 'easy');
   });
 });
 
@@ -253,24 +241,20 @@ describe('Saltmere east things', () => {
       ...layout.enemies,
       ...layout.trees,
     ].filter(east);
-    for (const s of spots) {
-      expect(world.groundAt(s.x, s.z), `(${s.x}, ${s.z})`).toBeGreaterThan(0);
-      expect(world.isWater(s.x, s.z), `(${s.x}, ${s.z}) water`).toBe(false);
-    }
+    expectOnRealGround(world, spots);
     expect(world.isWater(puzzle.candle.x, puzzle.candle.z)).toBe(true);
     expect(world.groundAt(puzzle.candle.x, puzzle.candle.z)).toBeCloseTo(44.7, 5);
     expect(world.waterLevelAt(puzzle.candle.x, puzzle.candle.z)).toBeCloseTo(48.7, 5);
   });
 
   it('has no id clash among its things', () => {
-    for (const list of [eastCheckpoints, eastBread, layout.puzzles.filter((p) => east(p.speaker))]) {
-      const ids = list.map((x) => x.id);
-      expect(new Set(ids).size).toBe(ids.length);
-    }
-    const hints = layout.hints.map((h) => h.id);
-    expect(new Set(hints).size).toBe(hints.length);
+    expectUniqueIds(eastCheckpoints, eastBread, layout.puzzles.filter((p) => east(p.speaker)), layout.hints);
     const all = [...layout.checkpoints, ...layout.bread, ...layout.puzzles].map((x) => x.id);
     expect(all.filter((id) => id.startsWith('sm-')).length).toBeGreaterThan(5);
+  });
+
+  it('gives the Key a melody of six different notes unlike any other puzzle\'s', () => {
+    expectMelodies([puzzle], layout.puzzles);
   });
 
   it('has exactly three trees, all great palms, and no boulders', () => {
@@ -302,13 +286,6 @@ describe('Saltmere east things', () => {
 });
 
 describe('Saltmere east from the game camera', () => {
-  const seen = (what: string, x: number, z: number): void => {
-    const y = world.groundAt(x, z);
-    for (let k = 0.25; k <= 30; k += 0.25) {
-      expect(world.groundAt(x - k, z + k), `${what} (${x}, ${z}) hidden at k=${k}`).toBeLessThanOrEqual(y + 0.9 + 1.12 * k);
-    }
-  };
-
   it('hides no speaker, pickle, checkpoint, bread or palm', () => {
     const spots = [
       ...layout.puzzles.flatMap((p) => [p.speaker]),
@@ -317,15 +294,12 @@ describe('Saltmere east from the game camera', () => {
       ...layout.trees,
     ].filter(east);
     expect(spots.length).toBeGreaterThan(8);
-    for (const s of spots) seen('thing', s.x, s.z);
+    for (const s of spots) expectSeenFromCamera(world, 'thing', s.x, s.z);
   });
 
   it('shows the pool of Pickle Rock from its surface, where the pickle shows through', () => {
     const { x, z } = puzzle.candle;
-    const y = world.waterLevelAt(x, z);
-    for (let k = 0.25; k <= 30; k += 0.25) {
-      expect(world.groundAt(x - k, z + k), `pool hidden at k=${k}`).toBeLessThanOrEqual(y + 0.9 + 1.12 * k);
-    }
+    expectSeenFromCamera(world, 'pool', x, z, world.waterLevelAt(x, z));
   });
 });
 

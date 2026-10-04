@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { explore } from '../levelcheck';
+import { exploreIn } from './testkit';
 import { World } from '../world';
 
 const world = new World();
+// Tanglewood's columns and a margin for its neighbours; the explores see only these.
+const explore = exploreIn(world, { x0: 20, x1: 165 });
 const { layout } = world;
 
 // The 'far-island' checkpoint's stand spot: where a player coming across lands.
@@ -22,7 +24,7 @@ const CHAIN = [
 
 describe('Tanglewood reachability', () => {
   it('lets a human who can turn into a fairy solve all four puzzles and reach the checkpoints', () => {
-    const r = explore(world, start, ['human', 'fairy'], 'easy');
+    const r = explore(start, ['human', 'fairy'], 'easy');
     for (const id of ALL) {
       expect(r.canUse(puzzle(id).speaker), `${id} speaker`).toBe(true);
       expect(r.canUse(puzzle(id).candle), `${id} candle`).toBe(true);
@@ -38,13 +40,13 @@ describe('Tanglewood reachability', () => {
   });
 
   it('lets a human alone reach the lake and marsh speakers', () => {
-    const r = explore(world, start, ['human'], 'easy');
+    const r = explore(start, ['human'], 'easy');
     expect(r.canUse(puzzle('tw-lake').speaker)).toBe(true);
     expect(r.canUse(puzzle('tw-marsh').speaker)).toBe(true);
   });
 
   it('keeps a human, even at the limit, off the candles that need a fairy', () => {
-    const r = explore(world, start, ['human'], 'max');
+    const r = explore(start, ['human'], 'max');
     expect(r.canUse(puzzle('tw-lake').candle), 'lake candle').toBe(false);
     expect(r.canUse(puzzle('tw-keep').speaker), 'keep speaker').toBe(false);
     expect(r.canUse(puzzle('tw-keep').candle), 'keep candle').toBe(false);
@@ -55,7 +57,7 @@ describe('Tanglewood reachability', () => {
   });
 
   it('keeps a fairy, even at the limit, off the Lookout and the exit', () => {
-    const r = explore(world, start, ['human', 'fairy'], 'max');
+    const r = explore(start, ['human', 'fairy'], 'max');
     expect(r.canStand(bread('tw-lookout')), 'lookout').toBe(false);
     CHAIN.forEach((p, n) => expect(r.canStand(p), `P${n + 1}`).toBe(false));
     expect(r.canStand({ x: 125.5, z: 28.5 })).toBe(false);
@@ -68,7 +70,7 @@ describe('Tanglewood reachability', () => {
   });
 
   it('lets an orangutan reach the Lookout and every exit pillar', () => {
-    const r = explore(world, start, ['human', 'fairy', 'orangutan'], 'easy');
+    const r = explore(start, ['human', 'fairy', 'orangutan'], 'easy');
     expect(r.canStand(bread('tw-lookout')), 'lookout').toBe(true);
     CHAIN.forEach((p, n) => expect(r.canStand(p), `P${n + 1}`).toBe(true));
   });

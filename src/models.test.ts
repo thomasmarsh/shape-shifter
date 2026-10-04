@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
+  makeAcacia,
   makeAnt,
   makeBunny,
+  makeGreatAcacia,
   makeGreatPalm,
   makeGreatPine,
   makeGreatTree,
@@ -12,6 +14,7 @@ import {
   makePine,
   makeTree,
   makeWolf,
+  makeCheetah,
 } from './models';
 import { TREE_BLOCK } from './world';
 
@@ -109,6 +112,22 @@ describe('palm models', () => {
   });
 });
 
+describe('acacia models', () => {
+  it('stand as tall as a regular tree and a great acacia as tall as a great tree', () => {
+    for (let seed = 0; seed < 6; seed++) {
+      expect(top(makeAcacia(seed))).toBeCloseTo(TREE_BLOCK.acacia, 6);
+      expect(top(makeGreatAcacia(seed))).toBeCloseTo(TREE_BLOCK.greatAcacia, 6);
+    }
+    expect(TREE_BLOCK.acacia).toBe(TREE_BLOCK.regular);
+    expect(TREE_BLOCK.greatAcacia).toBe(TREE_BLOCK.great);
+  });
+
+  it('spread a flat umbrella canopy far wider than the trunk', () => {
+    expect(width(makeAcacia(0))).toBeGreaterThanOrEqual(2);
+    expect(width(makeGreatAcacia(0))).toBeGreaterThanOrEqual(2.6);
+  });
+});
+
 describe('the sea pickle model', () => {
   it('is a gherkin about 1.1 tall with its glow just above, like a candle', () => {
     const pickle = makePickle();
@@ -118,6 +137,19 @@ describe('the sea pickle model', () => {
     expect(b.max.y).toBeLessThan(1.25);
     expect(pickle.flame.position.y).toBeGreaterThan(b.max.y);
     expect(pickle.cage.position.y).toBeGreaterThan(0);
+  });
+});
+
+describe('the sea pickle glow', () => {
+  it('is unlit, and rises as a glow column to the water surface', () => {
+    const pickle = makePickle(4);
+    const body = pickle.group.children[0] as THREE.Mesh;
+    expect(body.material).toBeInstanceOf(THREE.MeshBasicMaterial);
+    const beam = pickle.group.getObjectByName('pickle-glow') as THREE.Mesh;
+    const b = new THREE.Box3().setFromObject(beam);
+    expect(b.min.y).toBeCloseTo(0);
+    expect(b.max.y).toBeCloseTo(4);
+    expect(makePickle().group.getObjectByName('pickle-glow')).toBeUndefined();
   });
 });
 
@@ -142,5 +174,17 @@ describe('the mermaid model', () => {
 
   it('has a sword blade that can take the tier colour', () => {
     expect(makeMermaid().blade.material).toBeInstanceOf(THREE.MeshLambertMaterial);
+  });
+});
+
+describe('makeCheetah', () => {
+  it('has every handle the wolf gait drives, and is slimmer and longer than the wolf', () => {
+    const c = makeCheetah();
+    for (const k of ['group', 'body', 'tail', 'legFL', 'legFR', 'legBL', 'legBR'] as const) expect(c[k]).toBeInstanceOf(THREE.Object3D);
+    const size = (o: THREE.Object3D) => new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+    const cs = size(c.group);
+    const ws = size(makeWolf().group);
+    expect(cs.x).toBeLessThan(ws.x);
+    expect(cs.z).toBeGreaterThan(ws.z);
   });
 });

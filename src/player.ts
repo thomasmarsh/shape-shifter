@@ -1,11 +1,23 @@
 import * as THREE from 'three';
-import { FORMS, FormDef, ICE_SPEED, ICE_STUMBLE, PHYSICS, SWORD_COLOR, SWORD_DAMAGE, swordTier } from './forms';
+import {
+  FORMS,
+  FormDef,
+  ICE_STUMBLE,
+  PHYSICS,
+  RUN_BREATH,
+  RUN_REST,
+  SWORD_COLOR,
+  SWORD_DAMAGE,
+  swordTier,
+  WINDED_SPEED,
+} from './forms';
 import type { Meter } from './hud';
 import type { Controls } from './input';
 import {
   APE_ARM_REST,
   makeAnt,
   makeBunny,
+  makeCheetah,
   makeFairy,
   makeFairyHome,
   makeHuman,
@@ -31,6 +43,12 @@ const RADIUS = 0.3;
 const FLY_ENERGY = 4.5; // seconds of flapping before exhaustion
 const FLY_RISE = 2.4;
 const FLY_REST = 2.2; // seconds on the ground to recover fully
+
+// Thin ice
+const BREAK_DROP = 4; // downward speed a breaking sheet gives, in tiles per second
+
+// Cheetah breath
+const RUN_MOVING = 0.5; // tiles per second that count as running
 
 // Orangutan climbing
 const MAX_TREES = 20; // trees in a row before it must touch the ground
@@ -99,6 +117,10 @@ export class Player {
   readonly group = new THREE.Group();
   private vy = 0;
   private facing = Math.PI / 2;
+  /** The way she faces, as an angle: forward is (sin, cos) on the ground plane. */
+  get heading(): number {
+    return this.facing;
+  }
   onGround = true;
   swimming = false;
 
@@ -110,6 +132,10 @@ export class Player {
 
   energy = FLY_ENERGY;
   exhausted = false;
+  /** The Cheetah's breath, in seconds of running left. Only time refills it. */
+  breath = RUN_BREATH;
+  /** True from running out of breath until it is completely full again, in any form. */
+  winded = false;
   /** True while tucked inside a fairy home: bad guys can't see you. */
   hidden = false;
   private hiddenTime = 0;
@@ -158,6 +184,7 @@ export class Player {
   private orangutan: OrangutanModel;
   private bunny: BunnyModel;
   private wolf: WolfModel;
+  private cheetah: WolfModel;
   private ant: AntModel;
   private home: THREE.Group;
 
@@ -172,10 +199,11 @@ export class Player {
     this.orangutan = makeOrangutan();
     this.bunny = makeBunny();
     this.wolf = makeWolf();
+    this.cheetah = makeCheetah();
     this.ant = makeAnt();
     this.home = makeFairyHome();
     this.home.visible = false;
-    this.group.add(this.human.group, this.mermaid.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.ant.group);
+    this.group.add(this.human.group, this.mermaid.group, this.fairy.group, this.orangutan.group, this.bunny.group, this.wolf.group, this.cheetah.group, this.ant.group);
     this.applyForm();
   }
 
@@ -185,6 +213,11 @@ export class Player {
 
   get homeMesh(): THREE.Group {
     return this.home;
+  }
+
+  /** Top ground speed right now: a winded Cheetah is slowed to WINDED_SPEED. */
+  get topSpeed(): number {
+    return this.form.id === 'cheetah' && this.winded ? Math.min(this.form.speed, WINDED_SPEED) : this.form.speed;
   }
 
   get energyFraction(): number {
@@ -201,6 +234,10 @@ export class Player {
     if (this.form.canFly) {
       const label = this.exhausted ? 'Tired! Resting…' : 'Flying energy';
       return { label, fraction: this.energyFraction, tired: this.exhausted };
+    }
+    if (this.form.id === 'cheetah') {
+      const label = this.winded ? 'Out of breath! Resting…' : 'Breath';
+      return { label, fraction: this.breath / RUN_BREATH, tired: this.winded };
     }
     if (this.form.id === 'orangutan') {
       const left = MAX_TREES - this.treesClimbed;
@@ -319,6 +356,7 @@ export class Player {
     this.orangutan.group.visible = id === 'orangutan';
     this.bunny.group.visible = id === 'bunny';
     this.wolf.group.visible = id === 'wolf';
+    this.cheetah.group.visible = id === 'cheetah';
     this.ant.group.visible = id === 'ant';
     const color = SWORD_COLOR[swordTier(this.level)];
     for (const blade of [this.human.blade, this.mermaid.blade, this.orangutan.blade]) {
@@ -404,6 +442,8 @@ export class Player {
       const wantsOut = input.hit('KeyQ') || input.hit('Space') || input.anyMoveHit();
       if (this.hiddenTime > 0.35 && wantsOut) this.leaveHome();
       this.recoverEnergy(dt);
+      this.stepBreath(dt, 0);
+      this.world.stepGates(dt, this.pos.x, this.pos.z, RADIUS, true);
       return;
     }
 
@@ -416,6 +456,7 @@ export class Player {
       sound.denied();
     }
 
+    let moved = 0;
     if (this.climb) {
       this.climbStep(dt, input);
     } else {
@@ -425,9 +466,12 @@ export class Player {
       this.tryGrab(dt);
       if (!this.climb) this.moveUpDown(dt, input, isFairy);
       this.touchGround();
-      this.thinIce(dt, Math.hypot(this.pos.x - fromX, this.pos.z - fromZ));
+      moved = Math.hypot(this.pos.x - fromX, this.pos.z - fromZ);
+      this.thinIce(dt, moved);
     }
+    this.stepBreath(dt, moved);
     this.world.stepIce(dt, this.pos.x, this.pos.z, RADIUS);
+    this.world.stepGates(dt, this.pos.x, this.pos.z, RADIUS, this.onGround);
     this.swingSword(dt, input, enemies);
 
     if (this.pos.y < -8) this.events.onFell();
@@ -441,7 +485,7 @@ export class Player {
     let dx = (m.x + m.y) * Math.SQRT1_2;
     let dz = (m.x - m.y) * Math.SQRT1_2;
     const len = Math.hypot(dx, dz);
-    let speed = this.swimming ? this.form.swim : this.form.speed;
+    let speed = this.swimming ? this.form.swim : this.topSpeed;
     if (this.attackTimer > 0) speed *= 0.5;
 
     if (len > 0) {
@@ -601,10 +645,10 @@ export class Player {
   }
 
   /**
-   * Thin ice holds only under a fast runner. Called each frame after moving,
+   * Thin ice and brittle sheets hold only under a fast runner. Called each frame after moving,
    * with how far we really moved. On the ground over whole ice: fast keeps it,
    * slow wears it down, and past the allowance every tile under us breaks.
-   * Only a runner (a form whose top speed is ICE_SPEED or more) gets the
+   * Only a runner (a form whose current top speed is the sheet's speed or more) gets the
    * stumble allowance; everyone else breaks it the frame they touch it. The
    * slow time resets only when running fast or standing on real ground, never
    * in the air, so a landing every few frames cannot skip across.
@@ -616,7 +660,9 @@ export class Player {
       this.iceSlow = 0;
       return;
     }
-    if (moved / dt >= ICE_SPEED) {
+    // The most demanding sheet under us decides how fast we must be.
+    const need = Math.max(...holding.map((s) => this.world.sheetSpeedAt(s.x, s.z)));
+    if (moved / dt >= need) {
       this.iceSlow = 0;
       this.iceRun += moved;
       if (Math.random() < dt * FROST_RATE) {
@@ -625,7 +671,7 @@ export class Player {
       return;
     }
     this.iceSlow += dt;
-    const allowance = this.form.speed >= ICE_SPEED ? ICE_STUMBLE : 0;
+    const allowance = this.topSpeed >= need ? ICE_STUMBLE : 0;
     if (this.iceSlow <= allowance) return;
     this.world.breakIce(holding);
     for (const s of holding) {
@@ -634,6 +680,8 @@ export class Player {
     sound.crack();
     // Off the ground at once, so a bunny cannot land and hop off a tile that just broke.
     this.onGround = false;
+    // A hard drop, so a fast form cannot skim across the next tile before it falls a step.
+    if (!this.form.canFly) this.vy = Math.min(this.vy, -BREAK_DROP);
     this.iceSlow = 0;
   }
 
@@ -755,6 +803,18 @@ export class Player {
     if (impact < -8) this.particles.burst(this.pos, 0xffffff, 8, 1.6, 0.1, 1);
   }
 
+  /** The Cheetah's breath drains while it moves; any other time it refills. Being winded outlasts a shape shift. */
+  private stepBreath(dt: number, moved: number): void {
+    if (dt <= 0) return;
+    if (this.form.id === 'cheetah' && moved / dt > RUN_MOVING) {
+      this.breath = Math.max(0, this.breath - dt);
+      if (this.breath <= 0) this.winded = true;
+      return;
+    }
+    this.breath = Math.min(RUN_BREATH, this.breath + (RUN_BREATH / RUN_REST) * dt);
+    if (this.breath >= RUN_BREATH) this.winded = false;
+  }
+
   private recoverEnergy(dt: number): void {
     this.energy = Math.min(FLY_ENERGY, this.energy + (FLY_ENERGY / FLY_REST) * dt);
     if (this.energy >= FLY_ENERGY) this.exhausted = false;
@@ -817,6 +877,7 @@ export class Player {
         this.animateBunny(dt);
         break;
       case 'wolf':
+      case 'cheetah':
         this.animateWolf();
         break;
       case 'ant':
@@ -923,7 +984,7 @@ export class Player {
   }
 
   private animateWolf(): void {
-    const w = this.wolf;
+    const w = this.form.id === 'cheetah' ? this.cheetah : this.wolf;
     const airborne = !this.onGround && !this.swimming;
     const now = performance.now() / 1000;
     let front = 0;

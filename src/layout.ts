@@ -22,6 +22,10 @@ export const enum Kind {
   Bark,
   /** Ordinary ground with a white salt top. Behaves like Sand. */
   Salt,
+  /** Ordinary ground with a dry golden top, for the savanna. Behaves like Grass. */
+  Straw,
+  /** Ordinary ground with a terracotta top, for the savanna. Behaves like Stone. */
+  Clay,
 }
 
 /**
@@ -36,10 +40,18 @@ export interface Spot {
 }
 
 /**
- * 'pine' and 'greatPine', 'palm' and 'greatPalm' climb and block exactly like
- * 'regular' and 'great'.
+ * 'pine' and 'greatPine', 'palm' and 'greatPalm', 'acacia' and 'greatAcacia'
+ * climb and block exactly like 'regular' and 'great'.
  */
-export type TreeKind = 'regular' | 'great' | 'pine' | 'greatPine' | 'palm' | 'greatPalm';
+export type TreeKind =
+  | 'regular'
+  | 'great'
+  | 'pine'
+  | 'greatPine'
+  | 'palm'
+  | 'greatPalm'
+  | 'acacia'
+  | 'greatAcacia';
 
 /**
  * How high a tree's solid block stands above the ground. A fairy can rise at
@@ -53,6 +65,8 @@ export const TREE_BLOCK: Record<TreeKind, number> = {
   greatPine: 5.0,
   palm: 4.0,
   greatPalm: 5.0,
+  acacia: 4.0,
+  greatAcacia: 5.0,
 };
 
 export type TreeSpot = Spot & { kind: TreeKind };
@@ -67,7 +81,7 @@ export interface PuzzleSpot {
 
 export interface EnemySpot extends Spot {
   tester: boolean;
-  kind?: 'regular' | 'archer';
+  kind?: 'regular' | 'archer' | 'sword' | 'blade';
   /** Only appears once the player has reached this level. */
   minLevel?: number;
 }
@@ -92,6 +106,12 @@ export type Arrival = Spot & {
   html: string;
 };
 
+/**
+ * A pressure plate. Standing on it (in any form, on the ground) holds gate
+ * `gate` open, and the gate stays open for `seconds` after you step off.
+ */
+export type PlateSpot = Spot & { gate: string; seconds: number };
+
 export interface Layout {
   spawn: Spot;
   checkpoints: (Spot & { id: string })[];
@@ -102,6 +122,7 @@ export interface Layout {
   boulders: Spot[];
   hints: HintZone[];
   arrivals: Arrival[];
+  plates: PlateSpot[];
 }
 
 /** What one island contributes to the Layout. World merges them in order. */
@@ -125,6 +146,18 @@ export interface Terrain {
    * like stairs. `clear` removes it again.
    */
   setThinIce(i: number, j: number, h: number): void;
+  /**
+   * Like `setThinIce`, but a brittle sheet holds only under something moving
+   * at BRITTLE_SPEED or more (see forms.ts). Only a fresh Cheetah has it.
+   */
+  setBrittle(i: number, j: number, h: number): void;
+  /**
+   * Mark a ground tile as part of the timed gate `id`. While no plate holds
+   * the gate open it is a "no standing" column for every form, like a tangle
+   * nobody fits through. It never closes on a body standing in it. `clear`
+   * removes the mark.
+   */
+  setGate(i: number, j: number, id: string): void;
   /**
    * Mark an ordinary ground tile as a root tangle with a gap of `gap` (default
    * TANGLE_GAP). For any form taller than the gap it is a "no standing" column,

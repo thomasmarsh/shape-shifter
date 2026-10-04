@@ -17,8 +17,8 @@ describe('the default world', () => {
   const world = new World();
   const { layout } = world;
 
-  it('is 700 by 64 tiles with the meadow where it always was', () => {
-    expect(world.width).toBe(700);
+  it('is 960 by 64 tiles with the meadow where it always was', () => {
+    expect(world.width).toBe(960);
     expect(world.depth).toBe(64);
     expect(layout.spawn).toEqual({ x: 10.5, z: 27.5 });
     expect(world.groundAt(10.5, 27.5)).toBe(2);
@@ -38,6 +38,29 @@ describe('the default world', () => {
       expect(world.solidAt(t.x, t.z)).toBe(world.groundAt(t.x, t.z) + TREE_BLOCK[t.kind]);
     }
     expect(world.treeAt(10.5, 27.5)).toBe(0);
+  });
+
+  it('makes acacias block and climb exactly like regular and great trees', () => {
+    const isl: Island = {
+      id: 'savanna',
+      name: 'Savanna',
+      build(t) {
+        t.rect(2, 2, 8, 6, (i, j) => t.set(i, j, 3, Kind.Straw));
+        t.set(9, 4, 3, Kind.Clay);
+        return {
+          spawn: { x: 3.5, z: 3.5 },
+          trees: [
+            { x: 5.5, z: 4.5, kind: 'acacia' },
+            { x: 7.5, z: 4.5, kind: 'greatAcacia' },
+          ],
+        };
+      },
+    };
+    const w = new World([isl]);
+    expect(w.treeAt(5.5, 4.5)).toBe(TREE_BLOCK.regular);
+    expect(w.treeAt(7.5, 4.5)).toBe(TREE_BLOCK.great);
+    expect(w.solidAt(7.5, 4.5)).toBe(3 + TREE_BLOCK.great);
+    expect(w.groundAt(9.5, 4.5)).toBe(3);
   });
 
   it('has a tanglewood arrival to cross to', () => {
@@ -325,12 +348,39 @@ describe('who owns the look of a tile', () => {
     for (const t of leaf) expect(sheetColors(t.i, t.j)).toEqual({ slab: hex(0xc4c25a), frame: hex(0x2f5a28) });
   });
 
+  it('draws Sunveld thin sheets as sun crust, not ice or salt, and brittle crust paler than it', () => {
+    const own = tiles((i, j) => world.isThinIce(i + 0.5, j + 0.5) && world.ownerAt(i, j).startsWith('sunveld'));
+    expect(own.length).toBeGreaterThan(0);
+    const crust = world.group.getObjectByName('sun-crust') as THREE.InstancedMesh;
+    expect(crust).toBeTruthy();
+    for (const t of own) {
+      const d = (world as any).iceSlot.get(t.j * world.width + t.i);
+      if (d.slab.name === 'brittle') continue;
+      expect(d.slab.name, `${t.i},${t.j}`).toBe('sun-crust');
+      expect(sheetColors(t.i, t.j)).toEqual({ slab: hex(0xd9b27a), frame: hex(0x7a4a22) });
+    }
+  });
+
+  it('draws Sunveld water as mud, not Saltmere sea or bright pond blue', () => {
+    const mesh = world.group.getObjectByName('water') as THREE.InstancedMesh;
+    const muddy = [0x8a7b43, 0x66652f, 0x3a4524].map(hex);
+    let found = 0;
+    const wet = tiles((i, j) => hasWater(i, j) && world.ownerAt(i, j) !== 'saltmere');
+    wet.forEach((t, n) => {
+      if (!world.ownerAt(t.i, t.j).startsWith('sunveld')) return;
+      found++;
+      expect(muddy).toContain(hexOf(mesh, n));
+    });
+    expect(found).toBeGreaterThan(0);
+  });
+
   it('keeps the water of the older islands exactly as it was', () => {
     const mesh = world.group.getObjectByName('water') as THREE.InstancedMesh;
     const wet = tiles((i, j) => hasWater(i, j) && world.ownerAt(i, j) !== 'saltmere');
     expect(mesh.count).toBe(wet.length);
     expect((mesh.material as THREE.MeshLambertMaterial).opacity).toBe(0.72);
     wet.forEach((t, n) => {
+      if (world.ownerAt(t.i, t.j).startsWith('sunveld')) return;
       const want = world.isThinIce(t.i + 0.5, t.j + 0.5) ? 0x2f7fb5 : world.isFrostTile(t.i, t.j) ? 0x3aa0d0 : 0x4cc3f0;
       expect(hexOf(mesh, n), `${t.i},${t.j}`).toBe(hex(want));
     });

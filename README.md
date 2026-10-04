@@ -4,9 +4,9 @@ A web game. You are a shape shifter stuck on a cloud island. Solve music
 puzzles to free candle lights, collect enough lights to level up, and each
 level lets you shift into a new creature.
 
-The design lives in [`PLAN.md`](PLAN.md). This build has **six islands** to
-play, from level 0 (Human) to level 6 (Mermaid). It stops for now on Pearl
-Rock, at the far end of the sixth island.
+The design lives in [`PLAN.md`](PLAN.md). This build has **seven islands** to
+play, from level 0 (Human) to level 7 (Cheetah). It stops for now on Sunset
+Rock, at the far end of the seventh island.
 
 ## Play it
 
@@ -33,8 +33,9 @@ If the game runs slowly, add `?fast` to the address to turn off shadows.
 | `E` | Use things: speakers, candles |
 | `F` | Eat a piece of bread (+1 heart) |
 | `Shift` | Dive, as a Human or a Mermaid. Hold it to sink, let go to float back up |
-| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, `6` Mermaid, …) |
-| `Q` | Fairy only: make a tiny home to hide in |
+| `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, `6` Mermaid, `7` Cheetah, …) |
+| `Q` | Fairy: make a tiny home to hide in. Mermaid, in the water: shoot water at the nearest bad guy |
+| `R` | Mermaid, in the water: raise a bubble column under the nearest bad guy |
 | `Esc` | Pause |
 
 **Orangutan:** walk into a tree trunk and keep pushing to climb it. At the top
@@ -43,7 +44,7 @@ grab it. The great trees (the tall ones) are the ones the islands are built
 around. You can climb 20 trees in a row, then you must touch the ground before
 you can climb more; the bar under your hearts counts them.
 
-**Winter Wolf:** the fastest form so far. Thin ice only holds something that
+**Winter Wolf:** fast, and the first form that can run on thin ice. Thin ice only holds something that
 is running, so keep running and do not stop. A wolf that stops, or is slowed
 by bumping into something, will fall through. Over the lake it then has to
 swim out and try again; over the sky it falls. Jump gaps in the ice at a run.
@@ -69,7 +70,20 @@ Under a mat you cannot come up, jump or change shape.
 **Mermaid:** 15 hearts. She swims faster than anything runs, dives as deep as
 the water goes, and fits under the deep kelp that nothing else can pass. Her
 sword only works while she is in the water. On land she is very slow and cannot
-jump, but she can leap out of the water onto a low shore.
+jump, but she can leap out of the water onto a low shore. While she swims she
+has two water powers. `Q` shoots a ball of water at the nearest bad guy within
+9 tiles (3 hearts, it stops at walls). `R` raises a bubble column under the
+nearest bad guy within 7 tiles: a ring of bubbles warns for a moment, then it
+bursts and does 4 hearts to every bad guy in it. Bad guys stay out of the
+water, so from a pond she can clear a shore without being touched.
+
+**Cheetah:** the fastest of all, 10 tiles a second, but only for as long as its
+breath lasts. The bar under the hearts is its breath: about 8 seconds of
+running. When it runs out the Cheetah is winded and slow until it has rested
+for about 3.5 seconds (stand still, or be another shape). Nothing else gives
+breath back, not even a checkpoint. Only the Cheetah is fast enough for brittle
+crust, which breaks under a Wolf, and for timed gates: step on a plate and a
+gate far away opens for a few seconds.
 
 **Hop, then fly:** a Bunny can turn into a Fairy at the top of a hop and keep
 the height. Hold `Space` as a Bunny, press `1` when the hop is at its top, and
@@ -117,20 +131,40 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   top of a rock) and Palm Key (a Human under a ring of kelp, an Orangutan along
   a road of great palms, a fight, then a Fairy across). The fifth pickle gives
   the Mermaid, and the Mermaid is what the way off needs: the Deep Road, a long
-  channel over the open sky roofed with deep kelp, to Pearl Rock, where the
-  game stops for now.
-- Seven forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
+  channel over the open sky roofed with deep kelp, to Pearl Rock, and from
+  there a hop, then a flight, east and down to the next island.
+- **Sunveld** (level 6, then 7): a flat golden valley of dry grass under a red
+  escarpment, closed at its east end by the Red Wall. Five candles: the
+  Watering Hole (a fight, then a pickle 8 deep that only the Mermaid reaches),
+  the Oxbow (a Mermaid under a ring of deep kelp, a Bunny up a terrace, then
+  hop, then fly, to a spire), the Red Table (a Wolf up a stair of thin crust,
+  an Ant through a ring of thorn, a Fairy across to a pillar), the Umbrella
+  Grove (an Orangutan along a road of great acacias, a fight, then a Wolf down
+  a pier of thin crust that turns into a Fairy at the end without stopping) and
+  the Kraal (an Ant through a ring of thorn, an Orangutan up a tree, then hop,
+  then fly). The fifth candle gives the Cheetah, and the Cheetah is what the
+  way off needs: a plate that opens the gate in the Red Wall for 3.8 seconds,
+  31 tiles away, past the sword bad guys; then two runs of brittle crust over
+  the open sky, each with a gap to jump, with a Bunny hop between them, to
+  Sunset Rock, where the game stops for now. One breath covers each run but not
+  two in a row, so the Cheetah has to rest in the Yard and on the Terrace.
+- Eight forms: Human (10 hearts, wooden sword, dives), Fairy (3 hearts, short
   slow flight, fairy home), Orangutan (7 hearts, climbs trees, weaker stone
   sword), Bunny (4 hearts, huge hops, no sword), Winter Wolf (12 hearts, the
-  fastest on land so far, no sword, runs on thin ice), Ant (1 heart, slow, no
-  sword, fits into root tangles) and Mermaid (15 hearts, swims fast, dives
-  without limit, sword only in water). Hearts cap at the form's maximum when
+  fast, no sword, runs on thin ice), Ant (1 heart, slow, no
+  sword, fits into root tangles), Mermaid (15 hearts, swims fast, dives
+  without limit, sword and two water powers only in water) and Cheetah (11
+  hearts, the fastest of all while its breath lasts, no sword, runs on brittle
+  crust). Hearts cap at the form's maximum when
   you shift and only come back by eating.
 - 100 bread to start, more to find.
-- Two kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
-  two slower "testers" on the training ground, and archers (8 hearts) who
-  appear once you reach level 3.
-- Twenty-seven music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
+- Four kinds of bad guy. Regular ones (9 hearts, 1 heart per punch), including
+  two slower "testers" on the training ground, archers (8 hearts) who
+  appear once you reach level 3, and two kinds with a sword who appear once you
+  reach level 7: a heavy one (5 hearts, slow, a long wind-up, 4 hearts a blow)
+  and a light one (3 hearts, faster than a Human, a short wind-up, 2 hearts a
+  blow).
+- Thirty-two music puzzles (3, 4 and 5 notes on Meadow Island, then 4 to 6 notes
   after), each guarding a candle. You cannot use a speaker while a bad guy
   close by is after you: deal with them, lose them or hide first.
 - Checkpoints, falling off the island, fainting and respawning.
@@ -158,12 +192,19 @@ src/
     saltmere.ts       Saltmere's landing, its beach and four candles (west half)
     saltmere-east.ts  the Mere, Palm Key and the Mermaid's way off (east half),
                       built by saltmere.ts
+    sunveld.ts        Sunveld's landing and three candles (west half)
+    sunveld-east.ts   two candles, the Red Wall and the Cheetah's way off (east
+                      half), built by sunveld.ts
+    testkit.ts    the checks every island's tests repeat (closed rings, guard
+                  and archer distances, things on real ground, ids, melodies,
+                  the camera, a way out from every respawn spot, gate timing)
     scatter.ts    sprinkles ordinary trees over an island's grass
   forms.ts      the ten forms and level rules, as a data table
   player.ts     movement, flying, climbing, hopping, running on ice, fitting into
-                tangles, swimming and diving, sword, hearts, shape-shifting
-  enemy.ts      the regular bad guy and the archer
+                tangles, swimming and diving, breath, sword, hearts, shape-shifting
+  enemy.ts      the regular bad guy, the archer and the two sword bad guys
   arrows.ts     arrows in flight
+  waterpowers.ts  the Mermaid's water shot and bubble column
   things.ts     puzzle speakers, candles and sea pickles, checkpoints, bread
   puzzleUi.ts   the music puzzle screen
   hud.ts        hearts, form bar, meters, hints, title and level-up cards
@@ -175,7 +216,9 @@ src/
   save.ts       saving to the browser
   levelcheck.ts the level checker: which places each set of forms can reach
                 (it knows the Winter Wolf, thin ice, hop-then-fly, the Ant and
-                root tangles, diving, kelp mats and the Mermaid)
+                root tangles, diving, kelp mats, the Mermaid, the Cheetah,
+                brittle crust and timed gates)
+  explorecache.ts  shares the checker's answers inside a test file
   pilot.ts      a scripted player the tests use to walk and fly real routes
   *.test.ts     the tests (next to the code they check)
 scripts/
@@ -194,17 +237,21 @@ bread, trees, hints, arrival cards). To change a form's hearts or speed, edit
    `src/islands/index.ts`. Leave a gap of sky between islands. Besides
    `t.set(i, j, height, kind)`, `build(t)` can lay water at any height with
    `t.setWater(i, j, wet, level)`, and a sheet of thin ice at any height with
-   `t.setThinIce(i, j, height)`, turn a ground tile into a root tangle with
-   `t.setTangle(i, j)`, and float a kelp mat on a water tile with
-   `t.setKelp(i, j, depth)`. On a water tile the height you set is the bed. A
+   `t.setThinIce(i, j, height)`, a sheet of brittle crust with
+   `t.setBrittle(i, j, height)`, turn a ground tile into a root tangle with
+   `t.setTangle(i, j)`, into part of a timed gate with `t.setGate(i, j, id)`
+   (the island then returns `plates`, each with its gate and its seconds), and
+   float a kelp mat on a water tile with `t.setKelp(i, j, depth)`. On a water tile the height you set is the bed. A
    candle placed on a water tile is a sea pickle. An island can also be built
-   in two files, as Frostfang, Underroot and Saltmere are: its file calls a builder from the other and merges the
+   in two files, as Frostfang, Underroot, Saltmere and Sunveld are: its file calls a builder from the other and merges the
    result.
 2. Run `npm run map -- --island=<name>` to look at it, and
    `npm run map -- --island=<name> --reach=human,fairy --from=x,z` to see what
    those forms can reach from a spot.
-3. Write a test next to it (copy `src/islands/highcrag.test.ts`) saying who
-   should and should not reach each place. Run `npm test`.
+3. Write a test next to it (copy `src/islands/sunveld.test.ts`, which uses the
+   shared checks in `src/islands/testkit.ts`) saying who should and should not
+   reach each place. Give its explores the island's x range plus a margin, so
+   the suite stays fast. Run `npm test`.
 
 ## Checking levels
 
@@ -246,12 +293,26 @@ The checker knows these things beyond walking, hopping, flying and climbing:
   closed ring of mats seals a place the way a ring of tangle does.
 - **The Mermaid:** she walks on land, floats and dives like the Human with no
   depth limit, and hops only out of water.
+- **The Cheetah:** it moves like a faster Human and jumps a gap of 6 tiles at a
+  run (7 at the limit). The checker treats it as always rested; breath is
+  proved by the route tests, which run with the real breath bar.
+- **Brittle crust:** like thin ice, but only the Cheetah may step onto it.
+- **Timed gates:** a shut gate is a wall with no top for everyone. It opens for
+  a set of forms when they can stand on one of its plates and one of them is
+  fast enough: the straight line from the plate to the far side of the gate,
+  divided by the form's speed, must fit in the plate's seconds (with 0.4 s to
+  spare on the easy setting). The straight line is generous on purpose; the
+  route tests run the real distance.
+- **A range of x:** `explore` can be told to look only at a range of columns
+  (an island and its neighbours). `src/levelcheck.range.test.ts` proves that
+  reach inside the range is the same as with the whole world.
+- **Bad guys are ignored.** The checker proves where they stand (not near a
+  checkpoint or a respawn spot, not where the player must be an Ant), never
+  that a fight is fair.
 
-The route tests for Underroot and Saltmere sit next to the islands, in
-`src/islands/underroot.routes.test.ts`,
-`src/islands/underroot-east.routes.test.ts`,
-`src/islands/saltmere.routes.test.ts` and
-`src/islands/saltmere-east.routes.test.ts`.
+The route tests for Underroot, Saltmere and Sunveld sit next to the islands,
+in `src/islands/*.routes.test.ts`. The Cheetah's own route tests (brittle
+runs, a timed gate, breath) are in `src/cheetah.routes.test.ts`.
 
 Because of hop-then-fly, every raised thing (a ledge, a wall top, a treetop) is
 a launch pad. Level designs keep raised ground to where it is needed, and
@@ -266,19 +327,20 @@ The game is in `window.game` in the browser console. Handy while building:
 ```js
 game.debug.warp('hc-prow')   // stand on a checkpoint
 game.debug.setLevel(4)       // become level 4 (then press 4 for the Winter Wolf)
-game.debug.takeLight(7)      // take a candle's light at once (0 to 26)
+game.debug.takeLight(7)      // take a candle's light at once (0 to 31)
 ```
 
 Candles are numbered in the order of the islands: 0 to 2 Meadow Island, 3 to 6
 Tanglewood, 7 to 11 Highcrag, 12 to 16 Frostfang, 17 to 21 Underroot, 22 to 26
-Saltmere.
+Saltmere, 27 to 31 Sunveld.
 
 Checkpoint names: `meadow`, `middle`, `bluff`, `far-island`, `tw-cross`,
 `tw-south`, `tw-grove`, `hc-prow`, `hc-south`, `hc-north`, `hc-east`,
 `hc-stair`, `frostfang`, `ff-north`, `ff-south`, `ff-lake`, `ff-glacier`,
 `ff-brow`, `ff-last`, `underroot`, `ur-mat`, `ur-glade`, `ur-mid`, `ur-grove`,
 `ur-wall`, `ur-yard`, `ur-crown`, `saltmere`, `sm-mid`, `sm-east`, `sm-nest`,
-`sm-salt`, `sm-key`, `sm-pearl`.
+`sm-salt`, `sm-key`, `sm-pearl`, `sunveld`, `sv-mid`, `sv-table`, `sv-east`,
+`sv-kraal`, `sv-yard`, `sv-kopje`, `sv-end`.
 
 ## Decisions the plan did not spell out
 
@@ -379,9 +441,13 @@ These were chosen to get a playable build. Change any of them freely.
   never walled in.
 - **The Mermaid cannot help with Saltmere's own pickles,** because she unlocks
   on the fifth. The way off needs only her.
-- **The Mermaid's water shot and bubble columns are not built yet.** Bad guys
-  stay out of the water, so there is nothing under water to fight, and the
-  checker ignores bad guys. They wait for the sword bad guys and the bosses.
+- **The Mermaid's water powers work from the water onto the shore.** Bad guys
+  stay out of the water, so there is nothing under water to fight yet. The
+  water shot (`Q`, 3 hearts, 9 tiles, stops at walls, 1 s between shots) and
+  the bubble column (`R`, 4 hearts, 7 tiles, bursts 0.6 s after a ring of
+  bubbles warns, 3 s between columns) both need her to be swimming. The Gate
+  Pond on Sunveld is there so she can clear the gate guards from the water.
+  Nothing in a level needs the powers, because the checker ignores bad guys.
 - **The Mermaid is slow on land (1.2) and cannot jump there.** She leaps only
   from the water's surface, which is enough to get onto a low shore.
 - **Saltmere's beach is its lowest land and is flat.** Its rooms are sealed by
@@ -394,6 +460,46 @@ These were chosen to get a playable build. Change any of them freely.
   palm is 4 high, which a hop-then-fly can land on.
 - **Salt crust is thin ice:** the Salt Stair's sheets have the same rules, and
   their own look.
+- **The Cheetah's breath is short, not the plan's minute.** The plan says it
+  runs for 1 minute and rests for 2. Here it runs for 8 seconds and rests for
+  3.5, close to the Fairy's flying energy (4.5 and 2.2) and never more than
+  twice it. A full breath is about 80 tiles. Breath drains only while the
+  Cheetah moves and comes back while it stands still or is another shape. At
+  nothing left it is winded: speed 3 until the bar is full again. A checkpoint
+  does not give breath back, nor does a respawn or bread.
+- **What only speed 10 can do:** brittle crust holds at 9 tiles a second or
+  faster, so a Wolf (7) breaks it at once; and a timed gate stays open for a
+  time only the Cheetah can make. Sunveld's gate gives 3.8 seconds for 31
+  tiles: 3.2 for the Cheetah, 4.6 for the Wolf. The island tests check both
+  sides of that margin for every gate.
+- **A plate holds its gate open while someone stands on it,** and the seconds
+  count from the moment they step off. A gate never closes on the player. A
+  second plate close behind the gate lets anyone walk back.
+- **A breaking sheet drops what is on it.** Before, a runner a little too slow
+  could skim across breaking sheets without falling.
+- **Two sword bad guys.** The plan has one kind: 5 hearts, a sword that does 4,
+  appearing with the Cheetah. That is the heavy one: slow (2.4), with a wind-up
+  of 0.8 seconds that glows, so there is time to step back. The light one is
+  an addition: 3 hearts, 2 hearts a blow, speed 5.5 (faster than a Human or a
+  Bunny, slower than a Wolf), wind-up 0.4 seconds. Both appear at level 7, so
+  on Sunveld they guard the gate and the Kopje, and regular bad guys guard the
+  candles.
+- **The world's north and south edges are walls.** Outside the grid there was
+  nothing solid, so a Fairy could leave it and fly around the end of a wall,
+  which the checker, knowing only the grid, could not see.
+- **Sunveld is flat, and its walls are out of reach.** All ordinary ground is
+  at one height (16). West of the Red Wall nothing a player can stand on is
+  higher than 25 unless a closed ring seals it, and the escarpment and the wall
+  are at 31, more than a hop-then-fly above anything.
+- **The Red Wall hides what stands close behind it** (the camera looks
+  north-east), so the Yard's checkpoint and its plate stand well clear of it.
+- **The Cheetah cannot help with Sunveld's own candles,** because it unlocks on
+  the fifth. The way off needs it three times, and the Bunny once.
+- **Six of the seven old forms are proved to have work on Sunveld:** take any
+  one of the Fairy, Orangutan, Bunny, Wolf, Ant or Mermaid away and a candle
+  goes out of reach (`src/islands/sunveld-forms.test.ts`). The Human is the
+  exception: its work there is the sword fights, and the checker ignores bad
+  guys.
 - **Tangle strands are faint threads:** one thin, pale, see-through thread per
   tile, so the wall still reads as going up but hides nothing behind it.
 - **Trees are solid:** a Human walks around them and arrows stop at them.
@@ -402,13 +508,11 @@ These were chosen to get a playable build. Change any of them freely.
 
 ## Next
 
-1. The island after Pearl Rock, with the Cheetah (level 7) and the sword bad
-   guys that come with it.
-2. The Mermaid's water shot and bubble columns, with bad guys that can be
-   fought in the water.
-3. Snake, and small holes that are bigger than a tangle's gap.
-4. Axolotl.
-5. The two bosses (land, then underwater), level 11 and the end of the game.
-6. Wings (level 10) and character customising.
-7. More for the other forms to do on the ways off Underroot (Human, Ant and
-   Fairy only) and Saltmere (Mermaid only).
+1. The island after Sunset Rock, with the Snake (level 8) and small holes that
+   are bigger than a tangle's gap.
+2. Bad guys that can be fought in the water, for the Mermaid's powers.
+3. Axolotl.
+4. The two bosses (land, then underwater), level 11 and the end of the game.
+5. Wings (level 10) and character customising.
+6. More for the other forms to do on the ways off Underroot (Human, Ant and
+   Fairy only), Saltmere (Mermaid only) and Sunveld (Cheetah and Bunny only).

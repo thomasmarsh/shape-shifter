@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { makeArcher, makeBadGuy, BadGuyModel } from './models';
+import { makeArcher, makeBadGuy, makeBladeGuy, makeSwordGuy, BadGuyModel } from './models';
 import { Arrows } from './arrows';
 import { Particles } from './particles';
 import { sound } from './audio';
@@ -11,9 +11,10 @@ import type { Attackable, Player } from './player';
 // for 1 heart and chases you. "Testers" are the same bad guy but slower to
 // notice you and slower to punch, so the tutorial fight is forgiving. Type 2
 // is the archer: 8 hearts, holds its post, shoots arrows at anyone it has
-// noticed and punches for 1 heart when you get close.
+// noticed and punches for 1 heart when you get close. Type 3 is the sword bad
+// guy: 5 hearts, slow and heavy, and one swing costs 4 hearts. The blade bad
+// guy is its light cousin: 3 hearts, fast, and a swing costs 2.
 
-const PUNCH_DAMAGE = 1;
 const PUNCH_REACH = 1.3;
 const RADIUS = 0.35;
 const STEP = 0.35;
@@ -43,11 +44,15 @@ interface Tuning {
   noticeHeight: number;
   windup: number;
   recover: number;
+  /** Hearts one blow takes. */
+  damage: number;
+  /** How close you must be for it to start a blow; it lands up to 0.35 farther. */
+  reach: number;
   bow?: Bow;
 }
 
 const KINDS: Record<EnemyKind, Tuning> = {
-  regular: { hearts: 9, speed: 2.7, notice: 6.5, noticeHeight: 3, windup: 0.5, recover: 1.1 },
+  regular: { hearts: 9, speed: 2.7, notice: 6.5, noticeHeight: 3, windup: 0.5, recover: 1.1, damage: 1, reach: PUNCH_REACH },
   archer: {
     hearts: 8,
     speed: 2.2,
@@ -55,8 +60,12 @@ const KINDS: Record<EnemyKind, Tuning> = {
     noticeHeight: 6,
     windup: 0.5,
     recover: 1.1,
+    damage: 1,
+    reach: PUNCH_REACH,
     bow: { draw: 0.9, wait: 1.8, height: 1.1 },
   },
+  sword: { hearts: 5, speed: 2.4, notice: 6.5, noticeHeight: 3, windup: 0.8, recover: 1.1, damage: 4, reach: PUNCH_REACH + 0.3 },
+  blade: { hearts: 3, speed: 5.5, notice: 7.5, noticeHeight: 3, windup: 0.4, recover: 0.9, damage: 2, reach: 1.4 },
 };
 
 /** What a tester changes about the regular bad guy. */
@@ -94,6 +103,7 @@ export class Enemy implements Attackable {
   private model: BadGuyModel;
   private bow: THREE.Group | null = null;
   private bowMat: THREE.MeshLambertMaterial | null = null;
+  private bladeMat: THREE.MeshLambertMaterial | null = null;
   private barFill: THREE.Sprite;
   private bar: THREE.Group;
   private tuning: Tuning;
@@ -118,6 +128,10 @@ export class Enemy implements Attackable {
       this.model = archer;
       this.bow = archer.bow;
       this.bowMat = archer.bowMat;
+    } else if (this.kind === 'sword' || this.kind === 'blade') {
+      const guy = this.kind === 'sword' ? makeSwordGuy() : makeBladeGuy();
+      this.model = guy;
+      this.bladeMat = guy.bladeMat;
     } else {
       this.model = makeBadGuy(this.tester);
     }
@@ -309,7 +323,7 @@ export class Enemy implements Attackable {
       case 'chase':
         if (!s.canSee || s.dist > 11 || s.fromHome > 14) {
           this.state = 'return';
-        } else if (s.dist < PUNCH_REACH && Math.abs(s.dy) < 1.4) {
+        } else if (s.dist < t.reach && Math.abs(s.dy) < 1.4) {
           this.state = 'windup';
           this.timer = t.windup;
         } else if (s.dist > 0.9) {
@@ -336,7 +350,7 @@ export class Enemy implements Attackable {
     // Once it has noticed you it keeps watching a little farther out, so you
     // can't flicker it on and off at the edge of its range.
     const watching = s.canSee && s.dist < t.notice + KEEP_MARGIN && Math.abs(s.dy) < t.noticeHeight + KEEP_MARGIN;
-    const inFistReach = s.dist < PUNCH_REACH && Math.abs(s.dy) < 1.4;
+    const inFistReach = s.dist < t.reach && Math.abs(s.dy) < 1.4;
 
     switch (this.state) {
       case 'idle':
@@ -398,13 +412,13 @@ export class Enemy implements Attackable {
     this.cooldown = bow.wait;
   }
 
-  /** The punch, shared by both kinds: a wind-up that tells you to step away, then a short recovery. */
+  /** The punch (or sword swing), shared by all kinds: a wind-up that tells you to step away, then a short recovery. */
   private punch(dt: number, player: Player, s: Sense): void {
     this.timer -= dt;
     if (this.timer > 0) return;
     if (this.state === 'windup') {
-      if (s.canSee && s.dist < PUNCH_REACH + 0.35 && Math.abs(s.dy) < 1.4) {
-        player.damage(PUNCH_DAMAGE, this.pos.x, this.pos.z);
+      if (s.canSee && s.dist < this.tuning.reach + 0.35 && Math.abs(s.dy) < 1.4) {
+        player.damage(this.tuning.damage, this.pos.x, this.pos.z);
       }
       this.state = 'recover';
       this.timer = this.tuning.recover;
@@ -448,12 +462,16 @@ export class Enemy implements Attackable {
     m.legR.rotation.x = -swing;
     m.armL.rotation.x = -swing * 0.6;
     m.armR.rotation.z = 0;
-    if (this.state === 'windup') {
+    if (this.state === 'windup' && this.bladeMat) {
+      // The sword goes up and back and holds there, then chops down at the end.
+      const t = 1 - this.timer / this.tuning.windup;
+      m.armR.rotation.x = t < 0.85 ? -2.6 * Math.min(1, t / 0.4) : -0.5;
+    } else if (this.state === 'windup') {
       // The fist goes back, then snaps forward: a clear warning to step away.
       const t = 1 - this.timer / this.tuning.windup;
       m.armR.rotation.x = t < 0.8 ? 0.9 * (t / 0.8) + 0.4 : -1.7;
     } else if (this.state === 'recover' && this.timer > this.tuning.recover - 0.2) {
-      m.armR.rotation.x = -1.7;
+      m.armR.rotation.x = this.bladeMat ? -0.5 : -1.7;
     } else {
       m.armR.rotation.x = swing * 0.6;
     }
@@ -471,9 +489,10 @@ export class Enemy implements Attackable {
       this.bow.rotation.x = -m.armL.rotation.x;
     }
 
-    const glow = this.bowMat ? this.drawGlow() : 0;
+    const glow = this.bowMat || this.bladeMat ? this.drawGlow() : 0;
     m.bodyMat.emissive.setHex(0xffb000).multiplyScalar(glow);
     this.bowMat?.emissive.setHex(0xffd84d).multiplyScalar(glow);
+    this.bladeMat?.emissive.setHex(0xffd84d).multiplyScalar(glow);
     if (this.flash > 0) {
       this.flash -= dt;
       m.bodyMat.color.setHex(0xffffff);
@@ -489,12 +508,15 @@ export class Enemy implements Attackable {
     }
   }
 
-  /** 0 when the bow is down; while it is drawn, a pulse that grows brighter and faster. */
+  /**
+   * 0 at rest; while a bow is drawn or a sword is raised, a pulse that grows
+   * brighter and faster until the shot or the blow.
+   */
   private drawGlow(): number {
-    const bow = this.tuning.bow;
-    if (this.state !== 'draw' || !bow) return 0;
-    const t = 1 - this.timer / bow.draw;
-    const pulse = 0.5 + 0.5 * Math.sin((bow.draw - this.timer) * (20 + 30 * t));
+    const span = this.state === 'draw' ? this.tuning.bow?.draw : this.state === 'windup' && this.bladeMat ? this.tuning.windup : 0;
+    if (!span) return 0;
+    const t = 1 - this.timer / span;
+    const pulse = 0.5 + 0.5 * Math.sin((span - this.timer) * (20 + 30 * t));
     return Math.min(1, (0.4 + 0.6 * t) * (0.6 + 0.4 * pulse) + 0.2 * t);
   }
 }

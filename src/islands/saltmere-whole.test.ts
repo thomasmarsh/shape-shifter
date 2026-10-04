@@ -1,18 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { exploreCached as explore } from '../explorecache';
+import { expectWayOut, exploreIn } from './testkit';
 import { FormId } from '../forms';
 import { Kind, World } from '../world';
 
 // Saltmere as a whole (x 486..699): ids, the README, the look, the join and the footing.
 
 const world = new World();
+// Saltmere's columns and a margin for its neighbours; the explores see only these.
+const explore = exploreIn(world, { x0: 446, x1: 740 });
 const { layout } = world;
 const kinds = (world as unknown as { kind: Uint8Array }).kind;
 
 const onSaltmere = (s: { x: number }) => s.x >= 486 && s.x < 700;
 const mine = <T extends { x: number }>(items: T[]): T[] => items.filter(onSaltmere);
-const respawn = (c: { x: number; z: number }) => ({ x: c.x - 1, z: c.z + 1 });
 const SEVEN: FormId[] = ['human', 'fairy', 'orangutan', 'bunny', 'wolf', 'ant', 'mermaid'];
 
 const sms = layout.puzzles.filter((p) => p.id.startsWith('sm-'));
@@ -98,8 +99,6 @@ describe('Saltmere as a whole', () => {
     const arrival = layout.arrivals.find((a) => a.id === 'saltmere')!;
     const cps = mine(layout.checkpoints);
     expect(cps.length).toBeGreaterThan(5);
-    for (const c of cps) {
-      expect(explore(world, respawn(c), SEVEN, 'easy').canStand(arrival), `from ${c.id} back to the arrival`).toBe(true);
-    }
+    expectWayOut(explore, cps, arrival, SEVEN, 'easy');
   });
 });

@@ -104,6 +104,8 @@ class Duel {
 
 const archerSpot = { kind: 'archer' as const };
 const regularSpot = { kind: 'regular' as const };
+const swordSpot = { kind: 'sword' as const };
+const bladeSpot = { kind: 'blade' as const };
 
 describe('archers', () => {
   it('hurt a standing human for exactly 2 hearts, and not before the draw is done', () => {
@@ -256,6 +258,90 @@ describe('regular bad guys', () => {
     const d = new Duel('human', island(), { x: 26.0, z: 15.5 }, { x: 20.5, z: 15.5 }, { kind: 'regular', tester: true });
     d.run(1);
     expect(d.enemy.alert).toBe(false);
+  });
+});
+
+describe('sword bad guys', () => {
+  it('have 5 hearts and one swing takes 4', () => {
+    const d = new Duel('human', island(), { x: 21.5, z: 15.5 }, { x: 20.5, z: 15.5 }, swordSpot);
+    expect(d.enemy.maxHearts).toBe(5);
+    expect(d.until(() => d.player.hearts < 10)).toBe(true);
+    expect(d.player.hearts).toBe(6);
+  });
+
+  it('wind up for 0.8 seconds before the blow lands', () => {
+    const d = new Duel('human', island(), { x: 21.5, z: 15.5 }, { x: 20.5, z: 15.5 }, swordSpot);
+    d.run(0.2);
+    expect(d.enemy.alert).toBe(true);
+    // The wind-up starts within two frames of noticing you.
+    d.run(0.5);
+    expect(d.player.hearts).toBe(10);
+    expect(d.until(() => d.player.hearts < 10, 0.5)).toBe(true);
+    expect(d.time).toBeGreaterThan(0.8);
+    expect(d.time).toBeLessThan(0.95);
+  });
+
+  it('miss a player who steps out of reach during the wind-up', () => {
+    const d = new Duel('human', island(), { x: 21.5, z: 15.5 }, { x: 20.5, z: 15.5 }, swordSpot);
+    d.run(0.2);
+    d.player.place(24.5, 15.5);
+    d.run(1.5);
+    expect(d.player.hearts).toBe(10);
+  });
+
+  it('fall to three human sword hits', () => {
+    // The Human's sword does 2 hearts a hit.
+    const d = new Duel('human', island(), { x: 21.5, z: 15.5 }, { x: 20.5, z: 15.5 }, swordSpot);
+    d.enemy.takeHit(2, 19.5, 15.5);
+    d.enemy.takeHit(2, 19.5, 15.5);
+    expect(d.enemy.alive).toBe(true);
+    d.enemy.takeHit(2, 19.5, 15.5);
+    expect(d.enemy.alive).toBe(false);
+  });
+
+  it('walk slower than the regular bad guy', () => {
+    const run = (spot: { kind: EnemyKind }): number => {
+      const d = new Duel('human', island(), { x: 25.5, z: 15.5 }, { x: 20.5, z: 15.5 }, spot);
+      d.run(1);
+      return d.enemy.pos.x;
+    };
+    expect(run(swordSpot)).toBeLessThan(run(regularSpot));
+  });
+});
+
+describe('blade bad guys', () => {
+  const speedOf = (id: FormId): number => FORMS.find((f) => f.id === id)!.speed;
+
+  it('have 3 hearts and one swing takes 2', () => {
+    const d = new Duel('human', island(), { x: 21.5, z: 15.5 }, { x: 20.5, z: 15.5 }, bladeSpot);
+    expect(d.enemy.maxHearts).toBe(3);
+    expect(d.until(() => d.player.hearts < 10)).toBe(true);
+    expect(d.player.hearts).toBe(8);
+  });
+
+  it('wind up for 0.4 seconds before the blow lands', () => {
+    const d = new Duel('human', island(), { x: 21.5, z: 15.5 }, { x: 20.5, z: 15.5 }, bladeSpot);
+    d.run(0.2);
+    expect(d.player.hearts).toBe(10);
+    expect(d.until(() => d.player.hearts < 10, 0.5)).toBe(true);
+    expect(d.time).toBeGreaterThan(0.4);
+    expect(d.time).toBeLessThan(0.55);
+  });
+
+  it('run faster than a Human and slower than a Wolf', () => {
+    const d = new Duel('human', island(), { x: 27.5, z: 15.5 }, { x: 20.5, z: 15.5 }, bladeSpot);
+    d.run(0.8);
+    const covered = d.enemy.pos.x - 20.5;
+    expect(covered).toBeGreaterThan(speedOf('human') * 0.8);
+    expect(covered).toBeLessThan(speedOf('wolf') * 0.8);
+  });
+
+  it('fall to two human sword hits', () => {
+    const d = new Duel('human', island(), { x: 21.5, z: 15.5 }, { x: 20.5, z: 15.5 }, bladeSpot);
+    d.enemy.takeHit(2, 19.5, 15.5);
+    expect(d.enemy.alive).toBe(true);
+    d.enemy.takeHit(2, 19.5, 15.5);
+    expect(d.enemy.alive).toBe(false);
   });
 });
 

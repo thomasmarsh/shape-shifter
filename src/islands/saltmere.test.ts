@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { FormId } from '../forms';
-import { exploreCached as explore } from '../explorecache';
 import { Kind } from '../layout';
 import { World } from '../world';
 import { saltmere, stairTop } from './saltmere';
+import {
+  expectArchersAwayFromRespawns,
+  expectCheckpointsAwayFromGuards,
+  expectClosedRing,
+  expectMelodies,
+  expectNoneOn,
+  expectOnRealGround,
+  expectSeenFromCamera,
+  expectUniqueIds,
+  expectWayOut,
+  exploreIn,
+  inBox,
+  reachedAny,
+  respawnOf as respawn,
+  solidTiles,
+} from './testkit';
 
 // The west half of Saltmere (x 486 to 583): the Strand and hub, the Tide Pool,
 // the Driftwood Nest, the Salt Stair with Salt Rock, and the Stack.
@@ -13,7 +28,9 @@ const world = new World();
 const { layout } = world;
 
 const west = (s: { x: number }) => s.x >= 486 && s.x < 584;
-const respawn = (c: { x: number; z: number }) => ({ x: c.x - 1, z: c.z + 1 });
+// Saltmere's columns and a margin for its neighbours; the explores see only these.
+const RANGE = { x0: 446, x1: 740 };
+const explore = exploreIn(world, RANGE);
 const START = { x: 492.5, z: 52.5 };
 const HUB_MID = { x: 540.5, z: 52.5 };
 
@@ -31,25 +48,19 @@ const westEnemies = layout.enemies.filter(west);
 const westPuzzles = layout.puzzles.filter((p) => west(p.speaker));
 const westHints = layout.hints.filter(west);
 
-const inBox = (i: number, j: number, i0: number, j0: number, i1: number, j1: number) =>
-  i >= i0 && i <= i1 && j >= j0 && j <= j1;
 /** Every tile of Saltmere's west half that is not void. */
-const tiles: [number, number][] = [];
-for (let j = 0; j < world.depth; j++) {
-  for (let i = 486; i < 584; i++) if (!isVoid(i, j)) tiles.push([i, j]);
-}
+const tiles = solidTiles(world, { x0: 486, x1: 584 });
 const nestLobe = tiles.filter(([i, j]) => inBox(i, j, 520, 33, 534, 45));
 const nestInside = tiles.filter(([i, j]) => inBox(i, j, 521, 34, 533, 44));
 const rock = tiles.filter(([i, j]) => inBox(i, j, 539, 8, 553, 21));
 const rockInside = tiles.filter(([i, j]) => inBox(i, j, 542, 9, 550, 13));
 const stack = tiles.filter(([i, j]) => inBox(i, j, 575, 34, 579, 38));
 const tangleTiles = tiles.filter(([i, j]) => world.isTangle(i + 0.5, j + 0.5));
-const reachedAny = (r: ReturnType<typeof explore>, list: [number, number][]) => list.filter(([i, j]) => r.has(i, j));
 const dist = (a: [number, number][], b: [number, number][]) =>
   Math.min(...a.flatMap(([i, j]) => b.map(([p, q]) => Math.hypot(i - p, j - q))));
 
 describe('Saltmere west with the shapes of level 6', () => {
-  const six = explore(world, START, SIX, 'easy');
+  const six = explore(START, SIX, 'easy');
 
   it('lets six forms use every speaker and pickle, stand on every respawn spot and reach all bread', () => {
     expect(westPuzzles.map((p) => p.id)).toEqual(WEST_IDS);
@@ -65,7 +76,7 @@ describe('Saltmere west with the shapes of level 6', () => {
 });
 
 describe('Saltmere west needs every shape', () => {
-  const r = (forms: FormId[]) => explore(world, START, forms, 'max');
+  const r = (forms: FormId[]) => explore(START, forms, 'max');
 
   it('uses no pickle without the human (a speaker may be)', () => {
     const x = r(without(SIX, 'human'));
@@ -105,31 +116,14 @@ describe('Saltmere west needs every shape', () => {
 });
 
 describe('Saltmere west rings', () => {
-  const closed = (seedI: number, seedJ: number, box: [number, number, number, number], size: number) => {
-    // Flood over every non-tangle tile, diagonals included: a diagonal-only join leaks.
-    const seen = new Set<string>([`${seedI},${seedJ}`]);
-    const todo: [number, number][] = [[seedI, seedJ]];
-    while (todo.length > 0) {
-      const [i, j] = todo.pop()!;
-      for (let di = -1; di <= 1; di++) {
-        for (let dj = -1; dj <= 1; dj++) {
-          const a = i + di;
-          const b = j + dj;
-          if (seen.has(`${a},${b}`) || world.isTangle(a + 0.5, b + 0.5)) continue;
-          expect(inBox(a, b, ...box), `the flood leaked to (${a}, ${b})`).toBe(true);
-          seen.add(`${a},${b}`);
-          todo.push([a, b]);
-        }
-      }
-    }
-    expect(seen.size).toBe(size);
-  };
+  const closed = (seedI: number, seedJ: number, box: [number, number, number, number], size: number) =>
+    expectClosedRing((i, j) => world.isTangle(i + 0.5, j + 0.5), [seedI, seedJ], box, size);
 
   it('closes the Nest ring, joined edge to edge', () => closed(525, 40, [521, 34, 533, 44], 13 * 11));
   it('closes the Salt Rock ring, joined edge to edge', () => closed(546, 11, [542, 9, 550, 13], 9 * 5));
 
   it('keeps the Nest, from inside, to the Nest, even for five forms at the limit', () => {
-    const r = explore(world, respawn({ x: 525.5, z: 42.5 }), FIVE, 'max');
+    const r = explore(respawn({ x: 525.5, z: 42.5 }), FIVE, 'max');
     const out = reachedAny(r, tiles.filter(([i, j]) => !inBox(i, j, 521, 34, 533, 44)));
     expect(out.slice(0, 3)).toEqual([]);
     expect(reachedAny(r, nestInside).length).toBeGreaterThan(20);
@@ -163,39 +157,26 @@ describe('Saltmere west fairness for a one-heart Ant', () => {
       ...layout.enemies,
     ].filter(west);
     expect(things.length).toBeGreaterThan(25);
-    for (const s of things) {
-      expect(world.isTangle(s.x, s.z), `(${s.x}, ${s.z}) tangle`).toBe(false);
-      expect(world.isThinIce(s.x, s.z), `(${s.x}, ${s.z}) crust`).toBe(false);
-    }
+    expectNoneOn('tangle', things, (s) => world.isTangle(s.x, s.z));
+    expectNoneOn('crust', things, (s) => world.isThinIce(s.x, s.z));
   });
 
   it('keeps every west checkpoint 7 tiles from a guard post at about its height', () => {
-    for (const c of westCheckpoints) {
-      for (const e of westEnemies) {
-        if (Math.abs(world.groundAt(e.x, e.z) - world.groundAt(c.x, c.z)) > 3) continue;
-        expect(Math.hypot(e.x - c.x, e.z - c.z), `${c.id} vs guard (${e.x}, ${e.z})`).toBeGreaterThanOrEqual(7);
-      }
-    }
+    expectCheckpointsAwayFromGuards(world, westCheckpoints, westEnemies);
   });
 
   it('keeps every archer 11.5 tiles from a respawn spot, unless it is 7.5 higher or lower', () => {
     const archers = westEnemies.filter((e) => e.kind === 'archer');
     expect(archers).toHaveLength(1);
-    for (const c of westCheckpoints) {
-      const spot = respawn(c);
-      for (const a of archers) {
-        if (Math.abs(world.groundAt(a.x, a.z) - world.groundAt(spot.x, spot.z)) >= 7.5) continue;
-        expect(Math.hypot(a.x - spot.x, a.z - spot.z), `${c.id} vs archer (${a.x}, ${a.z})`).toBeGreaterThanOrEqual(11.5);
-      }
-    }
+    expectArchersAwayFromRespawns(world, westCheckpoints, archers);
   });
 });
 
 describe('Saltmere west way out', () => {
   it('lets six forms on easy reach the hub from the respawn spots off the hub (the hub is flat)', () => {
-    for (const c of westCheckpoints.filter((q) => q.id === 'sm-east' || q.id === 'sm-nest' || q.id === 'sm-salt')) {
-      expect(explore(world, respawn(c), SIX, 'easy').canStand(HUB_MID), `from ${c.id}`).toBe(true);
-    }
+    const offHub = westCheckpoints.filter((q) => q.id === 'sm-east' || q.id === 'sm-nest' || q.id === 'sm-salt');
+    expect(offHub).toHaveLength(3);
+    expectWayOut(explore, offHub, HUB_MID, SIX, 'easy');
   }, 20000);
 });
 
@@ -208,28 +189,18 @@ describe('Saltmere west things', () => {
       ...layout.enemies,
     ].filter(west);
     const pickles = westPuzzles.map((p) => p.candle);
-    for (const s of spots) {
-      expect(world.groundAt(s.x, s.z), `(${s.x}, ${s.z})`).toBeGreaterThan(0);
-      // Only a pickle is in water.
-      expect(world.isWater(s.x, s.z), `(${s.x}, ${s.z}) water`).toBe(pickles.includes(s as never));
-    }
+    // Only a pickle is in water.
+    expectOnRealGround(world, spots, (s) => pickles.includes(s as never));
   });
 
   it('has no id clash among its things', () => {
-    for (const list of [westCheckpoints, westBread, westPuzzles]) {
-      const ids = list.map((x) => x.id);
-      expect(new Set(ids).size).toBe(ids.length);
-    }
-    const hints = westHints.map((h) => h.id);
-    expect(new Set(hints).size).toBe(hints.length);
+    expectUniqueIds(westCheckpoints, westBread, westPuzzles, westHints);
   });
 
   it('gives the four puzzles six different notes each, and different melodies', () => {
-    for (const p of westPuzzles) expect(new Set(p.melody).size, p.id).toBe(6);
-    expect(new Set(westPuzzles.map((p) => p.melody.join(','))).size).toBe(4);
+    expect(westPuzzles).toHaveLength(4);
     // None repeats a melody of an earlier island (the brief's sm-nest melody clashed with ff-under).
-    const others = new Set(layout.puzzles.filter((p) => !westPuzzles.includes(p) && p.speaker.x < 584).map((p) => p.melody.join(',')));
-    for (const p of westPuzzles) expect(others.has(p.melody.join(',')), p.id).toBe(false);
+    expectMelodies(westPuzzles, layout.puzzles.filter((p) => p.speaker.x < 584));
   });
 
   it('has no trees and no boulders', () => {
@@ -260,18 +231,12 @@ describe('Saltmere west things', () => {
 });
 
 describe('Saltmere west from the game camera', () => {
-  const seen = (what: string, x: number, z: number, y = world.groundAt(x, z)): void => {
-    for (let k = 0.25; k <= 30; k += 0.25) {
-      expect(world.groundAt(x - k, z + k), `${what} (${x}, ${z}) hidden at k=${k}`).toBeLessThanOrEqual(y + 0.9 + 1.12 * k);
-    }
-  };
-
   it('hides no speaker, pickle, checkpoint or bread', () => {
     const plain = [...westPuzzles.map((p) => p.speaker), ...westCheckpoints, ...westBread];
     expect(plain.length).toBeGreaterThan(12);
-    for (const s of plain) seen('thing', s.x, s.z);
+    for (const s of plain) expectSeenFromCamera(world, 'thing', s.x, s.z);
     // A pickle is seen through the water, from the surface.
-    for (const p of westPuzzles) seen('pickle', p.candle.x, p.candle.z, world.waterLevelAt(p.candle.x, p.candle.z));
+    for (const p of westPuzzles) expectSeenFromCamera(world, 'pickle', p.candle.x, p.candle.z, world.waterLevelAt(p.candle.x, p.candle.z));
   });
 });
 

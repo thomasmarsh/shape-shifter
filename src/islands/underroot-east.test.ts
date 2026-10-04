@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FormId } from '../forms';
-import { exploreCached as explore } from '../explorecache';
+import { exploreIn } from './testkit';
 import { Kind } from '../layout';
 import { World } from '../world';
 import { buildEast, rootTop } from './underroot-east';
@@ -9,6 +9,8 @@ import { buildEast, rootTop } from './underroot-east';
 // Wall and Yard, the Long Root, the Crown and the way on to Saltmere.
 
 const world = new World();
+// Underroot's columns and a margin for its neighbours; the explores see only these.
+const explore = exploreIn(world, { x0: 259, x1: 520 });
 const { layout } = world;
 
 const east = (s: { x: number }) => s.x >= 385 && s.x < 480;
@@ -47,8 +49,8 @@ const tangleTiles = tiles.filter(([i, j]) => world.isTangle(i + 0.5, j + 0.5));
 const reachedAny = (r: ReturnType<typeof explore>, list: [number, number][]) => list.filter(([i, j]) => r.has(i, j));
 
 describe('Underroot east with the shapes of level 5', () => {
-  const five = explore(world, EAST_START, FIVE, 'easy');
-  const six = explore(world, EAST_START, SIX, 'easy');
+  const five = explore(EAST_START, FIVE, 'easy');
+  const six = explore(EAST_START, SIX, 'easy');
 
   it('lets five forms solve the two candles and reach the east hub', () => {
     for (const id of ['ur-grove', 'ur-spire']) {
@@ -77,7 +79,7 @@ describe('Underroot east with the shapes of level 5', () => {
 
 describe('Underroot east needs every shape', () => {
   const can = (forms: FormId[], id: string, profile: 'easy' | 'max') => {
-    const r = explore(world, EAST_START, forms, profile);
+    const r = explore(EAST_START, forms, profile);
     return { speaker: r.canUse(puzzle(id).speaker), candle: r.canUse(puzzle(id).candle) };
   };
 
@@ -100,7 +102,7 @@ describe('Underroot east needs every shape', () => {
 
 describe('Underroot east needs the Ant', () => {
   const nothingBeyond = (from: { x: number; z: number }, forms: FormId[]) => {
-    const r = explore(world, from, forms, 'max');
+    const r = explore(from, forms, 'max');
     expect(reachedAny(r, yardTiles).slice(0, 3), 'Yard').toEqual([]);
     expect(reachedAny(r, tangleTiles).slice(0, 3), 'tangle').toEqual([]);
     expect(reachedAny(r, crownTiles).slice(0, 3), 'Crown').toEqual([]);
@@ -113,7 +115,7 @@ describe('Underroot east needs the Ant', () => {
   it('keeps six forms minus the ant out, at the limit', () => nothingBeyond(EAST_START, without(SIX, 'ant')));
 
   it('keeps six forms minus the fairy off Saltmere, at the limit', () => {
-    const r = explore(world, EAST_START, without(SIX, 'fairy'), 'max');
+    const r = explore(EAST_START, without(SIX, 'fairy'), 'max');
     expect(r.canStand(SALTMERE)).toBe(false);
     expect(reachedAny(r, saltmereTiles).slice(0, 3)).toEqual([]);
   });
@@ -198,7 +200,7 @@ describe('Underroot east way out', () => {
   it('lets six forms on easy walk back to the west half from every respawn spot', () => {
     const goal = WEST_ARRIVAL ?? EAST_START;
     for (const c of eastCheckpoints.filter((q) => q.id !== 'saltmere')) {
-      const r = explore(world, respawn(c), SIX, 'easy');
+      const r = explore(respawn(c), SIX, 'easy');
       expect(r.canStand(goal), `from ${c.id}`).toBe(true);
     }
   });

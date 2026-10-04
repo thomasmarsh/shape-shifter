@@ -1,7 +1,7 @@
 // Every form from PLAN.md, as data. The number key that selects a form is its
 // index in this list, and it unlocks when the player reaches `level`.
 //
-// Human, Fairy, Orangutan, Bunny, Winter Wolf, Ant and Mermaid are playable; the
+// Human, Fairy, Orangutan, Bunny, Winter Wolf, Ant, Mermaid and Cheetah are playable; the
 // rest are listed so the form bar can show them as locked and so later islands
 // can fill them in without changing the shape of this table.
 
@@ -26,6 +26,42 @@ export const ICE_SPEED = 6;
 export const ICE_STUMBLE = 0.15;
 /** Seconds after breaking before a thin-ice tile grows back. */
 export const ICE_REGROW = 4;
+/** Real ground speed that a brittle sheet needs to hold: only a fresh Cheetah (10) has it. */
+export const BRITTLE_SPEED = 9;
+
+// The Mermaid's water powers, which only work while she is swimming.
+/** Hearts a water shot takes off the first bad guy it touches. */
+export const WATER_SHOT_DAMAGE = 3;
+/** How far away a bad guy can be for the shot to aim at it, in tiles. */
+export const WATER_SHOT_AIM = 9;
+/** Tiles a second. */
+export const WATER_SHOT_SPEED = 12;
+/** Tiles a shot flies before it falls into the water. */
+export const WATER_SHOT_RANGE = 9;
+/** Seconds between shots. */
+export const WATER_SHOT_COOLDOWN = 1.0;
+/** How close a shot must pass to a bad guy's middle to hit, in tiles. */
+export const WATER_SHOT_RADIUS = 0.6;
+/** Hearts a bubble column takes off every bad guy it catches. */
+export const BUBBLE_DAMAGE = 4;
+/** How far away a bad guy can be for the column to come up under it, in tiles. */
+export const BUBBLE_AIM = 7;
+/** Where the column comes up when there is no bad guy, tiles ahead of her. */
+export const BUBBLE_AHEAD = 3;
+/** Radius of the burst, in tiles. */
+export const BUBBLE_RADIUS = 1.3;
+/** Seconds of warning bubbles before the burst. */
+export const BUBBLE_DELAY = 0.6;
+/** Seconds between columns. */
+export const BUBBLE_COOLDOWN = 3.0;
+
+// The Cheetah's breath: it drains while running, and only time refills it.
+/** Seconds of running a full breath lasts. */
+export const RUN_BREATH = 8;
+/** Seconds of rest (or any other form) to get from empty to full. */
+export const RUN_REST = 3.5;
+/** The Cheetah's top speed while winded, until breath is completely full again. */
+export const WINDED_SPEED = 3.0;
 
 /**
  * How far below the water surface a kelp mat hangs, for a mat the Human fits
@@ -246,7 +282,7 @@ export const FORMS: readonly FormDef[] = [
     sword: 'none',
     canFly: false,
     blurb: 'Fastest of all, for one minute at a time.',
-    playable: false,
+    playable: true,
   },
   {
     id: 'snake',

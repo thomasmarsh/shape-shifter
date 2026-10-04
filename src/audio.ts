@@ -117,6 +117,17 @@ class Sound {
     this.tone(160, 0, 0.16, 0.22, 'square');
   }
 
+  waterShot(): void {
+    this.tone(520, 0, 0.18, 0.2, 'sine', 900);
+    this.tone(260, 0.02, 0.2, 0.1, 'triangle', 420);
+  }
+
+  bubbles(): void {
+    this.tone(300, 0, 0.3, 0.18, 'sine', 700);
+    this.tone(450, 0.08, 0.3, 0.14, 'sine', 900);
+    this.tone(600, 0.16, 0.3, 0.1, 'sine', 1100);
+  }
+
   wrong(): void {
     this.tone(196, 0, 0.2, 0.25, 'square');
     this.tone(147, 0.2, 0.3, 0.25, 'square');

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FormId } from '../forms';
-import { exploreCached as explore } from '../explorecache';
+import { exploreIn } from './testkit';
 import { Kind, World } from '../world';
 import { matTop } from './underroot';
 
@@ -9,6 +9,8 @@ import { matTop } from './underroot';
 // tests cover the west half.
 
 const world = new World();
+// Underroot's columns and a margin for its neighbours; the explores see only these.
+const explore = exploreIn(world, { x0: 259, x1: 520 });
 const { layout } = world;
 
 const west = (s: { x: number }) => s.x >= 299 && s.x < 385;
@@ -32,7 +34,7 @@ const spotsOf = () => [
   ...guards,
 ];
 
-const rFive = explore(world, START, FIVE, 'easy');
+const rFive = explore(START, FIVE, 'easy');
 
 describe('Underroot west with all five forms on easy', () => {
   it('lets the three west puzzles be solved', () => {
@@ -69,7 +71,7 @@ describe('Underroot west with all five forms on easy', () => {
 
 describe('Underroot west with the human alone', () => {
   it('solves the Clearing but nothing else', () => {
-    const r = explore(world, START, ['human'], 'easy');
+    const r = explore(START, ['human'], 'easy');
     expect(r.canUse(puzzle('ur-glade').speaker)).toBe(true);
     expect(r.canUse(puzzle('ur-glade').candle)).toBe(true);
     expect(r.canUse(puzzle('ur-mat').speaker)).toBe(false);
@@ -79,12 +81,12 @@ describe('Underroot west with the human alone', () => {
 
 describe('Underroot west needs every shape', () => {
   const can = (forms: FormId[], id: string) => {
-    const r = explore(world, START, forms, 'max');
+    const r = explore(START, forms, 'max');
     return { speaker: r.canUse(puzzle(id).speaker), candle: r.canUse(puzzle(id).candle) };
   };
 
   it('Mat Rock and Pier Rock need the wolf', () => {
-    const r = explore(world, START, fiveWithout('wolf'), 'max');
+    const r = explore(START, fiveWithout('wolf'), 'max');
     expect(can(fiveWithout('wolf'), 'ur-mat')).toEqual({ speaker: false, candle: false });
     expect(can(fiveWithout('wolf'), 'ur-pier')).toEqual({ speaker: false, candle: false });
     expect(r.canStand({ x: 335.5, z: 20.5 }), 'Mat Rock').toBe(false);
@@ -102,7 +104,7 @@ describe('Underroot west needs every shape', () => {
   });
 
   it('the Pier needs no bunny', () => {
-    const r = explore(world, START, fiveWithout('bunny'), 'easy');
+    const r = explore(START, fiveWithout('bunny'), 'easy');
     expect(r.canUse(puzzle('ur-pier').speaker)).toBe(true);
     expect(r.canUse(puzzle('ur-pier').candle)).toBe(true);
   });
@@ -111,7 +113,7 @@ describe('Underroot west needs every shape', () => {
 describe('Underroot west way out', () => {
   it('lets five forms reach the arrival from every west checkpoint', () => {
     for (const c of checkpoints) {
-      const r = explore(world, respawn(c), FIVE, 'easy');
+      const r = explore(respawn(c), FIVE, 'easy');
       expect(r.canStand(START), `from ${c.id}`).toBe(true);
     }
   });

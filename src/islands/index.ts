@@ -5,6 +5,7 @@ import { highcrag } from './highcrag';
 import { frostfang } from './frostfang';
 import { underroot } from './underroot';
 import { saltmere } from './saltmere';
+import { sunveld } from './sunveld';
 
 /** Every island in the world, in the order they are built. */
-export const ISLANDS: readonly Island[] = [meadow, tanglewood, highcrag, frostfang, underroot, saltmere];
+export const ISLANDS: readonly Island[] = [meadow, tanglewood, highcrag, frostfang, underroot, saltmere, sunveld];

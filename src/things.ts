@@ -42,7 +42,8 @@ export class Puzzle {
     this.melody = spot.melody;
     this.speaker = makeSpeaker();
     this.pickle = world.isWater(spot.candle.x, spot.candle.z);
-    this.candle = this.pickle ? makePickle() : makeCandle();
+    const rise = world.waterLevelAt(spot.candle.x, spot.candle.z) - world.groundAt(spot.candle.x, spot.candle.z);
+    this.candle = this.pickle ? makePickle(rise) : makeCandle();
     this.speakerPos = new THREE.Vector3(spot.speaker.x, world.groundAt(spot.speaker.x, spot.speaker.z), spot.speaker.z);
     this.candlePos = new THREE.Vector3(spot.candle.x, world.groundAt(spot.candle.x, spot.candle.z), spot.candle.z);
     this.speaker.group.position.copy(this.speakerPos);

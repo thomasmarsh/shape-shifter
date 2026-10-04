@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FormId } from '../forms';
-import { explore } from '../levelcheck';
+import { exploreIn } from './testkit';
 import { World } from '../world';
 import { fallsTop, pierTop, runTop } from './frostfang-run';
 
@@ -10,6 +10,8 @@ import { fallsTop, pierTop, runTop } from './frostfang-run';
 // (x >= 243). These tests check each half and then the island as a whole.
 
 const world = new World();
+// Frostfang's columns and a margin for its neighbours; the explores see only these.
+const explore = exploreIn(world, { x0: 160, x1: 348 });
 const { layout } = world;
 
 const WEST_END = 243;
@@ -58,7 +60,7 @@ function boxReached(r: ReturnType<typeof explore>, i0: number, j0: number, i1: n
 }
 
 describe('Frostfang with the four forms of level 3', () => {
-  const r = explore(world, START, FOUR, 'easy');
+  const r = explore(START, FOUR, 'easy');
 
   it('lets all five puzzles be solved', () => {
     for (const id of IDS) {
@@ -91,7 +93,7 @@ describe('Frostfang with the four forms of level 3', () => {
 describe('Frostfang needs every shape', () => {
   /** Reach with these forms at the limit, and say whether speaker / candle can be used. */
   const can = (forms: FormId[], id: string) => {
-    const r = explore(world, START, forms, 'max');
+    const r = explore(START, forms, 'max');
     return { speaker: r.canUse(puzzle(id).speaker), candle: r.canUse(puzzle(id).candle) };
   };
 
@@ -118,13 +120,13 @@ describe('Frostfang needs every shape', () => {
 
   it('Undercliff: only the orangutan gets back up from the shelf', () => {
     const shelf = { x: 223.5, z: 49.5 };
-    const stuck = explore(world, shelf, fourWithout('orangutan'), 'max');
+    const stuck = explore(shelf, fourWithout('orangutan'), 'max');
     expect(boxReached(stuck, 203, 22, 242, 47), 'hub tiles without the orangutan').toBe(0);
-    const out = explore(world, shelf, FOUR, 'easy');
+    const out = explore(shelf, FOUR, 'easy');
     expect(out.canStand({ x: 231.5, z: 47.5 }), 'hub rim above the pine').toBe(true);
     expect(out.canStand(START), 'the landing').toBe(true);
     // The candle rock is no way out either.
-    const rock = explore(world, { x: 223.5, z: 61.5 }, fourWithout('orangutan'), 'max');
+    const rock = explore({ x: 223.5, z: 61.5 }, fourWithout('orangutan'), 'max');
     expect(boxReached(rock, 203, 22, 242, 47), 'hub tiles from the candle rock').toBe(0);
   });
 
@@ -136,7 +138,7 @@ describe('Frostfang needs every shape', () => {
 });
 
 describe('Frostfang east, with all five forms on easy', () => {
-  const r = explore(world, SHORE, FIVE, 'easy');
+  const r = explore(SHORE, FIVE, 'easy');
 
   it('reaches every stop of the run and the arrival at Underroot', () => {
     expect(r.canStand(GLACIER), 'Glacier').toBe(true);
@@ -157,7 +159,7 @@ describe('Frostfang east, with all five forms on easy', () => {
 describe('Frostfang east needs the Wolf', () => {
   for (const [name, at] of [['the shore', SHORE], ['the real arrival', START]] as const) {
     it(`keeps the four older forms off everything at x >= 274, from ${name}, at the limit`, () => {
-      const r = explore(world, at, FOUR, 'max');
+      const r = explore(at, FOUR, 'max');
       const reached = eastTiles.filter(([i, j]) => i >= 274 && r.has(i, j));
       expect(reached.slice(0, 5)).toEqual([]);
     });
@@ -166,28 +168,28 @@ describe('Frostfang east needs the Wolf', () => {
 
 describe('Frostfang east needs every form', () => {
   it('stops without the bunny at the Glacier, short of the upper glacier', () => {
-    const r = explore(world, SHORE, fiveWithout('bunny'), 'max');
+    const r = explore(SHORE, fiveWithout('bunny'), 'max');
     expect(r.canStand(GLACIER), 'Glacier').toBe(true);
     expect(r.canStand(UPPER), 'upper glacier').toBe(false);
     expect(r.canStand(UNDERROOT), 'Underroot').toBe(false);
   });
 
   it('stops without the orangutan on the upper glacier, short of the Brow', () => {
-    const r = explore(world, SHORE, fiveWithout('orangutan'), 'max');
+    const r = explore(SHORE, fiveWithout('orangutan'), 'max');
     expect(r.canStand(UPPER), 'upper glacier').toBe(true);
     expect(r.canStand(BROW), 'Brow').toBe(false);
     expect(r.canStand(UNDERROOT), 'Underroot').toBe(false);
   });
 
   it('stops without the fairy on the Brow, short of Last Rock', () => {
-    const r = explore(world, SHORE, fiveWithout('fairy'), 'max');
+    const r = explore(SHORE, fiveWithout('fairy'), 'max');
     expect(r.canStand(BROW), 'Brow').toBe(true);
     expect(r.canStand(LAST_ROCK), 'Last Rock').toBe(false);
     expect(r.canStand(UNDERROOT), 'Underroot').toBe(false);
   });
 
   it('stops without the wolf at the shore', () => {
-    const r = explore(world, SHORE, FOUR, 'max');
+    const r = explore(SHORE, FOUR, 'max');
     expect(r.canStand(GLACIER), 'Glacier').toBe(false);
     expect(r.canStand(UNDERROOT), 'Underroot').toBe(false);
   });
@@ -201,7 +203,7 @@ describe('Frostfang east needs every form', () => {
   });
 
   it('keeps anyone who starts on Last Rock without the wolf off Underroot', () => {
-    const r = explore(world, LAST_ROCK, fiveWithout('wolf'), 'max');
+    const r = explore(LAST_ROCK, fiveWithout('wolf'), 'max');
     expect(r.canStand(UNDERROOT), 'Underroot').toBe(false);
     expect(r.canStand({ x: 304.5, z: 28.5 }), 'the middle of the last run').toBe(false);
   });
@@ -341,13 +343,13 @@ describe('Frostfang from the game camera', () => {
 
 describe('Frostfang as a whole island', () => {
   it('lets four forms from the real arrival reach nothing at x >= 274, even at the limit', () => {
-    const r = explore(world, START, FOUR, 'max');
+    const r = explore(START, FOUR, 'max');
     const reached = eastTiles.filter(([i, j]) => i >= 274 && r.has(i, j));
     expect(reached.slice(0, 5)).toEqual([]);
   });
 
   it('lets five forms from the real arrival reach every thing, and Underroot', () => {
-    const r = explore(world, START, FIVE, 'easy');
+    const r = explore(START, FIVE, 'easy');
     for (const p of layout.puzzles.filter((q) => onIsland(q.speaker))) {
       expect(r.canUse(p.speaker), `${p.id} speaker`).toBe(true);
       expect(r.canUse(p.candle), `${p.id} candle`).toBe(true);
@@ -362,7 +364,7 @@ describe('Frostfang as a whole island', () => {
 
   it('keeps Underroot out of reach for five forms minus any one of the four that matter, even at the limit', () => {
     for (const f of ['bunny', 'orangutan', 'fairy', 'wolf'] as const) {
-      const r = explore(world, START, fiveWithout(f), 'max');
+      const r = explore(START, fiveWithout(f), 'max');
       expect(r.canStand(UNDERROOT), `without the ${f}`).toBe(false);
     }
   });

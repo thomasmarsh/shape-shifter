@@ -16,6 +16,14 @@ const checkpoint = (id: string) => layout.checkpoints.find((c) => c.id === id)!;
 /** Where a player coming across lands: one tile south-west of the checkpoint. */
 const standSpot = (id: string) => ({ x: checkpoint(id).x - 1, z: checkpoint(id).z + 1 });
 
+/**
+ * Columns a search looks at (see levelcheck.range.test.ts: an island plus a margin
+ * of 40 gives the whole world's answer). A claim that nothing past a barrier is
+ * reached needs only the barrier plus a margin: a reach moves at most about 21
+ * tiles at a time, so if the columns up to the margin are empty, so is the rest.
+ */
+const cols = (x0: number, x1: number) => ({ x0, x1 });
+
 const L0: FormId[] = ['human'];
 const L1: FormId[] = ['human', 'fairy'];
 const L2: FormId[] = ['human', 'fairy', 'orangutan'];
@@ -24,15 +32,16 @@ const L4: FormId[] = [...L3, 'wolf'];
 
 describe('the journey', () => {
   it('level 0: a human cannot leave the meadow island', () => {
-    expect(explore(world, spawn, L0, 'max').canStand(arrival('tanglewood'))).toBe(false);
+    expect(explore(world, spawn, L0, 'max', cols(0, 125)).canStand(arrival('tanglewood'))).toBe(false);
   });
 
   it('level 1: a fairy crosses to Tanglewood, but cannot reach Highcrag or beyond', () => {
-    expect(explore(world, spawn, L1, 'easy').canStand(arrival('tanglewood'))).toBe(true);
-    const r = explore(world, spawn, L1, 'max');
+    expect(explore(world, spawn, L1, 'easy', cols(0, 125)).canStand(arrival('tanglewood'))).toBe(true);
+    const range = cols(0, 165);
+    const r = explore(world, spawn, L1, 'max', range);
     let checked = 0;
     for (let j = 0; j < world.depth; j++) {
-      for (let i = 123; i < world.width; i++) {
+      for (let i = 123; i < range.x1; i++) {
         if (world.isVoid(i + 0.5, j + 0.5)) continue;
         checked++;
         expect(r.has(i, j), `tile ${i},${j}`).toBe(false);
@@ -43,20 +52,21 @@ describe('the journey', () => {
 
   it('level 2: an orangutan reaches Highcrag, but nobody gets to Frostfang', () => {
     const from = standSpot('far-island');
-    expect(explore(world, from, L2, 'easy').canStand(arrival('highcrag'))).toBe(true);
-    expect(explore(world, spawn, L2, 'max').canStand(arrival('frostfang'))).toBe(false);
+    expect(explore(world, from, L2, 'easy', cols(60, 200)).canStand(arrival('highcrag'))).toBe(true);
+    expect(explore(world, spawn, L2, 'max', cols(0, 250)).canStand(arrival('frostfang'))).toBe(false);
   });
 
   it('level 3: a bunny climbs the Giant Stair to Frostfang', () => {
-    expect(explore(world, arrival('highcrag'), L3, 'easy').canStand(arrival('frostfang'))).toBe(true);
+    expect(explore(world, arrival('highcrag'), L3, 'easy', cols(123, 250)).canStand(arrival('frostfang'))).toBe(true);
   });
 
   it('level 3: the four forms reach nothing of the run past the frozen lake, nor Underroot', () => {
     for (const [name, from] of [['the Frostfang arrival', arrival('frostfang')], ['the world spawn', spawn]] as const) {
-      const r = explore(world, from, L3, 'max');
+      const range = cols(200, 340);
+      const r = explore(world, from, L3, 'max', range);
       let checked = 0;
       for (let j = 0; j < world.depth; j++) {
-        for (let i = 274; i < world.width; i++) {
+        for (let i = 274; i < range.x1; i++) {
           if (world.isVoid(i + 0.5, j + 0.5)) continue;
           checked++;
           expect(r.has(i, j), `from ${name}: tile ${i},${j}`).toBe(false);
@@ -68,7 +78,7 @@ describe('the journey', () => {
   });
 
   it('level 4: with the Winter Wolf as well, all five forms run the lake and reach Underroot', () => {
-    expect(explore(world, arrival('frostfang'), L4, 'easy').canStand(arrival('underroot'))).toBe(true);
+    expect(explore(world, arrival('frostfang'), L4, 'easy', cols(200, 340)).canStand(arrival('underroot'))).toBe(true);
   });
 });
 
@@ -78,10 +88,11 @@ describe('the journey through Underroot', () => {
   const from = arrival('underroot');
 
   it('level 4: the five forms on max reach no tangle, nothing at x >= 426, and not Saltmere', () => {
-    const r = explore(world, from, L4, 'max');
+    const range = cols(299, 530);
+    const r = explore(world, from, L4, 'max', range);
     let checked = 0;
     for (let j = 0; j < world.depth; j++) {
-      for (let i = 0; i < world.width; i++) {
+      for (let i = range.x0; i < range.x1; i++) {
         if (world.isVoid(i + 0.5, j + 0.5)) continue;
         if (world.isTangle(i + 0.5, j + 0.5)) expect(r.has(i, j), `tangle ${i},${j}`).toBe(false);
         if (i >= 426) expect(r.has(i, j), `tile ${i},${j}`).toBe(false);
@@ -93,7 +104,7 @@ describe('the journey through Underroot', () => {
   });
 
   it('level 4: the five forms on easy can use the speaker and the candle of all five Underroot puzzles', () => {
-    const r = explore(world, from, L4, 'easy');
+    const r = explore(world, from, L4, 'easy', cols(259, 520));
     const ids = layout.puzzles.filter((p) => p.id.startsWith('ur-'));
     expect(ids).toHaveLength(5);
     for (const p of ids) {
@@ -103,9 +114,12 @@ describe('the journey through Underroot', () => {
   });
 
   it('level 5: all six forms on easy reach Saltmere; without the ant or the fairy, not even at the limit', () => {
-    expect(explore(world, from, L5, 'easy').canStand(arrival('saltmere'))).toBe(true);
-    expect(explore(world, from, without(L5, 'ant'), 'max').canStand(arrival('saltmere')), 'no ant').toBe(false);
-    expect(explore(world, from, without(L5, 'fairy'), 'max').canStand(arrival('saltmere')), 'no fairy').toBe(false);
+    const range = cols(299, 530);
+    expect(explore(world, from, L5, 'easy', range).canStand(arrival('saltmere'))).toBe(true);
+    expect(explore(world, from, without(L5, 'ant'), 'max', range).canStand(arrival('saltmere')), 'no ant').toBe(false);
+    expect(explore(world, from, without(L5, 'fairy'), 'max', range).canStand(arrival('saltmere')), 'no fairy').toBe(
+      false,
+    );
   });
 });
 
@@ -113,9 +127,11 @@ describe('the journey through Saltmere', () => {
   const L5: FormId[] = [...L4, 'ant'];
   const L6: FormId[] = [...L5, 'mermaid'];
   const from = arrival('saltmere');
+  // Saltmere's own columns, from the margin before it to the start of the next island.
+  const range = cols(446, 700);
 
   it('level 5: the six forms on easy can use the speaker and the candle of all five Saltmere puzzles', () => {
-    const r = explore(world, from, L5, 'easy');
+    const r = explore(world, from, L5, 'easy', range);
     const ids = layout.puzzles.filter((p) => p.id.startsWith('sm-'));
     expect(ids).toHaveLength(5);
     for (const p of ids) {
@@ -125,11 +141,11 @@ describe('the journey through Saltmere', () => {
   });
 
   it('level 5: the six forms on max reach neither Pearl Rock nor any deep kelp tile', () => {
-    const r = explore(world, from, L5, 'max');
+    const r = explore(world, from, L5, 'max', range);
     expect(r.canStand(arrival('sm-pearl')), 'Pearl Rock').toBe(false);
     let deep = 0;
     for (let j = 0; j < world.depth; j++) {
-      for (let i = 0; i < world.width; i++) {
+      for (let i = range.x0; i < range.x1; i++) {
         if (!world.isKelp(i + 0.5, j + 0.5) || world.kelpDepthAt(i + 0.5, j + 0.5) !== KELP_DEEP) continue;
         deep++;
         expect(r.has(i, j), `deep kelp ${i},${j}`).toBe(false);
@@ -139,8 +155,31 @@ describe('the journey through Saltmere', () => {
   });
 
   it('level 6: the seven forms on easy reach Pearl Rock, and on max without the mermaid nobody does', () => {
-    expect(explore(world, from, L6, 'easy').canStand(arrival('sm-pearl'))).toBe(true);
-    expect(explore(world, from, L5, 'max').canStand(arrival('sm-pearl'))).toBe(false);
+    expect(explore(world, from, L6, 'easy', range).canStand(arrival('sm-pearl'))).toBe(true);
+    expect(explore(world, from, L5, 'max', range).canStand(arrival('sm-pearl'))).toBe(false);
+  });
+});
+
+describe('the journey through Sunveld', () => {
+  const L6: FormId[] = [...L4, 'ant', 'mermaid'];
+  const L7: FormId[] = [...L6, 'cheetah'];
+  const from = standSpot('sunveld');
+  // Sunveld's own columns, with Pearl Rock's margin on the west.
+  const range = cols(620, 960);
+
+  it('level 6: the seven forms on easy use all five Sunveld speakers and candles, and on max stand nowhere east of the Red Wall', () => {
+    const r = explore(world, from, L6, 'easy', range);
+    const ids = layout.puzzles.filter((p) => p.id.startsWith('sv-'));
+    expect(ids).toHaveLength(5);
+    for (const p of ids) {
+      expect(r.canUse(p.speaker), `${p.id} speaker`).toBe(true);
+      expect(r.canUse(p.candle), `${p.id} candle`).toBe(true);
+    }
+    expect(explore(world, from, L6, 'max', range).canStand(standSpot('sv-end')), 'Sunset Rock').toBe(false);
+  });
+
+  it('level 7: with the cheetah the eight forms on easy stand at Sunset Rock', () => {
+    expect(explore(world, from, L7, 'easy', range).canStand(standSpot('sv-end'))).toBe(true);
   });
 });
 
@@ -153,25 +192,28 @@ describe('the candles', () => {
     );
   };
 
+  /** One row per island: the level a player is at when it starts, so the lights it holds. */
+  const ISLANDS: [id: string, level: number][] = [
+    ['meadow', 0],
+    ['tanglewood', 1],
+    ['highcrag', 2],
+    ['frostfang', 3],
+    ['underroot', 4],
+    ['saltmere', 5],
+    ['sunveld', 6],
+  ];
+
   it('gives each island exactly the lights its level needs', () => {
-    expect(puzzlesOn('meadow')).toHaveLength(lightsNeeded(0));
-    expect(puzzlesOn('tanglewood')).toHaveLength(lightsNeeded(1));
-    expect(puzzlesOn('highcrag')).toHaveLength(lightsNeeded(2));
-    expect(puzzlesOn('frostfang')).toHaveLength(lightsNeeded(3));
-    expect(puzzlesOn('underroot')).toHaveLength(lightsNeeded(4));
-    expect(puzzlesOn('saltmere')).toHaveLength(lightsNeeded(5));
     expect(
-      puzzlesOn('meadow').length +
-        puzzlesOn('tanglewood').length +
-        puzzlesOn('highcrag').length +
-        puzzlesOn('frostfang').length +
-        puzzlesOn('underroot').length +
-        puzzlesOn('saltmere').length,
-    ).toBe(layout.puzzles.length);
+      world.bounds.map((b) => b.id),
+      'every island has a row in ISLANDS',
+    ).toEqual(ISLANDS.map(([id]) => id));
+    for (const [id, level] of ISLANDS) expect(puzzlesOn(id), id).toHaveLength(lightsNeeded(level));
+    expect(ISLANDS.reduce((n, [id]) => n + puzzlesOn(id).length, 0)).toBe(layout.puzzles.length);
   });
 
   it('keeps each puzzle on one island: speaker and candle', () => {
-    for (const island of ['meadow', 'tanglewood', 'highcrag', 'frostfang', 'underroot']) {
+    for (const [island] of ISLANDS) {
       const b = world.bounds.find((k) => k.id === island)!;
       for (const p of puzzlesOn(island)) {
         expect(p.candle.x, p.id).toBeGreaterThanOrEqual(b.i0);
