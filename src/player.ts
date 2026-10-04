@@ -878,14 +878,14 @@ export class Player {
     const fx = Math.sin(this.facing);
     const fz = Math.cos(this.facing);
     for (const e of enemies) {
-      if (!e.alive || !e.faint) continue;
+      if (!e.alive || (bite.faint > 0 && !e.faint)) continue;
       const ex = e.pos.x - this.pos.x;
       const ez = e.pos.z - this.pos.z;
       const d = Math.hypot(ex, ez);
       if (d > bite.reach || Math.abs(e.pos.y - this.pos.y) > 1.3) continue;
       if (d > 0.4 && (ex * fx + ez * fz) / d < 0.25) continue;
       if (bite.damage > 0) e.takeHit(bite.damage, this.pos.x, this.pos.z);
-      e.faint(bite.faint);
+      if (bite.faint > 0) e.faint?.(bite.faint);
     }
   }
 

@@ -95,7 +95,7 @@ export type FormId =
 
 export type SwordUse = 'full' | 'weak' | 'underwater' | 'none';
 
-/** A venomous bite: makes a bad guy faint for `faint` seconds, whatever its hearts. */
+/** A bite: takes `damage` hearts, and/or makes a bad guy faint for `faint` seconds whatever its hearts (0 = no faint). */
 export interface BiteDef {
   /** Tiles. */
   reach: number;
@@ -240,6 +240,7 @@ export const FORMS: readonly FormDef[] = [
     height: 1.2,
     arrowLift: 1.5,
     sword: 'none',
+    bite: { reach: 1.0, cooldown: 0.6, faint: 0, damage: 2 },
     canFly: false,
     blurb: 'A giant wolf that outruns everything so far, and can run across thin ice.',
     playable: true,
