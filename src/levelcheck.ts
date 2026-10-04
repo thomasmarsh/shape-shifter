@@ -43,6 +43,13 @@ import type { Spot, World } from './world';
 // from one. Out of a mat it swims on to any water tile of about the same level,
 // or onto land no higher than a step above its ceiling under the mat.
 //
+// A hollow (see `setHollow` in layout.ts) is a kelp mat hung down to HOLLOW_ROOM
+// over the bed, so a body must also be no taller than that room: only the
+// Axolotl fits (the Mermaid is too tall, the rest cannot dive). The Axolotl moves
+// like a slow Human, hops from anywhere (not only from water, unlike the Mermaid),
+// floats and dives without limit, and holds no sheet of thin ice; it fits a hole
+// (0.35) but not a root tangle (0.25).
+//
 // The Mermaid walks like anyone, floats like the Human and hops (with her land
 // speed, since in the air she moves at that) only from a water tile. Diving
 // shows only in `canUse`: from a water tile a thing can be used from any depth
@@ -120,7 +127,7 @@ const MARGINS = {
 const CENTRE_EXTRA = Math.SQRT2;
 
 /** Forms that move by jumping; their speed and jump come from FORMS. */
-const JUMPERS = ['human', 'orangutan', 'bunny', 'wolf', 'ant', 'mermaid', 'cheetah', 'snake'] as const;
+const JUMPERS = ['human', 'orangutan', 'bunny', 'wolf', 'ant', 'mermaid', 'cheetah', 'snake', 'axolotl'] as const;
 type Jumper = (typeof JUMPERS)[number];
 
 /** What the checker says about hop-then-fly for a launch from `a` to a target, for tests. */
@@ -273,6 +280,8 @@ function run(
   const wet = new Uint8Array(width * depth);
   /** How far below the surface the kelp mat on the tile hangs, 0 if none. */
   const kelp = new Float64Array(width * depth);
+  /** Water between a mat and the bed (Infinity with no mat): under a hollow only the Axolotl fits. */
+  const kelpRoom = new Float64Array(width * depth);
   /** The water level of a water tile. */
   const level = new Float64Array(width * depth);
   /** Height of the surface a human, orangutan, bunny, wolf or mermaid stands on (floating in water). */
@@ -298,6 +307,7 @@ function run(
       const tAnt = Math.max(world.solidAt(x, z, antHeight, Infinity), iceTop);
       tangle[k] = world.tangleGapAt(x, z);
       kelp[k] = world.kelpDepthAt(x, z);
+      kelpRoom[k] = world.kelpRoomAt(x, z);
       wet[k] = world.isWater(x, z) ? 1 : 0;
       level[k] = world.waterLevelAt(x, z);
       ice[k] = isIce ? 1 : 0;
@@ -323,7 +333,7 @@ function run(
   const fitsMat = (form: FormId, k: number): boolean => {
     if (kelp[k] === 0) return true;
     const d = def.get(form)!;
-    return fitsUnderKelp(d.height, d.dive, kelp[k]);
+    return fitsUnderKelp(d.height, d.dive, kelp[k], kelpRoom[k]);
   };
 
   /** Solid height of every tile for a form, thin ice whole: what a flight or hop line must clear. */

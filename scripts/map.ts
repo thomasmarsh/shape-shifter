@@ -110,7 +110,7 @@ function thingsGrid(): Map<string, string> {
     for (let i = 0; i < world.width; i++) {
       // A hole (wider than a normal tangle) takes the Snake as well as the Ant.
       if (world.isTangle(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, world.tangleGapAt(i + 0.5, j + 0.5) > TANGLE_GAP ? 'o' : '%');
-      if (world.isKelp(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, '&');
+      if (world.isKelp(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, world.isHollow(i + 0.5, j + 0.5) ? 'u' : '&');
       if (world.isThinIce(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, world.isBrittle(i + 0.5, j + 0.5) ? '+' : '=');
       if (world.isGate(i + 0.5, j + 0.5)) put({ x: i + 0.5, z: j + 0.5 }, 'G');
     }
@@ -181,7 +181,7 @@ for (const b of islands) {
   heightBase = baseFor(b);
   const minus = heightBase > 0 ? `, heights minus ${heightBase}` : '';
   printGrid(`heights: digit = height (0-9, a-z for 10-35)${minus}, ~ water`, b, heightChar);
-  printGrid('things: = thin ice, + brittle sheet, G timed gate, P plate, % root tangle, o hole (also a boulder), & kelp mat, T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
+  printGrid('things: = thin ice, + brittle sheet, G timed gate, P plate, % root tangle, o hole (also a boulder), & kelp mat, u hollow, T great tree, t tree, S speaker, C candle, K checkpoint, E enemy, B bread, o boulder', b, thingChar);
   if (hasWater(b)) printGrid('water depth: digit = depth of the bed below the surface, rounded down (0-9), . dry', b, depthChar);
   if (reach) printGrid(`${reachTitle}; # reached, . not reached`, b, reachChar);
 }
