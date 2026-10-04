@@ -77,7 +77,7 @@ describe('Hollowfen west: the candles', () => {
       expect(all.canUse(p.candle), `${p.id} candle`).toBe(true);
     }
     for (const c of westCheckpoints) expect(all.canStand(respawn(c)), `checkpoint ${c.id}`).toBe(true);
-    expect(westBread).toHaveLength(3);
+    expect(westBread).toHaveLength(4);
     for (const b of westBread) expect(all.canStand(b), `bread ${b.id}`).toBe(true);
   });
 

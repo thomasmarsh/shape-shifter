@@ -115,7 +115,7 @@ export function buildGalecrestEast(t: Terrain): IslandLayout {
     { id: 'gc-e-stair', x: 1477.5, z: 58.5, r: 4, text: 'Thin flakes of quartz climb off the heath to a table. Run, and do not stop.' },
     { id: 'gc-e-foot', x: 1494.5, z: 44.5, r: 4, text: 'The kestrels look west. Something low could come up behind them.' },
     { id: 'gc-e-burrow', x: 1501.5, z: 44.5, r: 3, text: 'A burrow into the Crag. Only the low and the sure-footed go in.' },
-    { id: 'gc-e-edge', x: 1527.5, z: 32.5, r: 4, text: 'The heath ends at the sky. A rock lies far out and far down, too far for a hop and a flight. Wings would glide it.' },
+    { id: 'gc-e-edge', x: 1527.5, z: 32.5, r: 4, text: 'The heath ends at the sky. A rock lies far out and far down, too far for a hop and a flight. Wings would glide it, and carry past it: over the rock, let go and drop, and open them again to land softly.' },
     { id: 'gc-e-end', x: 1578.5, z: 32.5, r: 3, text: 'The wind drops here. East, a short flight off, lies ash. North, tall steps climb back up into the wind.' },
     { id: 'gc-e-steps', x: 1578.5, z: 11.5, r: 3, text: 'High above the heath again. Jump west and open your wings.' },
   ];

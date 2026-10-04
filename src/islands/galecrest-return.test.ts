@@ -78,7 +78,7 @@ describe('Galecrest return: the way back takes the Bunny and the wings', () => {
 
     it(`lets the Human and the Bunny with wings reach the hub on ${profile}`, () => {
       const r = explore(ROCK, ['human', 'bunny'], profile, true);
-      expect(reachedAny(r, hub).length).toBe(3178);
+      expect(reachedAny(r, hub).length).toBe(3158); // the east heath's standable tiles: 20 fewer since the gorse clumps
     });
 
     it(`keeps the forward gate shut to the ten without wings from the heath on ${profile}`, () => {

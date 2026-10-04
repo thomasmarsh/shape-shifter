@@ -120,7 +120,7 @@ describe('Galecrest east: the way off', () => {
 });
 describe('Galecrest east fairness', () => {
   it('keeps every east checkpoint 7 tiles from a guard at about its height', () => {
-    expect(eastEnemies).toHaveLength(4);
+    expect(eastEnemies).toHaveLength(12); // 4 at the rooms, 8 on the open heath (galecrest-fill.ts)
     expectCheckpointsAwayFromGuards(world, eastCheckpoints, eastEnemies);
   });
 

@@ -2,6 +2,7 @@ import { SNAPPER_LEVEL } from '../forms';
 import { EnemySpot, HintZone, Island, IslandLayout, Kind, PuzzleSpot, Spot, Terrain, TreeSpot } from '../layout';
 import { slab } from './coilstone-east';
 import { buildHollowfenEast, HUB, LANDING } from './hollowfen-east';
+import { fillHollowfen } from './hollowfen-fill';
 
 // Hollowfen, the ninth island (x 1160..1329): a fen of sedge, peat and still
 // water, cut in two by the Gap. You land low and walk up a ramp. This file is
@@ -113,13 +114,15 @@ export const hollowfen: Island = {
 
     // ---- The east half --------------------------------------------------------
     const east = buildHollowfenEast(t);
+    // ---- What stands between the rooms (after both halves are built) ----------
+    const fill = fillHollowfen(t);
     return {
       checkpoints: [...checkpoints, ...(east.checkpoints ?? [])],
       puzzles: [...puzzles, ...(east.puzzles ?? [])],
-      enemies: [...enemies, ...(east.enemies ?? [])],
-      bread: [...bread, ...(east.bread ?? [])],
+      enemies: [...enemies, ...(east.enemies ?? []), ...(fill.enemies ?? [])],
+      bread: [...bread, ...(east.bread ?? []), ...(fill.bread ?? [])],
       trees: [...trees, ...(east.trees ?? [])],
-      hints: [...hints, ...(east.hints ?? [])],
+      hints: [...hints, ...(east.hints ?? []), ...(fill.hints ?? [])],
       arrivals: [...arrivals, ...(east.arrivals ?? [])],
     };
   },

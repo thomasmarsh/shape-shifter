@@ -125,7 +125,7 @@ describe('Hollowfen east: the Well', () => {
 
 describe('Hollowfen east fairness', () => {
   it('keeps every east checkpoint 7 tiles from a guard at about its height', () => {
-    expect(eastEnemies).toHaveLength(4);
+    expect(eastEnemies).toHaveLength(10); // 4 at the rooms, 6 on the open fen (hollowfen-fill.ts)
     expectCheckpointsAwayFromGuards(world, eastCheckpoints, eastEnemies);
   });
 
