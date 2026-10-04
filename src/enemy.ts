@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { makeArcher, makeBadGuy, makeBladeGuy, makeSwordGuy, BadGuyModel } from './models';
-import { Arrows } from './arrows';
+import { makeArcher, makeBadGuy, makeBladeGuy, makeEel, makeSwordGuy, makeWarden, BadGuyModel } from './models';
+import { EEL, WARDEN } from './forms';
+import { Arrows, Shot } from './arrows';
 import { Particles } from './particles';
 import { sound } from './audio';
 import { World } from './world';
@@ -13,7 +14,8 @@ import type { Attackable, Player } from './player';
 // is the archer: 8 hearts, holds its post, shoots arrows at anyone it has
 // noticed and punches for 1 heart when you get close. Type 3 is the sword bad
 // guy: 5 hearts, slow and heavy, and one swing costs 4 hearts. The blade bad
-// guy is its light cousin: 3 hearts, fast, and a swing costs 2.
+// guy is its light cousin: 3 hearts, fast, and a swing costs 2. The Warden and
+// the Eel are the two bosses; their numbers and rules are in forms.ts.
 
 const PUNCH_REACH = 1.3;
 const RADIUS = 0.35;
@@ -28,7 +30,7 @@ export type EnemyKind = NonNullable<EnemySpot['kind']>;
 /** Facing angles, forward being (sin, cos) in (x, z). */
 const FACING = { n: Math.PI, e: Math.PI / 2, s: 0, w: -Math.PI / 2 };
 
-type State = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'watch' | 'draw' | 'faint' | 'dead';
+type State = 'idle' | 'chase' | 'windup' | 'recover' | 'return' | 'watch' | 'draw' | 'dash' | 'faint' | 'dead';
 
 interface Bow {
   /** Seconds the bow is drawn before the arrow is loosed. */
@@ -68,8 +70,41 @@ const KINDS: Record<EnemyKind, Tuning> = {
     bow: { draw: 0.9, wait: 1.8, height: 1.1 },
   },
   sword: { hearts: 5, speed: 2.4, notice: 6.5, noticeHeight: 3, windup: 0.8, recover: 1.1, damage: 4, reach: PUNCH_REACH + 0.3 },
+  warden: {
+    hearts: WARDEN.hearts,
+    speed: WARDEN.speed,
+    notice: WARDEN.notice,
+    noticeHeight: WARDEN.noticeHeight,
+    windup: WARDEN.windup,
+    recover: WARDEN.recover,
+    damage: WARDEN.damage,
+    reach: WARDEN.slamStart,
+  },
+  eel: {
+    hearts: EEL.hearts,
+    speed: EEL.speed,
+    notice: EEL.notice,
+    noticeHeight: Infinity,
+    windup: EEL.windup,
+    recover: EEL.recover,
+    damage: EEL.damage,
+    reach: EEL.lungeStart,
+  },
   blade: { hearts: 3, speed: 5.5, notice: 7.5, noticeHeight: 3, windup: 0.4, recover: 0.9, damage: 2, reach: 1.4 },
 };
+
+/** The rock the Warden throws and the ball of water the Eel spits. */
+const ROCK = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3), new THREE.MeshLambertMaterial({ color: 0x6b6b72 }));
+const BALL = new THREE.Mesh(
+  new THREE.SphereGeometry(0.25, 12, 8),
+  new THREE.MeshLambertMaterial({ color: 0x4aa8ff, transparent: true, opacity: 0.8 }),
+);
+/** A rock or ball is in the air this long at most. */
+const SHOT_LIFE = 3;
+/** The longest hop the Eel's dash takes between checks. */
+const DASH_HOP = 0.2;
+/** How fast the Eel rises and sinks to follow the player's depth. */
+const EEL_DEPTH_SPEED = 3;
 
 /** What a tester changes about the regular bad guy. */
 const TESTER: Partial<Tuning> = { speed: 2.0, notice: 4.5, windup: 0.85, recover: 1.8 };
@@ -92,6 +127,8 @@ export class Enemy implements Attackable {
   readonly group = new THREE.Group();
   readonly kind: EnemyKind;
   readonly tester: boolean;
+  /** True for the Warden and the Eel. */
+  readonly boss: boolean;
   readonly maxHearts: number;
   hearts: number;
   private state: State = 'idle';
@@ -116,6 +153,16 @@ export class Enemy implements Attackable {
   private baseColor: THREE.Color;
   private minLevel: number;
   private awake = false;
+  /** What the current wind-up is for. */
+  private act: 'slam' | 'throw' | 'lunge' | 'spit' = 'slam';
+  /** The red ring on the ground that shows where the Warden's slam lands. */
+  private ring: THREE.Mesh | null = null;
+  /** The Eel's fixed direction and what is left of its dash. */
+  private dashDir = new THREE.Vector3();
+  private dashLeft = 0;
+  private dashHit = false;
+  /** True while a sleeping Eel is parked far below the world, where no sword reaches. */
+  private parked = false;
 
   constructor(
     private world: World,
@@ -127,6 +174,7 @@ export class Enemy implements Attackable {
     this.postFacing = this.facing = FACING[spot.facing ?? 'w'];
     this.kind = spot.kind ?? 'regular';
     this.tester = spot.tester;
+    this.boss = this.kind === 'warden' || this.kind === 'eel';
     this.tuning = this.tester ? { ...KINDS[this.kind], ...TESTER } : KINDS[this.kind];
     this.maxHearts = this.tuning.hearts;
     this.hearts = this.maxHearts;
@@ -139,6 +187,8 @@ export class Enemy implements Attackable {
       const guy = this.kind === 'sword' ? makeSwordGuy() : makeBladeGuy();
       this.model = guy;
       this.bladeMat = guy.bladeMat;
+    } else if (this.kind === 'warden' || this.kind === 'eel') {
+      this.model = this.kind === 'warden' ? makeWarden() : makeEel();
     } else {
       this.model = makeBadGuy(this.tester);
     }
@@ -157,9 +207,20 @@ export class Enemy implements Attackable {
     back.renderOrder = 10;
     this.barFill.renderOrder = 11;
     this.bar.add(back, this.barFill);
-    this.bar.position.y = 2.15;
+    this.bar.position.y = this.kind === 'warden' ? 2.9 : 2.15;
     this.bar.visible = false;
     this.group.add(this.bar);
+    if (this.kind === 'warden') {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(WARDEN.slamRadius - 0.15, WARDEN.slamRadius, 48),
+        new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.05;
+      ring.visible = false;
+      this.ring = ring;
+      this.group.add(ring);
+    }
 
     // Bad guys for a later level wait out of sight until `wake` is called.
     this.minLevel = spot.minLevel ?? 0;
@@ -184,7 +245,13 @@ export class Enemy implements Attackable {
    */
   get alert(): boolean {
     if (!this.awake || !this.alive) return false;
+    if (this.sleeping) return false;
     return this.state !== 'idle' && this.state !== 'return' && this.state !== 'faint';
+  }
+
+  /** True for the Eel until the lid is down. */
+  private get sleeping(): boolean {
+    return this.kind === 'eel' && !this.world.lidDown;
   }
 
   /**
@@ -213,6 +280,12 @@ export class Enemy implements Attackable {
   reset(): void {
     if (!this.alive) return;
     this.pos.set(this.home.x, this.world.groundAt(this.home.x, this.home.z), this.home.z);
+    if (this.kind === 'eel') {
+      this.parked = false;
+      this.dashLeft = 0;
+      const [lo, hi] = this.eelRange();
+      this.pos.y = (lo + hi) / 2;
+    }
     this.hearts = this.maxHearts;
     this.state = 'idle';
     this.facing = this.postFacing;
@@ -234,7 +307,7 @@ export class Enemy implements Attackable {
    * cancelled, a second bite restarts the count, and it wakes where it lies.
    */
   faint(seconds: number): void {
-    if (!this.alive || !this.awake) return;
+    if (!this.alive || !this.awake || this.boss) return;
     this.state = 'faint';
     this.timer = seconds;
     this.wantX = 0;
@@ -243,13 +316,14 @@ export class Enemy implements Attackable {
   }
 
   takeHit(damage: number, fromX: number, fromZ: number): void {
-    if (!this.alive || !this.awake) return;
+    if (!this.alive || !this.awake || this.sleeping) return;
     this.hearts -= damage;
     this.flash = 0.15;
     const dx = this.pos.x - fromX;
     const dz = this.pos.z - fromZ;
     const d = Math.hypot(dx, dz) || 1;
-    this.knock.set((dx / d) * 7, 0, (dz / d) * 7);
+    // A boss is too heavy to be shoved.
+    if (!this.boss) this.knock.set((dx / d) * 7, 0, (dz / d) * 7);
     this.particles.burst(new THREE.Vector3(this.pos.x, this.pos.y + 1, this.pos.z), 0xffffff, 6, 2.5, 0.1);
     sound.hit();
     this.bar.visible = true;
@@ -286,6 +360,17 @@ export class Enemy implements Attackable {
       return;
     }
 
+    if (this.sleeping) {
+      // Parked far below the world, out of sight, so nothing can reach it.
+      this.parked = true;
+      this.state = 'idle';
+      this.pos.set(this.home.x, -1000, this.home.z);
+      this.group.visible = false;
+      return;
+    }
+    if (this.parked) this.reset();
+    this.group.visible = true;
+
     const s: Sense = {
       dx: player.pos.x - this.pos.x,
       dz: player.pos.z - this.pos.z,
@@ -302,7 +387,13 @@ export class Enemy implements Attackable {
 
     this.wantX = 0;
     this.wantZ = 0;
+    if (this.kind === 'eel') {
+      this.thinkEel(dt, player, s);
+      this.animate(dt);
+      return;
+    }
     if (this.kind === 'archer') this.thinkArcher(dt, player, s);
+    else if (this.kind === 'warden') this.thinkWarden(dt, player, s);
     else this.thinkRegular(dt, player, s);
     let moveX = this.wantX;
     let moveZ = this.wantZ;
@@ -442,6 +533,211 @@ export class Enemy implements Attackable {
     }
   }
 
+  /** The Warden: walks at you, slams when you are close, throws rocks when you are out of reach. */
+  private thinkWarden(dt: number, player: Player, s: Sense): void {
+    const t = this.tuning;
+    const noticed = s.canSee && s.dist < t.notice && Math.abs(s.dy) < t.noticeHeight;
+    const inSlam = s.dist < WARDEN.slamStart && Math.abs(s.dy) < WARDEN.slamHeight;
+    const outOfReach = s.dist > WARDEN.throwFrom || Math.abs(s.dy) > WARDEN.slamHeight;
+    switch (this.state) {
+      case 'idle':
+        if (noticed) this.state = 'chase';
+        break;
+      case 'return':
+        if (noticed) {
+          this.state = 'chase';
+        } else if (s.fromHome < 0.3) {
+          this.state = 'idle';
+        } else {
+          this.headHome(s);
+        }
+        break;
+      case 'chase':
+        if (!s.canSee || s.dist > t.notice + 4 || Math.abs(s.dy) > t.noticeHeight + 4) {
+          this.state = 'return';
+        } else if (inSlam) {
+          this.state = 'windup';
+          this.act = 'slam';
+          this.timer = WARDEN.windup;
+        } else if (outOfReach && this.cooldown <= 0) {
+          this.state = 'windup';
+          this.act = 'throw';
+          this.timer = WARDEN.throwWindup;
+        } else if (s.dist > 0.9) {
+          this.wantX = s.dx / s.dist;
+          this.wantZ = s.dz / s.dist;
+        }
+        break;
+      case 'windup':
+        this.timer -= dt;
+        if (this.timer > 0) break;
+        if (this.act === 'slam') {
+          if (s.canSee && s.dist < WARDEN.slamRadius && Math.abs(s.dy) < WARDEN.slamHeight) {
+            player.damage(WARDEN.damage, this.pos.x, this.pos.z);
+          }
+          this.timer = WARDEN.recover;
+        } else {
+          this.shoot(player, 1.9, WARDEN.rockSpeed, WARDEN.rockDamage, ROCK);
+          this.cooldown = WARDEN.throwGap;
+          this.timer = 0.5;
+        }
+        this.state = 'recover';
+        break;
+      case 'recover':
+        this.timer -= dt;
+        if (this.timer <= 0) this.state = s.canSee ? 'chase' : 'return';
+        break;
+    }
+  }
+
+  /** Throw a rock or spit a ball at where the player's chest is right now. */
+  private shoot(player: Player, height: number, speed: number, damage: number, look: THREE.Mesh): void {
+    const dx = player.pos.x - this.pos.x;
+    const dz = player.pos.z - this.pos.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const from = new THREE.Vector3(this.pos.x + (dx / d) * 0.5, this.pos.y + height, this.pos.z + (dz / d) * 0.5);
+    const shot: Shot = { speed, damage, look: look.clone(), life: SHOT_LIFE };
+    this.arrows.shoot(from, player.chest, this.pos.x, this.pos.z, shot);
+    if (d < HEARING) sound.bow();
+  }
+
+  /** The depths the Eel's centre may be at here: off the bed, and under the surface. */
+  private eelRange(): [number, number] {
+    const lo = this.world.groundAt(this.pos.x, this.pos.z) + EEL.bedGap;
+    const hi = this.world.waterLevelAt(this.pos.x, this.pos.z) - EEL.topGap;
+    return [lo, Math.max(lo, hi)];
+  }
+
+  /** Swim a step in the plane, one axis at a time, never onto a tile that is not water. Returns how far it got. */
+  private eelMove(stepX: number, stepZ: number): number {
+    let moved = 0;
+    if (stepX !== 0 && this.world.isWater(this.pos.x + stepX, this.pos.z)) {
+      this.pos.x += stepX;
+      moved += Math.abs(stepX);
+    }
+    if (stepZ !== 0 && this.world.isWater(this.pos.x, this.pos.z + stepZ)) {
+      this.pos.z += stepZ;
+      moved += Math.abs(stepZ);
+    }
+    return moved;
+  }
+
+  /** Swim toward (x, z) and rise or sink toward `y`, staying in the water. */
+  private eelSwim(dt: number, x: number, z: number, y: number, speed: number): void {
+    const d = Math.hypot(x - this.pos.x, z - this.pos.z);
+    if (d > 0.05) {
+      const step = Math.min(d, speed * dt);
+      this.eelMove(((x - this.pos.x) / d) * step, ((z - this.pos.z) / d) * step);
+    }
+    const dy = y - this.pos.y;
+    this.pos.y += Math.sign(dy) * Math.min(Math.abs(dy), EEL_DEPTH_SPEED * dt);
+  }
+
+  /** Keep the Eel's centre between the bed and the surface. */
+  private eelClamp(): void {
+    const [lo, hi] = this.eelRange();
+    this.pos.y = Math.min(hi, Math.max(lo, this.pos.y));
+  }
+
+  /** The Eel: lunges at swimmers, spits at anyone it has noticed on the shore, and drifts home when alone. */
+  private thinkEel(dt: number, player: Player, s: Sense): void {
+    const swimmer = !player.dead && player.swimming && this.world.isWater(player.pos.x, player.pos.z);
+    const noticed = s.canSee && (swimmer || s.dist < EEL.notice);
+    const [lo, hi] = this.eelRange();
+    const aimY = swimmer ? player.pos.y + 0.4 : hi;
+    const dy = aimY - this.pos.y;
+    this.wantX = 0;
+    this.wantZ = 0;
+    switch (this.state) {
+      case 'idle':
+      case 'return':
+        if (noticed) {
+          this.state = 'chase';
+        } else if (s.fromHome < 0.3) {
+          this.state = 'idle';
+          this.eelSwim(dt, this.pos.x, this.pos.z, (lo + hi) / 2, EEL.speed);
+        } else {
+          this.state = 'return';
+          this.eelSwim(dt, this.home.x, this.home.z, (lo + hi) / 2, EEL.speed);
+        }
+        break;
+      case 'chase':
+        if (!noticed) {
+          this.state = 'return';
+        } else if (swimmer) {
+          if (Math.hypot(s.dist, dy) < EEL.lungeStart) {
+            // The direction is fixed now: swim sideways.
+            this.dashDir.set(s.dx, dy, s.dz).normalize();
+            this.state = 'windup';
+            this.act = 'lunge';
+            this.timer = EEL.windup;
+          } else {
+            this.eelSwim(dt, player.pos.x, player.pos.z, aimY, EEL.speed);
+          }
+        } else if (this.cooldown <= 0) {
+          this.state = 'windup';
+          this.act = 'spit';
+          this.timer = EEL.spitWindup;
+        } else {
+          this.eelSwim(dt, player.pos.x, player.pos.z, aimY, EEL.speed);
+        }
+        break;
+      case 'windup':
+        this.timer -= dt;
+        if (this.act === 'spit') this.eelSwim(dt, this.pos.x, this.pos.z, hi, EEL.speed);
+        if (this.timer > 0) break;
+        if (this.act === 'lunge') {
+          this.state = 'dash';
+          this.dashLeft = EEL.lungeLength;
+          this.dashHit = false;
+        } else {
+          this.eelClamp();
+          const surface = this.world.waterLevelAt(this.pos.x, this.pos.z);
+          this.shoot(player, Math.max(this.pos.y, surface) + 0.3 - this.pos.y, EEL.spitSpeed, EEL.spitDamage, BALL);
+          this.cooldown = EEL.spitGap;
+          this.state = 'recover';
+          this.timer = 0.5;
+        }
+        break;
+      case 'dash': {
+        let todo = Math.min(this.dashLeft, EEL.lungeSpeed * dt);
+        let blocked = false;
+        while (todo > 1e-6 && !blocked) {
+          const hop = Math.min(DASH_HOP, todo);
+          todo -= hop;
+          this.dashLeft -= hop;
+          const y0 = this.pos.y;
+          const moved = this.eelMove(this.dashDir.x * hop, this.dashDir.z * hop);
+          this.pos.y = y0 + this.dashDir.y * hop;
+          this.eelClamp();
+          blocked = moved < Math.hypot(this.dashDir.x, this.dashDir.z) * hop * 0.5;
+          const px = player.pos.x - this.pos.x;
+          const pz = player.pos.z - this.pos.z;
+          if (!this.dashHit && s.canSee && Math.hypot(px, pz) < EEL.lungeHit && Math.abs(player.pos.y + 0.4 - this.pos.y) < 1.3) {
+            this.dashHit = true;
+            player.damage(EEL.damage, this.pos.x, this.pos.z);
+          }
+        }
+        if (blocked || this.dashLeft <= 1e-6) {
+          this.state = 'recover';
+          this.timer = EEL.recover;
+        }
+        break;
+      }
+      case 'recover':
+        this.timer -= dt;
+        this.eelSwim(dt, this.pos.x, this.pos.z, aimY, EEL.speed);
+        if (this.timer <= 0) this.state = 'chase';
+        break;
+    }
+    this.eelClamp();
+    // It faces the way it swims, or the way it lunges.
+    const lunging = this.state === 'windup' || this.state === 'dash';
+    const fx = lunging && this.act === 'lunge' ? this.dashDir.x : s.dx;
+    const fz = lunging && this.act === 'lunge' ? this.dashDir.z : s.dz;
+    if (this.state !== 'idle' && (Math.abs(fx) > 0.01 || Math.abs(fz) > 0.01)) this.facing = Math.atan2(fx, fz);
+  }
+
   /** Stop watching and start walking back to the post. */
   private giveUp(s: Sense): void {
     this.state = 'return';
@@ -500,6 +796,7 @@ export class Enemy implements Attackable {
 
   private animate(dt: number): void {
     this.group.position.copy(this.pos);
+    if (this.ring) this.ring.visible = this.state === 'windup' && this.act === 'slam';
     this.group.rotation.y = this.facing;
     this.bar.rotation.y = -this.facing;
     // A fainted bad guy tips over onto its back.
@@ -512,7 +809,10 @@ export class Enemy implements Attackable {
     m.legR.rotation.x = -swing;
     m.armL.rotation.x = -swing * 0.6;
     m.armR.rotation.z = 0;
-    if (this.state === 'windup' && this.bladeMat) {
+    if (this.kind === 'warden' && this.state === 'windup') {
+      // Both arms go up over the head and hold.
+      m.armL.rotation.x = m.armR.rotation.x = -2.6;
+    } else if (this.state === 'windup' && this.bladeMat) {
       // The sword goes up and back and holds there, then chops down at the end.
       const t = 1 - this.timer / this.tuning.windup;
       m.armR.rotation.x = t < 0.85 ? -2.6 * Math.min(1, t / 0.4) : -0.5;

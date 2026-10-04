@@ -17,13 +17,24 @@ const SUBSTEP = 0.2; // longest hop between checks, so no frame rate can skip a 
 const HEARING = 14; // arrows farther than this from the player make no sound
 
 interface Arrow {
-  mesh: THREE.Group;
+  mesh: THREE.Object3D;
   pos: THREE.Vector3;
   dir: THREE.Vector3;
   age: number;
+  speed: number;
+  damage: number;
+  life: number;
   /** Where the archer stood, for knocking the player back. */
   fromX: number;
   fromZ: number;
+}
+
+/** What a shot that is not the archer's arrow carries: its own speed, damage, look and range in time. */
+export interface Shot {
+  speed: number;
+  damage: number;
+  look: THREE.Object3D;
+  life?: number;
 }
 
 export class Arrows {
@@ -40,19 +51,29 @@ export class Arrows {
     return this.live.length;
   }
 
-  /** Loose an arrow from `from` along the line through `to`, and on past it. */
-  shoot(from: THREE.Vector3, to: THREE.Vector3, archerX: number, archerZ: number): void {
+  /** Loose an arrow (or, with `shot`, a rock or a ball of water) from `from` along the line through `to`, and on past it. */
+  shoot(from: THREE.Vector3, to: THREE.Vector3, archerX: number, archerZ: number, shot?: Shot): void {
     const dir = to.clone().sub(from);
     if (dir.lengthSq() < 1e-6) return;
     dir.normalize();
-    const mesh = makeArrow();
+    const mesh = shot ? shot.look : makeArrow();
     // Turn to face the way it flies: yaw first, then tilt up or down.
     mesh.rotation.order = 'YXZ';
     mesh.rotation.y = Math.atan2(dir.x, dir.z);
     mesh.rotation.x = -Math.asin(dir.y);
     mesh.position.copy(from);
     this.group.add(mesh);
-    this.live.push({ mesh, pos: from.clone(), dir, age: 0, fromX: archerX, fromZ: archerZ });
+    this.live.push({
+      mesh,
+      pos: from.clone(),
+      dir,
+      age: 0,
+      speed: shot?.speed ?? SPEED,
+      damage: shot?.damage ?? DAMAGE,
+      life: shot?.life ?? LIFE,
+      fromX: archerX,
+      fromZ: archerZ,
+    });
   }
 
   /** Remove every arrow, for when the player is sent back to a checkpoint. */
@@ -65,7 +86,7 @@ export class Arrows {
     for (let n = this.live.length - 1; n >= 0; n--) {
       const a = this.live[n];
       a.age += dt;
-      if (this.fly(a, dt, player) || a.age >= LIFE) {
+      if (this.fly(a, dt, player) || a.age >= a.life) {
         this.group.remove(a.mesh);
         this.live.splice(n, 1);
       } else {
@@ -76,7 +97,7 @@ export class Arrows {
 
   /** Move an arrow for `dt` in small hops. Returns true once it has hit something. */
   private fly(a: Arrow, dt: number, player: Player): boolean {
-    const length = SPEED * dt;
+    const length = a.speed * dt;
     const hops = Math.max(1, Math.ceil(length / SUBSTEP));
     for (let k = 0; k < hops; k++) {
       a.pos.addScaledVector(a.dir, length / hops);
@@ -93,7 +114,7 @@ export class Arrows {
       if (close && a.pos.y >= player.pos.y && a.pos.y <= player.pos.y + player.form.height) {
         // Hidden or briefly safe players ignore the damage; the arrow flies on through.
         const before = player.hearts;
-        player.damage(DAMAGE, a.fromX, a.fromZ);
+        player.damage(a.damage, a.fromX, a.fromZ);
         if (player.hearts < before) return true;
       }
     }

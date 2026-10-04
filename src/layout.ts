@@ -108,7 +108,7 @@ export interface PuzzleSpot {
 
 export interface EnemySpot extends Spot {
   tester: boolean;
-  kind?: 'regular' | 'archer' | 'sword' | 'blade';
+  kind?: 'regular' | 'archer' | 'sword' | 'blade' | 'warden' | 'eel';
   /** Only appears once the player has reached this level. */
   minLevel?: number;
   /** Which way it faces at its post. Defaults to west. */
@@ -210,6 +210,12 @@ export interface Terrain {
    * can dive to the bed, gets in: the Axolotl. Set the water first.
    */
   setHollow(i: number, j: number): void;
+  /**
+   * Roof a water tile with a stone lid at `top`. While the lid is shut the tile
+   * is plain ground at `top`; `World.dropLid()` turns it back into the water it
+   * was built as. Set the water (and any kelp) first; throws on a dry tile.
+   */
+  setLid(i: number, j: number, top: number): void;
   /** Call `fn` for every tile in the box, bounds inclusive. */
   rect(i0: number, j0: number, i1: number, j1: number, fn: (i: number, j: number) => void): void;
   /** Call `fn` for every tile whose centre lies inside an ellipse. */
