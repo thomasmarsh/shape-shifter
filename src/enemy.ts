@@ -55,6 +55,11 @@ interface Tuning {
   /** How close you must be for it to start a blow; it lands up to 0.35 farther. */
   reach: number;
   bow?: Bow;
+  /**
+   * A runner keeps running at you through its wind-up, so running away does
+   * not dodge the blow, and follows `leash` tiles from its post (others 14).
+   */
+  runs?: { leash: number };
 }
 
 const KINDS: Record<EnemyKind, Tuning> = {
@@ -101,7 +106,7 @@ const KINDS: Record<EnemyKind, Tuning> = {
     damage: SNAPPER.damage,
     reach: SNAPPER.lungeStart,
   },
-  blade: { hearts: 3, speed: 8.5, notice: 7.5, noticeHeight: 3, windup: 0.4, recover: 0.9, damage: 2, reach: 1.4 },
+  blade: { hearts: 3, speed: 8.5, notice: 7.5, noticeHeight: 3, windup: 0.4, recover: 0.9, damage: 2, reach: 1.4, runs: { leash: 60 } },
 };
 
 /** The rock the Warden throws and the ball of water the Eel spits. */
@@ -522,7 +527,7 @@ export class Enemy implements Attackable {
         }
         break;
       case 'chase':
-        if (!s.canSee || s.dist > 11 || s.fromHome > 14) {
+        if (!s.canSee || s.dist > 11 || s.fromHome > (t.runs?.leash ?? 14)) {
           this.state = 'return';
         } else if (s.dist < t.reach && Math.abs(s.dy) < 1.4) {
           this.state = 'windup';
@@ -533,6 +538,12 @@ export class Enemy implements Attackable {
         }
         break;
       case 'windup':
+        if (t.runs && s.dist > 0.9) {
+          this.wantX = s.dx / s.dist;
+          this.wantZ = s.dz / s.dist;
+        }
+        this.punch(dt, player, s);
+        break;
       case 'recover':
         this.punch(dt, player, s);
         break;
