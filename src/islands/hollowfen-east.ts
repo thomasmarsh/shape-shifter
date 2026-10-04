@@ -111,7 +111,8 @@ export function buildHollowfenEast(t: Terrain): IslandLayout {
     { id: 'hf-e-foot', x: 1287.5, z: 44.5, r: 4, text: 'The herons look west. Something low could come up behind them.' },
     { id: 'hf-e-burrow', x: 1294.5, z: 44.5, r: 3, text: 'A burrow into the Mound. Only the low and the sure-footed go in.' },
     { id: 'hf-e-well', x: 1302.5, z: 18.5, r: 4, text: 'A stone roof lies low over the bed of the well. Something small that dives slips under.' },
-    { id: 'hf-e-end', x: 1315.5, z: 19.5, r: 3, text: 'The sedge ends here. The way on is not built yet.' },
+    { id: 'hf-e-end', x: 1315.5, z: 19.5, r: 3, text: 'The still heart of the fen. The way on starts from the east bank, and it will ask for the same small swimmer again.' },
+    { id: 'hf-e-rim', x: 1327.5, z: 30.5, r: 4, text: 'The sedge ends at the sky. A low court lies east and down: hop, then fly.' },
   ];
 
   return {

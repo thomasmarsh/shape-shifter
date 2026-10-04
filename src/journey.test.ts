@@ -229,6 +229,38 @@ describe('the journey through Hollowfen', () => {
   });
 });
 
+describe('the journey through Galecrest', () => {
+  const L8: FormId[] = [...L4, 'ant', 'mermaid', 'cheetah', 'snake'];
+  const L9: FormId[] = [...L8, 'axolotl'];
+  const from = standSpot('galecrest');
+  // The whole island, with Hollowfen's east hub as a margin on the west.
+  const range = cols(1260, 1590);
+  const ids = ['gc-tarn', 'gc-ring', 'gc-road', 'gc-stair', 'gc-crag'];
+
+  it('level 8: the nine forms on max land in the Court from Hollowfen and get no farther than the Windbreak', () => {
+    const r = explore(world, standSpot('hf-well'), L8, 'max', range);
+    expect(r.canStand(from), 'the Court').toBe(true);
+    expect(r.canStand(standSpot('gc-hub')), 'the hub').toBe(false);
+  });
+
+  it('level 9: the ten forms on easy cross from Hollowfen, use all five Galecrest speakers and candles, and on max stand nowhere on Kestrel Rock', () => {
+    const r = explore(world, standSpot('hf-well'), L9, 'easy', range);
+    expect(r.canStand(from), 'the Court').toBe(true);
+    for (const id of ids) {
+      const p = layout.puzzles.find((q) => q.id === id)!;
+      expect(r.canUse(p.speaker), `${id} speaker`).toBe(true);
+      expect(r.canUse(p.candle), `${id} candle`).toBe(true);
+    }
+    expect(explore(world, from, L9, 'max', range).canStand(standSpot('gc-end')), 'Kestrel Rock').toBe(false);
+  });
+
+  it('level 10: with wings the Human on easy stands on Kestrel Rock, and wings are no use to the other nine', () => {
+    expect(explore(world, from, L9, 'easy', range, true).canStand(standSpot('gc-end'))).toBe(true);
+    const others = L9.filter((f) => f !== 'human');
+    expect(explore(world, from, others, 'max', range, true).canStand(standSpot('gc-end'))).toBe(false);
+  });
+});
+
 describe('the candles', () => {
   /** Puzzles whose speaker stands on the given island. */
   const puzzlesOn = (island: string) => {
@@ -249,6 +281,7 @@ describe('the candles', () => {
     ['sunveld', 6],
     ['coilstone', 7],
     ['hollowfen', 8],
+    ['galecrest', 9],
   ];
 
   it('gives each island exactly the lights its level needs', () => {
