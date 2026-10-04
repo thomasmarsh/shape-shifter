@@ -213,7 +213,8 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   fifth candle gives the Axolotl, and the Axolotl is what the way off needs:
   the Well, a lake with a ring of hollows round the Last Stone. The Last Stone
   is a dead end. The way on is from the fen's east bank: a hop, then a flight,
-  east and down.
+  east and down. Between the rooms the fen has pools, peat cuts, reed beds and
+  more herons, two camps of them with the quick blades.
 - **Galecrest** (level 9, then 10): a windy heath of heather, scree and quartz,
   cut in two by the Gap. You land low in the Court, in front of the Windbreak,
   a wall across the whole island that is too tall for anything that hops or
@@ -230,8 +231,12 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   the Cheetah. The fifth candle gives the wings, and the wings are what the way
   off needs: the heath ends at the open sky, and Kestrel Rock lies 43 tiles out
   and 11 down, too far for a hop and a flight. Jump off the edge and glide.
+  The wings carry past the Rock if you keep steering: over it, let go of the
+  walking keys and sink straight down.
   There is a way back: the Kestrel Steps, north of the Rock, five steps a Bunny
-  hops to a top high enough for a glide west to the heath.
+  hops to a top high enough for a glide west to the heath. Between the rooms
+  the heath has tarns, scree hollows, gorse and more guards than any island
+  before it.
 - **Cinderhold** (level 10, the end): ash, black glass and one arena, the Ring.
   It has no candles. You land low, a short Fairy flight east of Kestrel Rock,
   and walk up the Climb. The Warden stands in the middle of the Ring on a
@@ -261,8 +266,8 @@ keep holding `Space`. It reaches ledges and gaps that neither form can alone.
   two slower "testers" on the training ground, archers (8 hearts) who
   appear once you reach level 3, and two kinds with a sword who appear once you
   reach level 7: a heavy one (5 hearts, slow, a long wind-up, 4 hearts a blow)
-  and a light one (3 hearts, faster than a Human, a short wind-up, 2 hearts a
-  blow). And the Snapper (6 hearts), a fish that appears once you reach level
+  and a light one (3 hearts, a short wind-up, 2 hearts a blow, and faster
+  than everything but the Cheetah: only a Cheetah runs away from it). And the Snapper (6 hearts), a fish that appears once you reach level
   6 in the deep pools of Sunveld, Hollowfen and Galecrest. It never leaves its
   pool and takes no notice of anyone on the bank. At a swimmer it glows for
   half a second, then snaps 3.5 tiles in a straight line for 2 hearts. A pale
@@ -321,6 +326,11 @@ src/
                       wings' way off (east half), built by galecrest.ts
     cinderhold.ts     the last island: the Landing, the Climb, the Ring, the
                       Lid over the Deep, and the two Stairs
+    fill.ts       ponds, dells and thickets: what fills a flat hub without
+                  changing who reaches what
+    hollowfen-fill.ts  galecrest-fill.ts
+                  what stands between those islands' rooms: water, dips,
+                  thickets, more bad guys, bread
     testkit.ts    the checks every island's tests repeat (closed rings, guard
                   and archer distances, things on real ground, ids, melodies,
                   the camera, a way out from every respawn spot, gate timing)
@@ -497,10 +507,16 @@ without losing a heart (twelve blows of the level 10 sword, in about 26
 seconds) next to one who only swings and faints. The Snappers are run in their
 real pools in `src/islands/snapper.routes.test.ts`: they stay in their water, a
 Mermaid beats the Tarn's two and keeps half her hearts, and a player on the
-bank is not noticed.
+bank is not noticed. What fills the hubs is run in
+`src/islands/fill.routes.test.ts`: a blade hits a Wolf and a Human who keep
+running and loses a Cheetah, nobody wades into a pond after a swimmer, a Human
+and a Mermaid jump out of every pond tried, dells are walked through, and a
+glide from the heath comes down on Kestrel Rock. `src/islands/fill.test.ts`
+checks the same things with the checker: nothing higher than the hub, the
+lanes clear, the new guards far enough from checkpoints, rings and ways off.
 
-The suite is 1138 tests in 80 files and runs in about 14 seconds on an 8-core
-laptop (the 977 tests before Cinderhold took about 12, the 872 before Galecrest
+The suite is 1174 tests in 82 files and runs in about 15 seconds on an 8-core
+laptop (the 1138 before the hubs were filled took about 14, the 977 tests before Cinderhold took about 12, the 872 before Galecrest
 about 11, the 777 before Hollowfen 8.5; with isolation those took 10 to 11). Test files run in forked workers without
 isolation (`pool: 'forks'`, `isolate: false` in `vite.config.ts`), so the
 engine is imported once per worker, not once per file. Each file still builds
@@ -682,8 +698,14 @@ These were chosen to get a playable build. Change any of them freely.
 - **Two sword bad guys.** The plan has one kind: 5 hearts, a sword that does 4,
   appearing with the Cheetah. That is the heavy one: slow (2.4), with a wind-up
   of 0.8 seconds that glows, so there is time to step back. The light one is
-  an addition: 3 hearts, 2 hearts a blow, speed 5.5 (faster than a Human or a
-  Bunny, slower than a Wolf), wind-up 0.4 seconds. Both appear at level 7, so
+  an addition: 3 hearts, 2 hearts a blow, wind-up 0.4 seconds, and speed 8.5:
+  faster than the Wolf (7), slower than the Cheetah (10). At first it ran 5.5,
+  and a Wolf could leave it behind; now only the Cheetah gets away, or anyone
+  who reaches water. It also keeps running through its wind-up and follows 60
+  tiles from its post (other bad guys stand still to strike and turn back at
+  14), because a blow struck standing still never lands on a runner. It still
+  gives up on anyone 11 tiles ahead, and it cannot find its way round a
+  thicket. Both appear at level 7, so
   on Sunveld they guard the gate and the Kopje, and regular bad guys guard the
   candles.
 - **The world's north and south edges are walls.** Outside the grid there was
@@ -830,6 +852,19 @@ These were chosen to get a playable build. Change any of them freely.
 - **Galecrest's rooms are Hollowfen's, moved and renamed,** 207 columns
   farther east, because those shapes were already proved. What is new is the
   arrival (the Court, the Windbreak, the Sluice) and the way off.
+- **A hub is filled with dips, never bumps.** In play Hollowfen and Galecrest
+  were big and sparse. Anything raised is a launch pad, so what fills them is
+  lower than the hub or has no top: ponds (4 deep, 0.3 under the rim, so a
+  Human jumps out), dells (two walking steps down) and thickets (tangle).
+  No candle's reach changed, and the old tests of both islands passed
+  untouched but for their counts. Bad guys do not wade, so a pond is a safe
+  place; a thicket stops them and their arrows. Lanes are left clear for a
+  runner: the Bridges' run-ups, one across each west hub (z 38 to 41) and one
+  down each east hub.
+- **More bad guys in the open.** Hollowfen has 12 more (three blades, two
+  archers), Galecrest 13 (four blades, two archers, a heavy sword). None
+  stands within 10 tiles of an Ant's ring, 7 of a checkpoint or 12 of a way
+  off.
 - **Kestrel Rock is no longer a trap.** Cinderhold's Landing lies 9 tiles east
   of it at the same height, a Fairy's flight. Wings are no use there: a glide
   never rises. A Fairy can also fly back from the Landing to the Rock.
@@ -911,8 +946,8 @@ These were chosen to get a playable build. Change any of them freely.
 1. Play the two fights again with their new numbers (`WARDEN` and `EEL` in
    `src/forms.ts`), and the Snappers (`SNAPPER`): none of the new numbers or
    looks has been played yet.
-2. Make the later islands denser: from Coilstone on they are big and sparse
-   next to the first ones.
+2. Play the filled hubs of Hollowfen and Galecrest and the blades at their new
+   speed, and then fill Coilstone and Sunveld the same way if it reads well.
 3. More for the Axolotl to do: in play it had little use.
 4. Work only the Wolf and only the Mermaid can do, that the checker can see.
 5. Character customising.
