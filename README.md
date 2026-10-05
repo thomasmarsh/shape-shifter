@@ -36,6 +36,7 @@ If the game runs slowly, add `?fast` to the address to turn off shadows.
 | `0`–`9` | Shape-shift (`0` Human, `1` Fairy, `2` Orangutan, `3` Bunny, `4` Winter Wolf, `5` Ant, `6` Mermaid, `7` Cheetah, `8` Snake, `9` Axolotl) |
 | `Q` | Fairy: make a tiny home to hide in. Mermaid, in the water: shoot water at the nearest bad guy |
 | `R` | Mermaid, in the water: raise a bubble column under the nearest bad guy |
+| `T` | Hold to tilt the view: the camera swings a little higher and round, so you can see how far and how high a gap is |
 | `Esc` | Pause. The pause card also has **New game**, which asks once more and then starts over |
 
 **Orangutan:** walk into a tree trunk and keep pushing to climb it. At the top
@@ -368,6 +369,7 @@ src/
   audio.ts      notes and sound effects, made in code
   particles.ts  sparkles and puffs
   input.ts      keyboard and mouse
+  tilt.ts       the look-over key: how far the camera swings while `T` is held
   save.ts       saving to the browser
   levelcheck.ts the level checker: which places each set of forms can reach
                 (it knows the Winter Wolf, thin ice, hop-then-fly, the Ant and
@@ -527,7 +529,7 @@ Axolotl reaches the stone or the moat) and swum in
 `src/islands/holt.routes.test.ts`, where an Axolotl jumps from the moat onto
 the single stone and gets back out.
 
-The suite is 1230 tests in 84 files and runs in about 15 seconds on an 8-core
+The suite is 1233 tests in 85 files and runs in about 15 seconds on an 8-core
 laptop (the 1174 before Sunveld and Coilstone were filled took the same, the 1138 before any hub was filled about 14, the 977 tests before Cinderhold took about 12, the 872 before Galecrest
 about 11, the 777 before Hollowfen 8.5; with isolation those took 10 to 11). Test files run in forked workers without
 isolation (`pool: 'forks'`, `isolate: false` in `vite.config.ts`), so the
@@ -899,6 +901,12 @@ These were chosen to get a playable build. Change any of them freely.
   water, or the Axolotl slips past them and hides under the roof, where a
   Snapper gives up. The pickle stands in the far corner of its cell, because
   anywhere else the pool's rim hid it from the camera.
+- **A tilt key, because the view has no perspective.** The camera looks from
+  one fixed corner, so a high ledge far off can look like a low one close by,
+  and a walk that looked safe ends in the sky. Holding `T` swings the camera
+  about 20 degrees higher and 11 round, and things at different heights and
+  distances slide apart on the screen; letting go swings it back. The walking
+  keys keep their directions on the ground. The numbers are in `src/tilt.ts`.
 - **A new game at any time.** The title card offered it only when there was a
   save. The pause card has it now too. It asks once more, clears the save and
   loads the page again, which is the one sure way to put every bad guy, sheet,

@@ -28,6 +28,7 @@ import { Player } from './player';
 import { PuzzleUi } from './puzzleUi';
 import { clearSave, freshSave, loadSave, SaveData, writeSave } from './save';
 import { BreadPickup, Checkpoint, Puzzle, REACH, REACH_HEIGHT } from './things';
+import { stepTilt, TILT_KEY, tiltedDir } from './tilt';
 import { Arrival, World, WORLD_WIDTH } from './world';
 
 const VIEW_HEIGHT = 15; // world units visible top to bottom
@@ -106,6 +107,9 @@ export class Game {
   /** Set while the credits roll: seconds so far, where the camera began, and the zoom it ends on. */
   private credits: { t: number; from: THREE.Vector3; endZoom: number; chimes: CreditsChimes } | null = null;
   private zoom = 1;
+  /** The look-over tilt, 0 to 1 (see tilt.ts), and where the camera stands for it. */
+  private tilt = 0;
+  private camDir = CAMERA_DIR.clone();
   private viewHeight = VIEW_HEIGHT;
   private viewAspect = 1;
 
@@ -344,6 +348,7 @@ export class Game {
         <li><kbd>0</kbd>–<kbd>7</kbd> shape-shift: <kbd>1</kbd> Fairy, <kbd>2</kbd> Orangutan, <kbd>3</kbd> Bunny, <kbd>4</kbd> Winter Wolf, <kbd>5</kbd> Ant, <kbd>6</kbd> Mermaid, <kbd>7</kbd> Cheetah, <kbd>0</kbd> Human</li>
         <li><kbd>Q</kbd> fairy home, or the Mermaid's water shot (swimming)</li>
         <li><kbd>R</kbd> Mermaid's bubble column (swimming)</li>
+        <li><kbd>T</kbd> hold to tilt the view and see where a jump goes</li>
         <li><kbd>Esc</kbd> pause</li>
       </ul>`;
   }
@@ -904,8 +909,8 @@ export class Game {
     this.finderTimer -= dt;
     if (this.finderTimer <= 0) {
       this.finderTimer = 0.15;
-      const from = head.clone().addScaledVector(CAMERA_DIR, 60);
-      this.raycaster.set(from, CAMERA_DIR.clone().negate());
+      const from = head.clone().addScaledVector(this.camDir, 60);
+      this.raycaster.set(from, this.camDir.clone().negate());
       this.raycaster.far = 59.3;
       const hits = this.raycaster.intersectObjects([...this.world.solidMeshes, this.scenery], true);
       this.finder.visible = (hits.length > 0 || p.form.height < 0.5 || p.submerged) && !p.dead && this.playing;
@@ -931,7 +936,10 @@ export class Game {
       // Follow height gently so a jump doesn't bounce the whole view.
       this.camTarget.y += (Math.max(p.y, -4) - this.camTarget.y) * Math.min(1, dt * 2.5);
     }
-    this.camera.position.copy(this.camTarget).addScaledVector(CAMERA_DIR, 80);
+    this.tilt = dt > 0 ? stepTilt(this.tilt, this.input.held(TILT_KEY), dt) : 0;
+    const d = tiltedDir(CAMERA_DIR, this.tilt);
+    this.camDir.set(d.x, d.y, d.z);
+    this.camera.position.copy(this.camTarget).addScaledVector(this.camDir, 80);
     this.camera.lookAt(this.camTarget.x, this.camTarget.y + 0.8, this.camTarget.z);
     this.sun.position.set(this.camTarget.x - 10, this.camTarget.y + 30, this.camTarget.z + 6);
     this.sun.target.position.copy(this.camTarget);
